@@ -1,0 +1,83 @@
+---
+title: 精选 Mod
+description: 按分类挑选了值得先试的 Mod，并写明它们做什么、会触及什么。
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+这些 Mod 是在[目录](/zh-cn/mods/directory/)里综合实用性和访问范围挑选出来的。星标以撰写本页时的仓库为准。同一仓库里有多个 Mod 时，星标一并标注。
+
+<Aside type="caution">
+推荐不等于担保。安装前请先做[安全检查](/zh-cn/guide/safety-checklist/)，在公司仓库里尤其要小心访问级别 2 及以上的 Mod。
+</Aside>
+
+访问级别：**0** 仅绘制、记忆 · **1** 读取文件 · **2** 写入、执行 · **3** 网络
+
+## 用量与上下文
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | 在输入框上方用一行显示 5 小时、每周额度和重置时间 | 2 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | 显示套餐额度（5 小时、7 天窗口） | 0 |
+| [context-lens](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/context-lens) | 用固定的一行显示上下文窗口已占多少、每个回合增加多少 | 0 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | 绘制上下文预报和提示词缓存到期倒计时 | 2 |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | 在超出设定预算之前停止会话 | 2 |
+
+## 查看代理
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | 用树状结构显示子代理和队友的窗口 | 0 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | 在侧边窗口列出会话启动的子代理及各自在做的事 | 2 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | 像 btop 一样查看 Claude Code 内部状态的仪表盘 | 2 |
+| [ide-mod](/zh-cn/mods/ide-mod/) | 在一个窗口里放代理看板、文件浏览器和文档查看器 | 2 |
+
+## 安全
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | 拦下危险的 Bash 命令，并在执行前显示会改动什么 | 2 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | 在对话记录里遮住密钥、邮箱、IP | 0 |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | 当 Claude 要修改另一个窗口在 30 分钟内改过的文件时，先询问 | 2 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | 录屏前用 `/rec` 遮住密钥、个人信息和业务数据 | 2 |
+
+## 界面与阅读
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | 在对话旁边的窗口里查看未提交更改的内置 Mod | 2 |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) | 显示 Claude 正在哪个文件上工作的 IDE 式文件树 | 2 |
+| [replay-theater](https://github.com/hamzafer/claude-code-mods/tree/main/mods/replay-theater) | 把上一个回合的文件修改按 diff 逐个翻看 | 1 |
+| [mdview](https://github.com/xuanji86/claude-mdview) | 点击对话中的 `.md` 路径，就在旁边打开渲染后的 Markdown | 2 |
+| [prismantis](https://github.com/NahumLitvin/prismantis) | 用颜色和主题装饰回答中的表格、标题、代码、数字 | 2 |
+| [terminal-browser](https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin) | 在 Claude Code 里运行的浏览器 | 3 |
+
+## Git 与 CI
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) | 在输入框上方显示 GitHub PR 的合并状态、评审和必要检查 | 2 |
+| [gh-ci-status](https://github.com/diegorv/claude-functions-hook/tree/main/plugins/gh-ci-status) | 固定显示当前仓库的 GitHub Actions 运行情况 | 2 |
+
+## 记忆与备忘
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [pinboard](https://github.com/sirkitree/pinboard) | 把会话中未解决的问题、待办、生成的链接钉在侧边窗口里 | 2 |
+| [aside](https://github.com/JayDoubleu/aside) | 在对话旁边打开只读的旁支聊天，用来询问关于会话的问题 | 2 |
+
+## 趣味
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [intermission](https://github.com/jarrodwatts/intermission) | Claude 工作时玩 Doom 死亡竞赛，结束后回到原处 | 2 |
+| [session-wrapped](https://github.com/OneWave-AI/claude-code-mods/tree/main/session-wrapped) | 像 Spotify Wrapped 一样展示会话统计，并保存为 PNG 卡片 | 2 |
+
+## 面向韩语用户
+
+| Mod | 作用 | 级别 |
+|---|---|---|
+| [ko-ui](https://github.com/moduvoice/claude-code-ko-ui) | 用韩语显示斜杠命令说明和部分 `/config` 项目 | 1 |
+| [ide-mod](/zh-cn/mods/ide-mod/) | 能按页面原样查看 HWP·HWPX 的查看器，以及韩语文风关卡 | 2 |

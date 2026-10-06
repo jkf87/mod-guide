@@ -1,0 +1,51 @@
+---
+title: Claude Code Mod 指南
+description: 关于 Mod 的一切，让 Claude Code 更合你的心意。涵盖概念、安全安装、亲手制作，以及收录 1,400 多个 Mod 的目录。
+template: splash
+hero:
+  tagline: 在终端里的 Claude Code 中弹出窗口、守住工具调用、重绘界面的函数钩子插件。它是什么、怎样安全地使用、怎样制作，这里一站讲清楚。
+  actions:
+    - text: 开始阅读指南
+      link: /zh-cn/guide/what-are-mods/
+      icon: right-arrow
+    - text: Mod 目录
+      link: /zh-cn/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  通过验证的 Mod <strong>{stats.total.toLocaleString()}</strong> 个 · 仓库 <strong>{stats.repos.toLocaleString()}</strong> 个 · 基于 Claude Code {stats.claudeVersion}（{stats.generated.slice(0, 10)} 扫描）
+</div>
+
+## Mod 能做什么
+
+<CardGrid>
+  <Card title="绘制窗口和横条" icon="laptop">
+    在对话旁边弹出窗口（pane），在输入框上方显示横条（band），还能放进按钮和输入框。
+  </Card>
+  <Card title="守住工具调用" icon="warning">
+    拦下 `rm -rf` 这类危险命令，询问或直接阻止；密钥在模型看到之前就被遮住。
+  </Card>
+  <Card title="展示用量" icon="information">
+    上下文、Token、费用、5 小时和每周额度，常驻显示在状态栏或窗口里。
+  </Card>
+  <Card title="添加命令" icon="puzzle">
+    制作无需经过 Claude 回合、立即执行的 `/命令`。Claude 工作期间也能运行。
+  </Card>
+</CardGrid>
+
+## 从哪里开始看
+
+<CardGrid>
+  <LinkCard title="什么是 Mod" description="它和设置钩子、技能、MCP 有何不同，在哪里运行" href="/zh-cn/guide/what-are-mods/" />
+  <LinkCard title="安装前的安全检查" description="Mod 以你的权限运行。安装前要看什么，以及如何关闭" href="/zh-cn/guide/safety-checklist/" />
+  <LinkCard title="制作第一个 Mod" description="从对 Claude 说一句话开始，到验证、测试、发布" href="/zh-cn/guide/build-your-first-mod/" />
+  <LinkCard title="精选 Mod" description="按类别整理的值得先试的 Mod" href="/zh-cn/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

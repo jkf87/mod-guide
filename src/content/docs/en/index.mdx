@@ -1,0 +1,51 @@
+---
+title: Claude Code Mods Guide
+description: Everything about mods, which reshape Claude Code to fit you. Concepts, safe installation, building your own, and a directory of more than 1,400 mods.
+template: splash
+hero:
+  tagline: Function-hook plugins that open panes in the terminal Claude Code, guard tool calls, and redraw the screen. Learn what they are, how to use them safely, and how to build one, all in one place.
+  actions:
+    - text: Get started
+      link: /en/guide/what-are-mods/
+      icon: right-arrow
+    - text: Mod directory
+      link: /en/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  <strong>{stats.total.toLocaleString()}</strong> verified mods · <strong>{stats.repos.toLocaleString()}</strong> repositories · based on Claude Code {stats.claudeVersion} (scanned {stats.generated.slice(0, 10)})
+</div>
+
+## What mods can do
+
+<CardGrid>
+  <Card title="Draw panes and bands" icon="laptop">
+    Open a pane next to the conversation or a band above the prompt. You can even add buttons and input fields.
+  </Card>
+  <Card title="Guard tool calls" icon="warning">
+    Catch dangerous commands like `rm -rf` to ask or block them, and mask secrets before the model sees them.
+  </Card>
+  <Card title="Show usage" icon="information">
+    Keep context, tokens, cost, and 5-hour and weekly limits visible in the status line or a pane.
+  </Card>
+  <Card title="Add commands" icon="puzzle">
+    Build `/commands` that run right away, without a Claude turn. They work even while Claude is busy.
+  </Card>
+</CardGrid>
+
+## Where to start
+
+<CardGrid>
+  <LinkCard title="What is a mod" description="How mods differ from settings hooks, skills, and MCP, and where they run" href="/en/guide/what-are-mods/" />
+  <LinkCard title="Pre-install safety check" description="Mods run with your permissions. What to review before installing, and how to turn them off" href="/en/guide/safety-checklist/" />
+  <LinkCard title="Build your first mod" description="From asking Claude in plain language to validation, testing, and publishing" href="/en/guide/build-your-first-mod/" />
+  <LinkCard title="Picked mods" description="Mods worth trying first, grouped by category" href="/en/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

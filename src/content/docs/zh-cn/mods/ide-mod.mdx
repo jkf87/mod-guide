@@ -1,0 +1,61 @@
+---
+title: ide-mod
+description: 在 Claude Code 里用一个窗口展示代理看板、文件浏览器、HWP·HWPX·PDF 查看器的 Mod。
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod) 是本指南的作者公开的 Mod。窗口上方是**代理看板**，下方是**文件树和标签页编辑器**。
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+上面是 ide-mod 的真实界面，界面文字为韩语。
+
+## 安装
+
+<Steps>
+
+1. 在 Claude Code 会话中输入。
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. 被问到是否添加插件市场时选 `y`，范围选 user。
+
+3. 用 `/ide` 打开窗口。看不到的话，运行 `/reload-plugins`。
+
+</Steps>
+
+## 它能做什么
+
+- **代理看板**：用树状结构显示主代理和子代理，以及谁启动了谁。会显示模型、effort、负责的任务、正在做的事和已用时间，其中便于人阅读的任务说明用绿色，正在做的事用黄色。
+- **浏览器**：文件夹树和最多 8 个标签页。语法高亮、Markdown 渲染，被 Claude 修改过的文件会带 `●` 标记。
+- **HWP·HWPX·PDF 查看器**：用 [rhwp](https://github.com/edwardkim/rhwp) 和 [pdf.js](https://github.com/mozilla/pdf.js) 绘制页面。在没有图形能力的终端里，也会用保留表格边框和对齐的字符网格来显示，在 kitty、Ghostty 系列终端里则会显示真实的页面图片。
+- **请求记录**（`q`）：连同状态一起记下本次会话中发送过的请求。重新打开会话后仍会保留。
+- **讲课字幕**（`/lecture`）：用简单的句子在输入框上方显示 Claude 正在做的事。
+- **文风关卡**（`/style-gate`）：统计韩语稿件中的 AI 痕迹模式，判定通过、警告或中止。
+
+## 访问范围
+
+这个 Mod 会读取文件（浏览器、查看器），并为了绘制文档而运行 Node.js 和图像转换程序。看板的一行摘要会简短调用 haiku，可以用 `s` 关掉。它不会通过网络发送数据。源码只有 `hooks/register.tsx` 一个文件，安装前可以全部读完。
+
+<Aside>
+函数钩子 (function hooks) 是 early access API。本 Mod 是在 2.1.290 上制作和测试的。界面文字为韩语。
+</Aside>
+
+- 仓库与发布：[github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- 许可证：MIT（包含 rhwp MIT、pdf.js Apache-2.0）

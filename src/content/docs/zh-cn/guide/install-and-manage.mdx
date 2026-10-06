@@ -1,0 +1,74 @@
+---
+title: 安装与管理
+description: 从插件市场安装、更新 Mod，查看已加载的 Mod，以及出问题时如何关闭。
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Mod 是插件，通过插件市场（marketplace）安装。
+
+## 安装
+
+<Steps>
+
+1. 安装之前，先按[安全检查](/zh-cn/guide/safety-checklist/)阅读源码并运行 `claude plugin validate`。
+
+2. 在 Claude Code 会话中安装。在插件名后面加上 `@` 和插件市场名称。
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   在 shell 中这样做。
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   如果 GitHub 仓库本身就是插件市场，一行命令就能同时添加市场并安装。
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. 如果是在 shell 中安装的，请在已打开的会话里运行 `/reload-plugins`。否则下次启动时会加载。
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills` 只会重新读取技能。修改了 Mod 或新装了 Mod 时，请用 `/reload-plugins`。
+</Aside>
+
+## 查看已加载的 Mod
+
+打开 `/plugin`，标签页下方的灰色一行会显示数量和名称，例如 `1 mod active · first-mod`。内置 Mod 不计入这一行。
+
+## 更新
+
+```bash
+claude plugin marketplace update <插件市场>
+claude plugin update <插件>@<插件市场>
+```
+
+更新在重新启动后生效。如果插件市场是本地文件夹，且条目路径是相对路径，插件会直接读取那个文件夹。这时只要修改文件夹，再运行 `/reload-plugins` 即可。
+
+## 只临时加载一次
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+只在那个会话中加载。无需安装就能试用，也适合测试自己制作的 Mod。
+
+## 关闭
+
+| 范围 | 方法 |
+| --- | --- |
+| 单个 Mod | 在 `/plugin` 的 Installed 标签页中关闭或移除 |
+| 所有已安装的 Mod，仅本次会话 | `claude --safe-mode`（其他用户设置也会关闭） |
+| 所有已安装的 Mod，所有会话 | 在 `~/.claude/settings.json` 中加入 `"disableAllHooks": true`（设置钩子和用户状态栏也会停止） |
+| 组织层面 | 管理设置 `allowManagedModsOnly` |
+
+内置 Mod 不会因这些设置而停止。早期 early access 阶段使用的 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` 从 2.1.287 起会被忽略，请删掉它。

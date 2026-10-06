@@ -1,0 +1,74 @@
+---
+title: 설치하고 관리하기
+description: 마켓플레이스에서 mod를 설치·업데이트하고, 로드된 mod를 확인하고, 문제가 있을 때 끄는 방법.
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+mod는 플러그인으로, 마켓플레이스를 통해 설치해요.
+
+## 설치
+
+<Steps>
+
+1. 설치하기 전에 [안전 점검](/ko/guide/safety-checklist/)으로 소스를 읽고 `claude plugin validate`를 돌려요.
+
+2. Claude Code 세션에서 설치해요. 플러그인 이름 뒤에 `@`와 마켓플레이스 이름을 붙여요.
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   셸에서는 이렇게 해요.
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   GitHub 저장소가 곧 마켓플레이스인 mod는 한 줄로 마켓플레이스 추가와 설치를 함께 해요.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. 셸에서 설치했다면, 열려 있는 세션에서 `/reload-plugins`를 실행해요. 아니면 다음 실행 때 로드돼요.
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills`는 스킬만 다시 읽어요. mod를 고치거나 새로 설치했다면 `/reload-plugins`를 쓰세요.
+</Aside>
+
+## 로드된 mod 확인
+
+`/plugin`을 열면 탭 아래 흐린 줄에 `1 mod active · first-mod`처럼 개수와 이름이 보여요. 내장 mod는 이 줄에 들어가지 않아요.
+
+## 업데이트
+
+```bash
+claude plugin marketplace update <마켓플레이스>
+claude plugin update <플러그인>@<마켓플레이스>
+```
+
+업데이트는 다시 시작하면 적용돼요. 마켓플레이스가 로컬 폴더이고 항목의 경로가 상대 경로라면, 플러그인은 그 폴더를 직접 읽어요. 그때는 폴더를 고치고 `/reload-plugins`만 하면 돼요.
+
+## 시험 삼아 한 번만 불러오기
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+그 세션에만 로드돼요. 설치 없이 써 볼 때나 직접 만든 mod를 시험할 때 좋아요.
+
+## 끄기
+
+| 범위 | 방법 |
+| --- | --- |
+| mod 하나 | `/plugin`의 Installed 탭에서 끄거나 제거 |
+| 설치한 mod 전부, 이번 세션만 | `claude --safe-mode` (다른 사용자 설정도 꺼짐) |
+| 설치한 mod 전부, 모든 세션 | `~/.claude/settings.json`에 `"disableAllHooks": true` (설정 훅·사용자 상태줄도 멈춤) |
+| 조직 단위 | 관리 설정 `allowManagedModsOnly` |
+
+내장 mod는 이 설정들로 멈추지 않아요. 예전 얼리 액세스 때 쓰던 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`는 2.1.287부터 무시되니 지워 두세요.

@@ -1,0 +1,77 @@
+---
+title: Sicherheitscheck vor der Installation
+description: Mods laufen mit den Rechten deines Kontos. Was du vor der Installation fragst, welche Aufrufe du im Quellcode suchst und welche Entscheidungsregeln gelten.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Eine Mod ist ein Produktivitätsgewinn und zugleich eine neue Angriffsfläche. **Erst lesen, dann installieren.**
+
+## Worauf eine Mod zugreifen kann
+
+Eine geladene Mod kann Folgendes:
+
+- Mit deinem Konto Dateien lesen und schreiben, Programme ausführen und Netzwerkanfragen senden.
+- Umgebungsvariablen und Konfigurationsdateien lesen, einschließlich dort abgelegter API-Schlüssel.
+- Jeden Prompt und jeden Tool-Aufruf sehen und verändern und Prompts senden, als hättest du sie getippt.
+- Tool-Aufrufe genehmigen, bevor nachgefragt wird. Auch Aufrufe, die eine `ask`-Regel oder dein `PreToolUse`-Hook blockiert hätte, kann sie genehmigen.
+- Mit deinem Tarif oder API-Schlüssel das Modell aufrufen.
+
+Die Anzeige des Berechtigungsdialogs kann eine Mod nicht verändern. Auch mit aktivierter Sandbox wird nur das von Claude ausgeführte Bash isoliert, von der Mod gestartete Prozesse laufen außerhalb.
+
+## Vor der Installation fragen
+
+- [ ] Löst die Mod ein Problem, das du wirklich hast?
+- [ ] Reichen Settings-Hooks oder ein Skill nicht aus?
+- [ ] Ist der Quellcode öffentlich und wird er gepflegt?
+- [ ] Ist der Marketplace vertrauenswürdig?
+- [ ] Braucht sie wirklich Netzwerk, Prozessstart, Dateischreiben oder das Lesen von Umgebungsvariablen?
+- [ ] Ändert oder genehmigt sie Prompts oder Tool-Aufrufe?
+- [ ] Darf sie in Sessions mit Firmencode und Geheimnissen laufen?
+
+## Aufrufe, die du im Quellcode suchst
+
+Verlass dich nicht auf die README. Öffne `.claude-plugin/marketplace.json`, `plugin.json`, `hooks/hooks.json` und das Hook-Modul. Führe dann die Validierung aus.
+
+```bash
+claude plugin validate ./some-mod
+```
+
+In der Ausgabe nennt die Zeile `hooks:` die empfangenen Ereignisse und die Zeile `calls:` die aufgerufenen APIs. Eine `gating hook`-Zeile weist auf einen Hook hin, der etwas ablehnen kann.
+
+| Aufruf | Was er tut | Risiko |
+| --- | --- | --- |
+| `$.http.fetch` | Netzwerkanfrage | Abfluss von Code und Prompts |
+| `$.process.run`, `$.process.spawn` | Programm ausführen | Beliebige Ausführung außerhalb der Sandbox |
+| `$.fs.write` | Datei schreiben | Manipulation von Dateien |
+| `$.env.get`, `$.settings.read` | Umgebungsvariablen und Einstellungen lesen | Offenlegung von API-Schlüsseln |
+| `$.prompt.submit`, `$.prompt.fill` | Prompt senden oder ausfüllen | Aufträge ohne Wissen des Nutzers |
+| `$.model.complete`, `$.model.fork` | Modell aufrufen | Verbrauch von Kontingent |
+| `$.tool.register` | Vom Modell aufrufbares Tool hinzufügen | Verschleierung des Tool-Verhaltens |
+
+<Aside type="caution">
+  Eine bestandene Validierung ist keine Sicherheitsgarantie. Sie prüft nur den Quellcode und beweist nicht das gesamte tatsächliche Laufzeitverhalten.
+</Aside>
+
+## Anzeige des Zugriffsumfangs im Community-Katalog
+
+Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite zeigt den Zugriffsumfang, den der Community-Katalog per Validator ermittelt hat, in vier Stufen.
+
+| Stufe | Bedeutung |
+| --- | --- |
+| Nur Anzeige und Speicher | Zeichnet und merkt sich nur den eigenen Zustand |
+| Lesen | Liest Dateien, Umgebungsvariablen, Gesprächsverlauf usw. |
+| Schreiben und Ausführen | Schreibt Dateien oder startet Prozesse |
+| Netzwerk | Sendet Anfragen nach außen |
+
+## Entscheidungsregeln
+
+- Teste Mods mit geringem Risiko in einem privaten Experimentier-Repository.
+- Lass Mods in Firmen-Repositories erst nach einer Sicherheitsprüfung zu.
+- Meide Netzwerk-Mods in Repositories mit Geheimnissen.
+- Bei Mods, die Anfragen an andere Anbieter schicken, prüfe Nutzungsbedingungen und Datenfluss.
+- Meide unbekannte Marketplaces.
+
+Gibt es ein Problem, nutze die [Anleitung zum Ausschalten](/de/guide/install-and-manage/#ausschalten).

@@ -1,0 +1,61 @@
+---
+title: ide-mod
+description: A mod that opens an agent board, file explorer, and HWP, HWPX, and PDF viewers in one pane inside Claude Code.
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod) is a mod published by the author of this guide. The **agent board** sits at the top of the pane, and a **file tree with tabbed editor** sits below it.
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+The UI text in this mockup is Korean, as it appears in the real mod. Roughly: "Agents" (header), "Main" (the main agent), "Summary" (a one-line summary), "working" and "done", "tools 14" (14 tool calls), "Fix the login bug" (the main task), "Investigating the auth flow by splitting it across subagents" (the summary), "Find auth code", and "Write tests".
+
+## Install
+
+<Steps>
+
+1. In a Claude Code session, enter:
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. When asked whether to add the marketplace, answer `y` and choose user as the scope.
+
+3. Open the pane with `/ide`. If you don't see it, run `/reload-plugins`.
+
+</Steps>
+
+## What it does
+
+- **Agent board**: Shows the main agent and subagents as a tree of who launched whom. It displays the model, effort, assigned task, current activity, and elapsed time. Human-readable task descriptions are green, and current activity is yellow.
+- **Explorer**: A folder tree and up to 8 tabs. It has syntax highlighting, Markdown rendering, and a `●` mark on files Claude edited.
+- **HWP, HWPX, and PDF viewer**: Draws pages with [rhwp](https://github.com/edwardkim/rhwp) and [pdf.js](https://github.com/mozilla/pdf.js). In terminals without graphics, it shows a text grid that keeps table borders and alignment. In kitty and Ghostty-family terminals, it shows actual page images.
+- **Request history** (`q`): Keeps the requests you sent this session, along with their status. It stays even after you reopen the session.
+- **Lecture captions** (`/lecture`): Shows what Claude is doing above the prompt in plain sentences.
+- **Style gate** (`/style-gate`): Counts AI-sounding patterns in a Korean manuscript and rules pass, warn, or stop.
+
+## Access scope
+
+This mod reads files (explorer and viewers), and it runs Node.js and an image conversion program to draw documents. The board's one-line summary makes a short haiku call, and you can turn it off with `s`. It sends no data over the network. The source is a single file, `hooks/register.tsx`, so you can read all of it before installing.
+
+<Aside>
+Function hooks are an early access API. This mod was built and tested on 2.1.290. Its UI text is in Korean.
+</Aside>
+
+- Repository and releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- License: MIT (includes rhwp under MIT and pdf.js under Apache-2.0)

@@ -1,0 +1,67 @@
+---
+title: API-Spickzettel
+description: Auf einen Blick, welche Ereignisse eine Mod empfangen und was sie über `$` aufrufen kann. Stand der Typdeklarationen von Claude Code 2.1.290.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Ein Hook hat immer dieselbe Form: `($, e, next)`. `$` ist die Engine-Schnittstelle, `e` die Ereigniseingabe (ein eingefrorener Wert), und `next(e)` führt die darunterliegenden Plugins und das ursprüngliche Verhalten der Engine aus und liefert das Ergebnis. Gibst du etwas ohne `next` zurück, hast du selbst geantwortet. `next({ ...e, x })` ändert den Wert, den die nachfolgenden Stellen sehen.
+
+<Aside>
+  Verbindlich sind die Typdeklarationen, die die Engine im Mod-Ordner installiert (`.claude-plugin/types/claude-code/index.d.ts`). Die folgenden Listen entsprechen dem Stand 2.1.290. Es ist eine Early-Access-API und kann sich von Version zu Version ändern.
+</Aside>
+
+## Häufig genutzte Ereignisse
+
+| Ereignis | Wann | Typischer Einsatz |
+| --- | --- | --- |
+| `session.start` / `session.end` | Beginn und Ende der Session (auch bei `/clear`) | Befehle registrieren, Timer starten, aufräumen |
+| `prompt.submit` | Der Mensch sendet einen Prompt | Protokollieren, umschreiben, blockieren |
+| `prompt.compose` | Der System-Prompt wird zusammengesetzt | Abschnitte hinzufügen oder ersetzen |
+| `turn.start` / `turn.step` / `turn.complete` | Turn-Beginn, jede Modellanfrage (Stream), Turn-Ende | Modell und effort beobachten, Fortschritt anzeigen, Antwort zusammenfassen |
+| `tool.call` | Kurz vor der Nutzung eines Tools | Blockieren (`{ deny }`), Argumente ändern, Ergebnis beobachten |
+| `agent.spawn` | Ein Subagent wird gestartet | Rolle und Modell protokollieren, Modell ändern |
+| `command.run` | Ein registrierter `/befehl` läuft | Fenster öffnen, per Text antworten |
+| `ui.render` | Ein Anzeigeelement wird gezeichnet | `Pane` und `AbovePrompt` zeichnen, Standardanzeigen wie `Spinner` ändern |
+| `ui.scroll` | Fenster oder Band wird gescrollt | Das eigene Fenster selbst scrollen |
+| `ui.press` / `ui.input` / `ui.select` | Button, Eingabefeld, Auswahl | Interaktionen verarbeiten |
+
+## Was du über `$` aufrufen kannst
+
+| Name | Beispiele | Was es tut |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | Fenster öffnen, Statuszeile und Toasts, Zwischenablage, Tabelle der Anzeigeelemente |
+| `$.state` / `$.store` | `get`, `set`, `keys` | Session-Zustand (das Zeichnen abonniert ihn), sessionübergreifender Speicher |
+| `$.command` | `register`, `run`, `list` | `/befehle` anlegen |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | Vom Modell aufrufbare Tools, Agent-Typen |
+| `$.model` | `complete`, `fork` | Ein einzelner Modellaufruf, eine Frage mit übernommenem Session-Kontext |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | Session-Informationen |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | Dateien |
+| `$.process` | `run`, `spawn` | Programme ausführen (auch kompilierter Code wie WASM läuft hierüber) |
+| `$.http` | `fetch` | Netzwerk |
+| `$.clock` | `after`, `every`, `sleep`, `now` | Timer (in Mods gibt es kein `setTimeout`) |
+| `$.prompt` | `submit`, `fill`, `read` | Eingabefeld füllen, Prompt senden |
+| `$.env` / `$.settings` | `get`, `read` | Umgebungsvariablen, Einstellungen |
+
+## Zeichenelemente
+
+Mit `const { Box, Text, Button } = $.ui.resolve(e)` holst du die Elemente der jeweiligen Oberfläche und zeichnest sie per JSX.
+
+| Element | Verwendung | Oberfläche |
+| --- | --- | --- |
+| `Box`, `Text` | Layout und Text (Farben über Theme-Schlüssel wie `success`, `warning`, `error`) | Alle |
+| `Button`, `Input`, `Select` | Interaktion (Tastenkürzel `hotkey`) | Mobil ohne `Input` und `Select` |
+| `Code`, `Markdown` | Hervorgehobener Code, Markdown | Alle |
+| `Image`, `Raster` | Bild (kitty- und Ghostty-Grafik), Raster aus gefärbten Zellen | Nur Terminal |
+| `Svg` | Vektorgrafik (maximal 131.072 Zeichen) | Desktop, VS Code, Mobil |
+| `Client` | Bereich, den ein eigenes Modul des Plugins zeichnet | Terminal, Desktop |
+
+## Regeln, die du kennen musst
+
+- In der Mod-Umgebung gibt es kein DOM, kein Node und kein `WebAssembly`. Alles nach außen läuft über `$`.
+- `$` darf **nur an Funktionen in derselben Datei** weitergegeben werden. Gibst du es an eine aus einer anderen Datei importierte Funktion weiter, schlägt die Validierung fehl.
+- Während des Zeichnens darfst du keinen Zustand schreiben. Schreibe ihn mit `update()` in einem Button-Handler oder einem anderen Ereignis.
+- Dasselbe Ereignis ohne Matcher zweimal zu registrieren, wird abgelehnt.
+- Hängst du an einen reinen Beobachter-Hook `.catch(($, e, next) => next(e))`, läuft ein bereits aufgerufenes `next` bei einem Fehler nicht noch einmal.

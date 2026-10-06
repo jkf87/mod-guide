@@ -1,0 +1,16 @@
+{
+  "generated": "2026-10-04T08:26:12.224Z",
+  "claudeVersion": "2.1.289",
+  "total": 1488,
+  "repos": 777,
+  "byCategory": {
+    "agents": 83,
+    "interface": 288,
+    "safety": 147,
+    "memory": 136,
+    "git": 130,
+    "other": 336,
+    "usage": 302,
+    "fun": 66
+  }
+}

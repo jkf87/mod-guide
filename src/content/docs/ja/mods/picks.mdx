@@ -1,0 +1,83 @@
+---
+title: おすすめ Mod
+description: 分類ごとに、まず試してみたい Mod を選びました。何をするのか、何に触れるのかも併記しています。
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+[ディレクトリ](/ja/mods/directory/)で有用性とアクセス範囲を確認して選びました。スター数は、このページを書いた時点のリポジトリの値です。同じリポジトリに複数の Mod がある場合は、スター数を併記しています。
+
+<Aside type="caution">
+おすすめは保証ではありません。インストール前に[安全チェック](/ja/guide/safety-checklist/)を行い、会社のリポジトリではアクセスレベル 2 以上にとくに注意してください。
+</Aside>
+
+アクセスレベル: **0** 描画・記憶のみ · **1** ファイル読み取り · **2** 書き込み・実行 · **3** ネットワーク
+
+## 使用量とコンテキスト
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | 5 時間・週間の上限とリセット時刻を、入力欄の上の 1 行に表示します | 2 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | 料金プランの上限（5 時間・7 日ウィンドウ）を表示します | 0 |
+| [context-lens](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/context-lens) | コンテキストウィンドウの使用量と、ターンごとの増加量を固定行で表示します | 0 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | コンテキストの予報と、プロンプトキャッシュの期限切れカウントダウンを描画します | 2 |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | 設定した予算を超える前にセッションを止めます | 2 |
+
+## エージェントの可視化
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | サブエージェントとチームメンバーをツリーで表示するペイン | 0 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | セッションが起動したサブエージェントと、それぞれの作業を横のペインに一覧表示します | 2 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | btop のように Claude Code の内部状態を見るダッシュボード | 2 |
+| [ide-mod](/ja/mods/ide-mod/) | エージェントボードとファイルエクスプローラー・ドキュメントビューアーを 1 つのペインに | 2 |
+
+## 安全
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | 危険な Bash コマンドを止め、実行前に何が変わるかを表示します | 2 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | シークレット・メールアドレス・IP を会話履歴から隠します | 0 |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | 別のウィンドウで 30 分以内に編集されたファイルを Claude が編集しようとすると、先に確認します | 2 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | 画面収録の前に `/rec` で、キー・個人情報・事業の数値を隠します | 2 |
+
+## 画面と閲覧
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | コミットされていない変更を会話の横のペインで見る、標準の Mod | 2 |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) | Claude がどのファイルで作業しているかを示す、IDE 風のファイルツリー | 2 |
+| [replay-theater](https://github.com/hamzafer/claude-code-mods/tree/main/mods/replay-theater) | 過去のターンのファイル編集を、diff 1 つずつめくって見られます | 1 |
+| [mdview](https://github.com/xuanji86/claude-mdview) | 会話内の `.md` パスをクリックすると、レンダリングされた Markdown を横に開きます | 2 |
+| [prismantis](https://github.com/NahumLitvin/prismantis) | 回答の表・見出し・コード・数字を、色とテーマで装飾します | 2 |
+| [terminal-browser](https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin) | Claude Code の中で動くブラウザ | 3 |
+
+## Git と CI
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) | GitHub PR のマージ状態・レビュー・必須チェックを入力欄の上に表示します | 2 |
+| [gh-ci-status](https://github.com/diegorv/claude-functions-hook/tree/main/plugins/gh-ci-status) | 現在のリポジトリの GitHub Actions の実行状況を固定表示します | 2 |
+
+## 記憶とメモ
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [pinboard](https://github.com/sirkitree/pinboard) | セッションの未解決の質問・TODO・作成したリンクを、横のペインにピンとして留めておきます | 2 |
+| [aside](https://github.com/JayDoubleu/aside) | 会話の横に読み取り専用のサイドチャットを開き、セッションについて質問できます | 2 |
+
+## お楽しみ
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [intermission](https://github.com/jarrodwatts/intermission) | Claude が作業している間に Doom のデスマッチで遊び、終わったら戻ってきます | 2 |
+| [session-wrapped](https://github.com/OneWave-AI/claude-code-mods/tree/main/session-wrapped) | セッションの統計を Spotify Wrapped のように表示し、PNG カードとして保存します | 2 |
+
+## 韓国語ユーザー向け
+
+| Mod | 内容 | レベル |
+|---|---|---|
+| [ko-ui](https://github.com/moduvoice/claude-code-ko-ui) | スラッシュコマンドの説明と `/config` の一部の項目を韓国語で表示します | 1 |
+| [ide-mod](/ja/mods/ide-mod/) | HWP・HWPX をページの見た目のまま表示するビューアーと、韓国語の文体ゲート | 2 |

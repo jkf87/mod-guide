@@ -1,0 +1,36 @@
+---
+title: 常见问题
+description: Mod 与插件的区别、版本要求、安全，以及关于本站的问题。
+---
+
+## Mod 和插件有什么不同？
+
+Mod 是插件的一种。插件是把技能、命令、代理、设置钩子、MCP 服务器打包分发的单位，如果在其中通过 `hooks/hooks.json` 放入 **函数钩子 (function hooks) 模块**，就称为 Mod。设置钩子是用 shell 命令响应事件，而 Mod 是在引擎内部拦截事件并绘制界面。
+
+## 从哪个版本开始可用？
+
+函数钩子从 2.1.287 起默认开启。用 `claude --version` 确认，版本过旧就运行 `claude update`。它仍是 early access API，可能随版本变化。
+
+## 装好了却看不到。
+
+运行 `/reload-plugins`。`/reload-skills` 只会重新读取技能。还是不行的话，请看[问题排查](/zh-cn/guide/troubleshooting/)。
+
+## Mod 安全吗？
+
+Mod 能以你的账号权限读写文件、运行程序、访问网络。安装前请先阅读源码并运行 `claude plugin validate`。详细标准见[安全检查](/zh-cn/guide/safety-checklist/)。
+
+## 桌面应用或 VS Code 里也能用吗？
+
+钩子在哪里都会运行。界面会根据 `e.surface`（`terminal`、`desktop`、`vscode`、`mobile`）来绘制，图片这类部分元素在不同界面下显示不同。想在终端里看图片，需要支持 kitty 图形协议的终端（Ghostty、kitty 等）。
+
+## 这个网站是官方的吗？
+
+不是。这是与 Anthropic 无关的**非官方社区指南**。官方信息请以 Claude Code 文档和引擎安装的类型定义（`claude-code.d.ts`）为准。
+
+## 我想把自己的 Mod 放进目录。
+
+目录取自公开的社区列表 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods)。把仓库设为公开并加上 GitHub topic `claude-code-mod`，该列表就会收录。本站会定期重新获取数据。
+
+## 内容有误。
+
+请在 [GitHub 仓库](https://github.com/jkf87/mod-guide)提交 issue，或把修改内容以 PR 的形式发来。

@@ -1,0 +1,261 @@
+---
+// 커뮤니티 카탈로그(CC0)에서 만든 mod 디렉터리. 데이터는 /data/mods.json을 브라우저가 받아 그린다.
+import stats from '../data/stats.json'
+
+interface Props {
+  lang: string
+}
+const { lang } = Astro.props
+
+const UI = {
+  en: { search: 'Search mods by name, author or description', all: 'All', sortStars: 'Most stars', sortRecent: 'Recently updated', sortName: 'Name', access: 'Access', anyAccess: 'Any access', more: 'Show more', count: '{n} mods', none: 'No mods match.', builtin: 'built-in', source: 'Data: community catalogue awesome-claude-code-mods (CC0), scanned {date} against Claude Code {v}. Validation checks source only and is not a safety guarantee — read the code before installing.' },
+  ko: { search: '이름·작성자·설명으로 mod 찾기', all: '전체', sortStars: '별 많은 순', sortRecent: '최근 업데이트 순', sortName: '이름 순', access: '접근 범위', anyAccess: '모든 접근 범위', more: '더 보기', count: 'mod {n}개', none: '맞는 mod가 없어요.', builtin: '내장', source: '데이터: 커뮤니티 카탈로그 awesome-claude-code-mods(CC0), {date} 스캔, Claude Code {v} 기준. 검증은 소스만 확인하며 안전을 보장하지 않아요. 설치 전에 코드를 읽어 보세요.' },
+  ja: { search: '名前・作者・説明で Mod を検索', all: 'すべて', sortStars: 'スターが多い順', sortRecent: '最近更新された順', sortName: '名前順', access: 'アクセス範囲', anyAccess: 'すべてのアクセス範囲', more: 'もっと見る', count: '{n} 件の Mod', none: '該当する Mod はありません。', builtin: '組み込み', source: 'データ: コミュニティカタログ awesome-claude-code-mods(CC0)、{date} スキャン、Claude Code {v} 基準。検証はソースのみを確認するもので安全を保証しません。インストール前にコードを読んでください。' },
+  'zh-CN': { search: '按名称、作者或描述搜索 Mod', all: '全部', sortStars: '星标最多', sortRecent: '最近更新', sortName: '名称', access: '访问范围', anyAccess: '任意访问范围', more: '显示更多', count: '{n} 个 Mod', none: '没有匹配的 Mod。', builtin: '内置', source: '数据：社区目录 awesome-claude-code-mods（CC0），{date} 扫描，基于 Claude Code {v}。验证只检查源代码，并不保证安全——安装前请阅读代码。' },
+  fr: { search: 'Rechercher un mod par nom, auteur ou description', all: 'Tous', sortStars: 'Plus d’étoiles', sortRecent: 'Mis à jour récemment', sortName: 'Nom', access: 'Accès', anyAccess: 'Tout accès', more: 'Afficher plus', count: '{n} mods', none: 'Aucun mod ne correspond.', builtin: 'intégré', source: 'Données : catalogue communautaire awesome-claude-code-mods (CC0), analysé le {date} avec Claude Code {v}. La validation ne vérifie que le code source et ne garantit pas la sécurité — lisez le code avant d’installer.' },
+  de: { search: 'Mods nach Name, Autor oder Beschreibung suchen', all: 'Alle', sortStars: 'Meiste Sterne', sortRecent: 'Zuletzt aktualisiert', sortName: 'Name', access: 'Zugriff', anyAccess: 'Jeder Zugriff', more: 'Mehr anzeigen', count: '{n} Mods', none: 'Keine passenden Mods.', builtin: 'integriert', source: 'Daten: Community-Katalog awesome-claude-code-mods (CC0), gescannt am {date} mit Claude Code {v}. Die Validierung prüft nur den Quellcode und garantiert keine Sicherheit – lies den Code vor der Installation.' },
+} as const
+const CATEGORIES = {
+  usage: { en: 'Usage & dashboards', ko: '사용량·대시보드', ja: '使用量・ダッシュボード', 'zh-CN': '用量与仪表板', fr: 'Usage et tableaux de bord', de: 'Nutzung & Dashboards' },
+  safety: { en: 'Safety & privacy', ko: '안전·프라이버시', ja: '安全・プライバシー', 'zh-CN': '安全与隐私', fr: 'Sécurité et confidentialité', de: 'Sicherheit & Datenschutz' },
+  agents: { en: 'Agents & workflows', ko: '에이전트·워크플로', ja: 'エージェント・ワークフロー', 'zh-CN': '智能体与工作流', fr: 'Agents et workflows', de: 'Agenten & Workflows' },
+  memory: { en: 'Memory & context', ko: '메모리·컨텍스트', ja: 'メモリ・コンテキスト', 'zh-CN': '记忆与上下文', fr: 'Mémoire et contexte', de: 'Gedächtnis & Kontext' },
+  git: { en: 'Git, PRs & CI', ko: 'Git·PR·CI', ja: 'Git・PR・CI', 'zh-CN': 'Git、PR 与 CI', fr: 'Git, PR et CI', de: 'Git, PRs & CI' },
+  interface: { en: 'Interface & rendering', ko: '화면·렌더링', ja: '画面・レンダリング', 'zh-CN': '界面与渲染', fr: 'Interface et rendu', de: 'Oberfläche & Darstellung' },
+  fun: { en: 'While you wait', ko: '기다리는 동안', ja: '待ち時間に', 'zh-CN': '等待时', fr: 'Pendant l’attente', de: 'Während du wartest' },
+  other: { en: 'Other', ko: '기타', ja: 'その他', 'zh-CN': '其他', fr: 'Autres', de: 'Sonstiges' },
+} as const
+const LEVELS = {
+  en: ['draws & remembers', 'reads', 'writes or runs', 'network'],
+  ko: ['화면·기억만', '읽기', '쓰기·실행', '네트워크'],
+  ja: ['描画と記憶のみ', '読み取り', '書き込み・実行', 'ネットワーク'],
+  'zh-CN': ['仅绘制与记忆', '读取', '写入或运行', '网络'],
+  fr: ['affiche et mémorise', 'lit', 'écrit ou exécute', 'réseau'],
+  de: ['zeichnet & merkt sich', 'liest', 'schreibt oder führt aus', 'Netzwerk'],
+} as const
+
+const key = (lang in UI ? lang : 'en') as keyof typeof UI
+const ui = UI[key]
+const cats = Object.entries(CATEGORIES).map(([id, names]) => ({ id, name: names[key], n: (stats.byCategory as Record<string, number>)[id] ?? 0 }))
+const config = { ui, cats: Object.fromEntries(cats.map(c => [c.id, c.name])), levels: LEVELS[key] }
+const date = stats.generated.slice(0, 10)
+---
+
+<div class="mod-dir not-content" data-config={JSON.stringify(config)}>
+  <div class="mod-dir__controls">
+    <input type="search" class="mod-dir__search" placeholder={ui.search} aria-label={ui.search} />
+    <div class="mod-dir__selects">
+      <select class="mod-dir__sort" aria-label="sort">
+        <option value="stars">{ui.sortStars}</option>
+        <option value="recent">{ui.sortRecent}</option>
+        <option value="name">{ui.sortName}</option>
+      </select>
+      <select class="mod-dir__level" aria-label={ui.access}>
+        <option value="">{ui.anyAccess}</option>
+        {LEVELS[key].map((name, i) => <option value={String(i)}>{`≤ ${name}`}</option>)}
+      </select>
+    </div>
+  </div>
+  <div class="mod-dir__chips" role="group">
+    <button type="button" class="mod-dir__chip is-on" data-cat="">{ui.all} · {stats.total}</button>
+    {cats.map(c => <button type="button" class="mod-dir__chip" data-cat={c.id}>{c.name} · {c.n}</button>)}
+  </div>
+  <p class="mod-dir__count" aria-live="polite"></p>
+  <ul class="mod-dir__list"></ul>
+  <button type="button" class="mod-dir__more" hidden>{ui.more}</button>
+  <p class="mod-dir__source">{ui.source.replace('{date}', date).replace('{v}', stats.claudeVersion)}</p>
+</div>
+
+<script>
+  type Mod = { n: string; r: string; u: string; a: string; d: string; s: number; l: string | null; lv: number; rl: string[]; c: string; b: number; p: string }
+  const PAGE = 48
+  for (const root of document.querySelectorAll<HTMLElement>('.mod-dir')) {
+    const config = JSON.parse(root.dataset.config ?? '{}')
+    const $ = <T extends Element>(sel: string) => root.querySelector(sel) as T
+    const search = $<HTMLInputElement>('.mod-dir__search')
+    const sort = $<HTMLSelectElement>('.mod-dir__sort')
+    const level = $<HTMLSelectElement>('.mod-dir__level')
+    const list = $<HTMLUListElement>('.mod-dir__list')
+    const count = $<HTMLParagraphElement>('.mod-dir__count')
+    const more = $<HTMLButtonElement>('.mod-dir__more')
+    let cat = ''
+    let shown = PAGE
+    let mods: Mod[] = []
+
+    const esc = (s: string) => s.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch] as string)
+    const card = (m: Mod) => `<li class="mod-card">
+      <div class="mod-card__head">
+        <a class="mod-card__name" href="${esc(m.u)}" rel="noopener" target="_blank">${esc(m.n)}</a>
+        ${m.b ? `<span class="mod-badge">${esc(config.ui.builtin)}</span>` : ''}
+        <span class="mod-card__stars" title="GitHub stars">★ ${m.s.toLocaleString()}</span>
+      </div>
+      <div class="mod-card__meta">${esc(m.a)} · <a href="https://github.com/${esc(m.r)}" rel="noopener" target="_blank">${esc(m.r)}</a>${m.l ? ` · ${esc(m.l)}` : ''}${m.p ? ` · ${esc(m.p)}` : ''}</div>
+      <p class="mod-card__desc">${esc(m.d)}</p>
+      <div class="mod-card__tags">
+        <span class="mod-badge">${esc(config.cats[m.c] ?? m.c)}</span>
+        <span class="mod-badge mod-badge--lv${m.lv}" title="${esc(m.rl.filter(x => !x.startsWith('other:')).join(', '))}">${esc(config.levels[m.lv] ?? '')}</span>
+      </div>
+    </li>`
+
+    const render = () => {
+      const q = search.value.trim().toLowerCase()
+      const max = level.value === '' ? 9 : Number(level.value)
+      let rows = mods.filter(m => (cat === '' || m.c === cat) && m.lv <= max && (q === '' || `${m.n} ${m.a} ${m.r} ${m.d}`.toLowerCase().includes(q)))
+      if (sort.value === 'recent') rows = [...rows].sort((a, b) => b.p.localeCompare(a.p))
+      else if (sort.value === 'name') rows = [...rows].sort((a, b) => a.n.localeCompare(b.n))
+      count.textContent = rows.length === 0 ? config.ui.none : config.ui.count.replace('{n}', rows.length.toLocaleString())
+      list.innerHTML = rows.slice(0, shown).map(card).join('')
+      more.hidden = rows.length <= shown
+    }
+    const reset = () => {
+      shown = PAGE
+      render()
+    }
+    search.addEventListener('input', reset)
+    sort.addEventListener('change', reset)
+    level.addEventListener('change', reset)
+    more.addEventListener('click', () => {
+      shown += PAGE
+      render()
+    })
+    for (const chip of root.querySelectorAll<HTMLButtonElement>('.mod-dir__chip')) {
+      chip.addEventListener('click', () => {
+        cat = chip.dataset.cat ?? ''
+        for (const c of root.querySelectorAll('.mod-dir__chip')) c.classList.toggle('is-on', c === chip)
+        reset()
+      })
+    }
+    fetch('/data/mods.json')
+      .then(r => r.json())
+      .then((data: Mod[]) => {
+        mods = data
+        render()
+      })
+  }
+</script>
+
+<style>
+  /* not-content라 Starlight 본문 스타일이 빠진다: 링크 색과 간격을 직접 준다 */
+  .mod-dir :global(a) {
+    color: var(--sl-color-text-accent);
+  }
+  .mod-dir__count,
+  .mod-dir__source {
+    margin: 1rem 0 0.5rem;
+  }
+  .mod-dir {
+    margin-top: 1.5rem;
+  }
+  .mod-dir__controls {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+  .mod-dir__search {
+    flex: 1 1 18rem;
+    padding: 0.55rem 0.75rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+  }
+  .mod-dir__selects {
+    display: flex;
+    gap: 0.5rem;
+  }
+  .mod-dir__selects select {
+    padding: 0.45rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-gray-5);
+    background: var(--sl-color-black);
+    color: var(--sl-color-white);
+  }
+  .mod-dir__chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 0.75rem;
+  }
+  .mod-dir__chip {
+    padding: 0.25rem 0.7rem;
+    border-radius: 999px;
+    border: 1px solid var(--sl-color-gray-5);
+    background: transparent;
+    color: var(--sl-color-gray-2);
+    font-size: var(--sl-text-xs);
+    cursor: pointer;
+  }
+  .mod-dir__chip.is-on {
+    background: var(--sl-color-accent);
+    border-color: var(--sl-color-accent);
+    color: var(--sl-color-black);
+  }
+  .mod-dir__count {
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+  }
+  .mod-dir__list {
+    list-style: none;
+    padding: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(17rem, 1fr));
+    gap: 0.75rem;
+  }
+  .mod-dir__list :global(.mod-card) {
+    margin: 0;
+    padding: 0.85rem 1rem;
+    border: 1px solid var(--sl-color-gray-5);
+    border-radius: 0.6rem;
+    background: var(--sl-color-gray-7, var(--sl-color-black));
+  }
+  .mod-dir__list :global(.mod-card__head) {
+    display: flex;
+    align-items: baseline;
+    gap: 0.4rem;
+  }
+  .mod-dir__list :global(.mod-card__name) {
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .mod-dir__list :global(.mod-card__stars) {
+    margin-left: auto;
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .mod-dir__list :global(.mod-card__meta) {
+    font-size: var(--sl-text-2xs);
+    color: var(--sl-color-gray-3);
+    overflow-wrap: anywhere;
+  }
+  .mod-dir__list :global(.mod-card__desc) {
+    font-size: var(--sl-text-sm);
+    margin: 0.4rem 0;
+  }
+  .mod-dir__list :global(.mod-card__tags) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+  .mod-dir__list :global(.mod-badge--lv3) {
+    border-color: #c2410c;
+    color: #fb923c;
+  }
+  .mod-dir__list :global(.mod-badge--lv2) {
+    border-color: #a16207;
+    color: #facc15;
+  }
+  .mod-dir__more {
+    display: block;
+    margin: 1rem auto;
+    padding: 0.5rem 1.25rem;
+    border-radius: 0.5rem;
+    border: 1px solid var(--sl-color-accent);
+    background: transparent;
+    color: var(--sl-color-accent-high);
+    cursor: pointer;
+  }
+  .mod-dir__source {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+</style>

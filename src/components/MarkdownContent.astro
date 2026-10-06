@@ -1,0 +1,10 @@
+---
+import Default from '@astrojs/starlight/components/MarkdownContent.astro'
+import AdSlot from './AdSlot.astro'
+// 광고는 글 끝에만 둔다 (본문 읽기를 끊지 않게). 안내성 페이지(개인정보 등)에는 넣지 않는다
+const id = Astro.locals.starlightRoute.id
+const noAds = /(^|\/)(privacy|about)$/.test(id)
+---
+
+<Default><slot /></Default>
+{!noAds && <AdSlot slot="article" />}

@@ -1,0 +1,93 @@
+---
+title: What is a mod
+description: What a Claude Code mod is, what it can do, how it differs from settings hooks, skills, and MCP, and where it runs.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+A mod is a **plugin that changes how Claude Code looks and behaves**. You write it as JavaScript or TypeScript functions (hooks), and Claude Code calls them whenever it meets an event. Events include tool calls, prompt submission, screen drawing, the start and end of a turn, and the start and end of a session.
+
+## What a hook does with an event
+
+A hook receives an event and does one of three things.
+
+1. **Observe:** look at it and pass it through unchanged. For example, count tool calls.
+2. **Rewrite:** change the content and pass it on. For example, add a number next to the spinner.
+3. **Answer instead:** handle it yourself and block the original behavior. For example, refuse a dangerous command.
+
+A hook reaches the outside world through one path only: the mods API (`$`). File reads, process execution, network access, and model calls all go through `$`. That is why you can run `claude plugin validate` before installing to get a list of what a mod does.
+
+## The smallest mod
+
+Three files are enough.
+
+```text
+first-mod/
+├── .claude-plugin/plugin.json   ← manifest
+└── hooks/
+    ├── hooks.json               ← where the hook module lives
+    └── register.js              ← hook code (.ts and .tsx also work)
+```
+
+```js title="hooks/register.js"
+let calls = 0
+
+export function register(on) {
+  // Right before Claude uses a tool
+  on('tool.call', async ($, e, next) => {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+  // Every time the spinner is drawn: just add a number to the original spinner
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    return next({ ...e, props: { ...e.props, suffix: ` · tool calls: ${calls}…` } })
+  })
+}
+```
+
+## How mods differ from other extensions
+
+The key difference is where they run. Settings hooks, skills, MCP, and status lines react **outside** Claude Code. Mods step in **inside** it.
+
+| | Mod | Settings hook | Skill | MCP server |
+| --- | --- | --- | --- | --- |
+| What it is | A function inside the Claude Code process | A shell command, HTTP call, or prompt run on an event | `SKILL.md` instructions that Claude reads | An external process or service that provides tools |
+| What it can change | Tool calls, prompts, commands, turns, the screen | Whether to proceed, tool arguments and results, extra context | What Claude knows and how it works | The tools Claude can use |
+| Draws on screen | Yes | No | No | No |
+| Language | JavaScript/TypeScript | Scripts + `settings.json` | Markdown | Any language |
+| Choose it when | You need a pane, band, or dedicated command, or must modify events | You only block, allow, or log using scripts you already have | You keep pasting the same instructions | Claude needs to reach an external system |
+
+One plugin can contain all four. If a settings hook or skill is enough, don't use a mod. It has the broadest permissions.
+
+## Where mods run
+
+Mods are **on by default** in the terminal from 2.1.287 and in the desktop app from 2.1.286.
+
+| Where you run Claude Code | Hooks run | UI is shown |
+| --- | --- | --- |
+| Terminal `claude` (including editor-embedded terminals and JetBrains) | Yes | Yes |
+| Desktop app Code tab | Yes | Yes (except terminal-only elements) |
+| Desktop app WSL session | No | No |
+| VS Code extension chat panel | Yes | No |
+| `claude -p`, Agent SDK | Yes | No |
+| Remote Control (claude.ai, mobile) | Yes (in the session on your computer) | Only in the terminal on your computer |
+| Cloud sessions | Only if the plugin comes along | No |
+
+<Aside type="caution" title="Mods are not sandboxed">
+  A mod runs with your account's permissions. It can read and write files, run programs, make network requests, and see every prompt and tool call. Always go through the [safety check](/en/guide/safety-checklist/) before you install.
+</Aside>
+
+## Built-in mods
+
+Some Claude Code features are mods themselves. You can see them under Built-in in the Installed tab of `/plugin`.
+
+- `cc-plugin-diff`: the `/diff` pane
+- `cc-plugin-agents-md`: loads `AGENTS.md` as project instructions
+- `cc-plugin-sec-default`: a guard that protects organization-managed settings from user mods
+- `cc-plugin-telemetry`: sends analytics records
+- `cc-plugin-plugin-authoring`: a skill for building mods (no code)
+
+The source for some of them is public in [the mods folder of anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/mods), which makes a good textbook when you build your own.

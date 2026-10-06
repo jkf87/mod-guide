@@ -1,0 +1,93 @@
+---
+title: mod란 무엇인가
+description: Claude Code mod의 정의, 할 수 있는 일, 설정 훅·스킬·MCP와의 차이, 그리고 어디서 돌아가는지.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+mod는 **Claude Code의 모양과 동작을 바꾸는 플러그인**이에요. JavaScript나 TypeScript 함수(훅)로 만들고, Claude Code가 이벤트를 만날 때마다 그 함수를 불러요. 이벤트에는 도구 호출, 프롬프트 제출, 화면 그리기, 턴의 시작과 끝, 세션의 시작과 끝이 있어요.
+
+## 훅이 이벤트로 하는 일
+
+훅은 이벤트를 받아 셋 중 하나를 해요.
+
+1. **관찰:** 보고 그대로 통과시켜요. 예를 들어 도구 호출 수를 세요.
+2. **다시 쓰기:** 내용을 바꿔서 넘겨요. 예를 들어 스피너 옆에 숫자를 붙여요.
+3. **대신 답하기:** 직접 처리하고 원래 동작을 막아요. 예를 들어 위험한 명령을 거절해요.
+
+훅이 바깥 세계에 닿는 길은 mods API(`$`) 하나뿐이에요. 파일 읽기, 프로세스 실행, 네트워크, 모델 호출이 모두 `$`를 거쳐요. 그래서 설치하기 전에 `claude plugin validate`로 mod가 무엇을 하는지 목록을 뽑아 볼 수 있어요.
+
+## 가장 작은 mod
+
+파일 세 개면 돼요.
+
+```text
+first-mod/
+├── .claude-plugin/plugin.json   ← 매니페스트
+└── hooks/
+    ├── hooks.json               ← 훅 모듈 위치
+    └── register.js              ← 훅 코드 (.ts·.tsx도 돼요)
+```
+
+```js title="hooks/register.js"
+let calls = 0
+
+export function register(on) {
+  // Claude가 도구를 쓰기 직전마다
+  on('tool.call', async ($, e, next) => {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+  // 스피너를 그릴 때마다: 원래 스피너에 숫자만 붙인다
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    return next({ ...e, props: { ...e.props, suffix: ` · tool calls: ${calls}…` } })
+  })
+}
+```
+
+## 다른 확장과 무엇이 다른가
+
+핵심 차이는 실행 위치예요. 설정 훅·스킬·MCP·상태줄은 Claude Code **밖에서** 반응하고, mod는 **안에서** 개입해요.
+
+| | mod | 설정 훅 | 스킬 | MCP 서버 |
+| --- | --- | --- | --- | --- |
+| 정체 | Claude Code 프로세스 안의 함수 | 이벤트 때 실행되는 셸 명령·HTTP·프롬프트 | Claude가 읽는 `SKILL.md` 지침 | 도구를 주는 외부 프로세스·서비스 |
+| 바꿀 수 있는 것 | 도구 호출, 프롬프트, 명령, 턴, 화면 | 진행 허용 여부, 도구 인자·결과, 추가 맥락 | Claude가 아는 것과 하는 방식 | Claude가 쓸 수 있는 도구 |
+| 화면 그리기 | 가능 | 불가 | 불가 | 불가 |
+| 작성 언어 | JavaScript/TypeScript | 스크립트 + `settings.json` | 마크다운 | 아무 언어 |
+| 고를 때 | 창·띠·전용 명령이 필요하거나 이벤트를 고쳐야 할 때 | 이미 있는 스크립트로 막기·허용·기록만 할 때 | 같은 지시를 계속 붙여넣을 때 | Claude가 외부 시스템에 닿아야 할 때 |
+
+플러그인 하나에 네 가지를 함께 넣을 수 있어요. 설정 훅이나 스킬로 충분하면 mod를 쓰지 않는 게 좋아요. 권한이 가장 넓기 때문이에요.
+
+## 어디서 돌아가나
+
+mod는 터미널 2.1.287 이상, 데스크톱 앱 2.1.286 이상에서 **기본으로 켜져 있어요**.
+
+| 실행 위치 | 훅 실행 | 화면 표시 |
+| --- | --- | --- |
+| 터미널 `claude` (에디터 내장 터미널, JetBrains 포함) | 예 | 예 |
+| 데스크톱 앱 Code 탭 | 예 | 예 (터미널 전용 요소 제외) |
+| 데스크톱 앱 WSL 세션 | 아니요 | 아니요 |
+| VS Code 확장 채팅 패널 | 예 | 아니요 |
+| `claude -p`, Agent SDK | 예 | 아니요 |
+| Remote Control (claude.ai, 모바일) | 예 (내 컴퓨터 세션에서) | 내 컴퓨터 터미널에서만 |
+| 클라우드 세션 | 플러그인이 따라갈 때만 | 아니요 |
+
+<Aside type="caution" title="mod는 샌드박스에 갇히지 않아요">
+  mod는 내 계정 권한으로 돌아요. 파일을 읽고 쓰고, 프로그램을 실행하고, 네트워크에 요청하고, 모든 프롬프트와 도구 호출을 볼 수 있어요. 설치 전에 [안전 점검](/ko/guide/safety-checklist/)을 꼭 거치세요.
+</Aside>
+
+## 이미 들어 있는 mod
+
+Claude Code의 일부 기능은 그 자체가 mod예요. `/plugin`의 Installed 탭에서 Built-in 아래에 보여요.
+
+- `cc-plugin-diff`: `/diff` 창
+- `cc-plugin-agents-md`: `AGENTS.md`를 프로젝트 지침으로 불러오기
+- `cc-plugin-sec-default`: 조직이 관리하는 설정을 사용자 mod로부터 지키는 가드
+- `cc-plugin-telemetry`: 분석 기록 전송
+- `cc-plugin-plugin-authoring`: mod를 만드는 스킬 (코드 없음)
+
+일부의 소스는 [anthropics/claude-code의 mods 폴더](https://github.com/anthropics/claude-code/tree/main/mods)에 공개돼 있어서, mod를 만들 때 좋은 교본이 돼요.

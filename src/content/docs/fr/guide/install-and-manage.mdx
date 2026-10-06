@@ -1,0 +1,74 @@
+---
+title: Installer et gérer
+description: Installer et mettre à jour des mods depuis une place de marché, vérifier les mods chargés et les désactiver en cas de problème.
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Les mods sont des plugins et s'installent via une place de marché (marketplace).
+
+## Installation
+
+<Steps>
+
+1. Avant d'installer, lisez le code source avec le [contrôle de sécurité](/fr/guide/safety-checklist/) et lancez `claude plugin validate`.
+
+2. Installez depuis une session Claude Code. Ajoutez `@` et le nom de la place de marché après le nom du plugin.
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   Depuis le shell, procédez ainsi.
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   Pour un mod dont le dépôt GitHub est lui-même la place de marché, une seule ligne ajoute la place de marché et installe le mod.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. Si vous avez installé depuis le shell, lancez `/reload-plugins` dans la session ouverte. Sinon, le mod sera chargé au prochain démarrage.
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills` ne recharge que les skills. Après avoir modifié ou installé un mod, utilisez `/reload-plugins`.
+</Aside>
+
+## Vérifier les mods chargés
+
+Ouvrez `/plugin` : sous les onglets, une ligne grisée indique le nombre et le nom des mods, par exemple `1 mod active · first-mod`. Les mods intégrés n'y figurent pas.
+
+## Mise à jour
+
+```bash
+claude plugin marketplace update <place-de-marché>
+claude plugin update <plugin>@<place-de-marché>
+```
+
+La mise à jour s'applique au redémarrage. Si la place de marché est un dossier local et que le chemin de l'entrée est relatif, le plugin lit directement ce dossier. Il suffit alors de modifier le dossier puis de lancer `/reload-plugins`.
+
+## Le charger une seule fois pour essayer
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+Il n'est chargé que pour cette session. C'est pratique pour tester sans installer, ou pour essayer un mod que vous avez écrit.
+
+## Désactiver
+
+| Portée | Méthode |
+| --- | --- |
+| Un seul mod | Le désactiver ou le supprimer dans l'onglet Installed de `/plugin` |
+| Tous les mods installés, pour cette session seulement | `claude --safe-mode` (les autres réglages utilisateur sont aussi désactivés) |
+| Tous les mods installés, pour toutes les sessions | `"disableAllHooks": true` dans `~/.claude/settings.json` (cela arrête aussi les hooks de configuration et la barre d'état utilisateur) |
+| À l'échelle de l'organisation | Paramètre géré `allowManagedModsOnly` |
+
+Les mods intégrés ne sont pas arrêtés par ces réglages. `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, utilisée lors de l'ancien accès anticipé, est ignorée depuis la version 2.1.287 : supprimez-la.

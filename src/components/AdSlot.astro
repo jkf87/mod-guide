@@ -1,0 +1,49 @@
+---
+// 광고 자리 하나. PUBLIC_ADSENSE_CLIENT(ca-pub-…)와 자리별 슬롯 ID가 있을 때만 광고를 넣는다.
+// 개발 서버에서는 자리를 점선 상자로 보여 배치를 확인할 수 있게 한다.
+interface Props {
+  slot: 'sidebar' | 'article'
+}
+const { slot } = Astro.props
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT
+const slotId = slot === 'sidebar' ? import.meta.env.PUBLIC_ADSENSE_SLOT_SIDEBAR : import.meta.env.PUBLIC_ADSENSE_SLOT_ARTICLE
+const isLive = Boolean(client && slotId)
+const isPreview = !isLive && import.meta.env.DEV
+---
+
+{
+  isLive && (
+    <aside class={`ad-slot ad-slot--${slot}`} aria-label="Advertisement">
+      <ins
+        class="adsbygoogle"
+        style="display:block"
+        data-ad-client={client}
+        data-ad-slot={slotId}
+        data-ad-format={slot === 'sidebar' ? 'vertical' : 'auto'}
+        data-full-width-responsive="true"
+      />
+      <script is:inline>{`(window.adsbygoogle = window.adsbygoogle || []).push({});`}</script>
+    </aside>
+  )
+}
+{isPreview && <aside class={`ad-slot ad-slot--${slot} ad-slot--preview`}>Ad · {slot}</aside>}
+
+<style>
+  .ad-slot {
+    margin-block: 1.5rem;
+  }
+  .ad-slot--sidebar {
+    min-height: 250px;
+  }
+  .ad-slot--article {
+    min-height: 120px;
+  }
+  .ad-slot--preview {
+    display: grid;
+    place-items: center;
+    border: 1px dashed var(--sl-color-gray-4);
+    border-radius: 0.5rem;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-xs);
+  }
+</style>

@@ -1,0 +1,51 @@
+---
+title: Claude Code Mods 가이드
+description: Claude Code를 내 손에 맞게 바꾸는 mod의 모든 것. 개념, 안전한 설치, 직접 만들기, 그리고 1,400개가 넘는 mod 디렉터리.
+template: splash
+hero:
+  tagline: 터미널 안의 Claude Code에 창을 띄우고, 도구 호출을 지키고, 화면을 다시 그리는 함수 훅 플러그인. 무엇이고, 어떻게 안전하게 쓰고, 어떻게 만드는지 한곳에 모았어요.
+  actions:
+    - text: 가이드 시작하기
+      link: /ko/guide/what-are-mods/
+      icon: right-arrow
+    - text: mod 디렉터리
+      link: /ko/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  검증을 통과한 mod <strong>{stats.total.toLocaleString()}</strong>개 · 저장소 <strong>{stats.repos.toLocaleString()}</strong>개 · Claude Code {stats.claudeVersion} 기준 ({stats.generated.slice(0, 10)} 스캔)
+</div>
+
+## mod로 할 수 있는 일
+
+<CardGrid>
+  <Card title="창과 띠를 그려요" icon="laptop">
+    대화 옆에 창(pane)을, 입력창 위에 띠(band)를 띄워요. 버튼과 입력칸까지 넣을 수 있어요.
+  </Card>
+  <Card title="도구 호출을 지켜요" icon="warning">
+    `rm -rf` 같은 위험한 명령을 붙잡아 묻거나 막고, 비밀값은 모델이 보기 전에 가려요.
+  </Card>
+  <Card title="사용량을 보여 줘요" icon="information">
+    컨텍스트, 토큰, 비용, 5시간·주간 한도를 상태줄이나 창에 늘 띄워 둬요.
+  </Card>
+  <Card title="명령을 더해요" icon="puzzle">
+    Claude 턴 없이 바로 실행되는 `/명령`을 만들어요. Claude가 일하는 중에도 돌아요.
+  </Card>
+</CardGrid>
+
+## 어디서부터 볼까요
+
+<CardGrid>
+  <LinkCard title="mod란 무엇인가" description="설정 훅·스킬·MCP와 무엇이 다른지, 어디서 돌아가는지" href="/ko/guide/what-are-mods/" />
+  <LinkCard title="설치 전 안전 점검" description="mod는 내 권한으로 돌아요. 설치 전에 볼 것과 끄는 법" href="/ko/guide/safety-checklist/" />
+  <LinkCard title="첫 mod 만들기" description="Claude에게 말로 시키기부터 검증·테스트·배포까지" href="/ko/guide/build-your-first-mod/" />
+  <LinkCard title="골라 본 mod" description="분야별로 먼저 써 볼 만한 mod 모음" href="/ko/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

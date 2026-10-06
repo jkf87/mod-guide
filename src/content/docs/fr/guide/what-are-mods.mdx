@@ -1,0 +1,93 @@
+---
+title: Qu'est-ce qu'un mod ?
+description: "Définition d'un mod Claude Code, ce qu'il permet de faire, en quoi il diffère des hooks de configuration, des skills et de MCP, et où il s'exécute."
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Un mod est un **plugin qui modifie l'apparence et le comportement de Claude Code**. Il se compose de fonctions JavaScript ou TypeScript (les hooks) que Claude Code appelle à chaque événement : appel d'outil, envoi d'un prompt, dessin de l'écran, début et fin d'un tour, début et fin d'une session.
+
+## Ce qu'un hook fait d'un événement
+
+Un hook reçoit l'événement et fait l'une de ces trois choses.
+
+1. **Observer :** il regarde l'événement et le laisse passer tel quel. Par exemple, il compte les appels d'outils.
+2. **Réécrire :** il modifie le contenu avant de le transmettre. Par exemple, il ajoute un nombre à côté du spinner.
+3. **Répondre à la place :** il traite l'événement lui-même et empêche le comportement d'origine. Par exemple, il refuse une commande dangereuse.
+
+Un hook n'a qu'un seul moyen d'atteindre le monde extérieur : l'API des mods (`$`). Lecture de fichiers, exécution de processus, réseau et appels au modèle passent tous par `$`. C'est pourquoi `claude plugin validate` peut, avant l'installation, dresser la liste de ce que fait un mod.
+
+## Le plus petit mod possible
+
+Trois fichiers suffisent.
+
+```text
+first-mod/
+├── .claude-plugin/plugin.json   ← manifeste
+└── hooks/
+    ├── hooks.json               ← emplacement du module de hooks
+    └── register.js              ← code des hooks (.ts et .tsx fonctionnent aussi)
+```
+
+```js title="hooks/register.js"
+let calls = 0
+
+export function register(on) {
+  // Juste avant chaque utilisation d'un outil par Claude
+  on('tool.call', async ($, e, next) => {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+  // À chaque dessin du spinner : on ajoute seulement le nombre au spinner d'origine
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    return next({ ...e, props: { ...e.props, suffix: ` · tool calls: ${calls}…` } })
+  })
+}
+```
+
+## En quoi est-ce différent des autres extensions ?
+
+La différence essentielle tient au lieu d'exécution. Les hooks de configuration, les skills, MCP et la barre d'état réagissent **à l'extérieur** de Claude Code, tandis qu'un mod intervient **à l'intérieur**.
+
+| | mod | Hook de configuration | Skill | Serveur MCP |
+| --- | --- | --- | --- | --- |
+| Nature | Fonction dans le processus Claude Code | Commande shell, requête HTTP ou prompt exécuté lors d'un événement | Instructions `SKILL.md` lues par Claude | Processus ou service externe qui fournit des outils |
+| Ce qu'il peut modifier | Appels d'outils, prompts, commandes, tours, écran | Autoriser ou non la suite, arguments et résultats d'outils, contexte supplémentaire | Ce que Claude sait et sa façon de faire | Les outils que Claude peut utiliser |
+| Dessin à l'écran | Oui | Non | Non | Non |
+| Langage | JavaScript/TypeScript | Script + `settings.json` | Markdown | N'importe lequel |
+| Quand le choisir | Il vous faut un volet, un bandeau ou une commande dédiée, ou vous devez modifier des événements | Vous voulez seulement bloquer, autoriser ou journaliser avec un script existant | Vous collez sans cesse les mêmes consignes | Claude doit atteindre un système externe |
+
+Un même plugin peut contenir les quatre. Si un hook de configuration ou un skill suffit, mieux vaut ne pas utiliser de mod, car c'est lui qui dispose des droits les plus étendus.
+
+## Où s'exécute-t-il ?
+
+Les mods sont **activés par défaut** dans le terminal à partir de la version 2.1.287 et dans l'application de bureau à partir de la version 2.1.286.
+
+| Lieu d'exécution | Exécution des hooks | Affichage |
+| --- | --- | --- |
+| `claude` dans le terminal (y compris les terminaux intégrés aux éditeurs et JetBrains) | Oui | Oui |
+| Onglet Code de l'application de bureau | Oui | Oui (hors éléments propres au terminal) |
+| Session WSL de l'application de bureau | Non | Non |
+| Panneau de chat de l'extension VS Code | Oui | Non |
+| `claude -p`, Agent SDK | Oui | Non |
+| Remote Control (claude.ai, mobile) | Oui (dans la session de votre ordinateur) | Uniquement dans le terminal de votre ordinateur |
+| Sessions cloud | Seulement si le plugin suit | Non |
+
+<Aside type="caution" title="Les mods ne sont pas confinés dans un bac à sable">
+  Un mod s'exécute avec les droits de votre compte. Il peut lire et écrire des fichiers, exécuter des programmes, envoyer des requêtes réseau et voir tous les prompts et tous les appels d'outils. Passez impérativement par le [contrôle de sécurité](/fr/guide/safety-checklist/) avant d'installer.
+</Aside>
+
+## Les mods déjà intégrés
+
+Certaines fonctions de Claude Code sont elles-mêmes des mods. Vous les trouverez sous Built-in dans l'onglet Installed de `/plugin`.
+
+- `cc-plugin-diff` : le volet `/diff`
+- `cc-plugin-agents-md` : charge `AGENTS.md` comme instructions du projet
+- `cc-plugin-sec-default` : une protection qui empêche les mods utilisateur de toucher aux paramètres gérés par l'organisation
+- `cc-plugin-telemetry` : envoi des données d'analyse
+- `cc-plugin-plugin-authoring` : le skill de création de mods (sans code)
+
+Le code source de certains d'entre eux est public dans [le dossier mods de anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/mods) et constitue un bon modèle pour créer vos propres mods.

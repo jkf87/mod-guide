@@ -1,0 +1,46 @@
+---
+title: 问题排查
+description: 制作和使用 Mod 时实际踩过的坑及解决办法，从查看日志到图片画不出来。
+sidebar:
+  order: 6
+---
+
+## 先看日志
+
+```bash
+claude --debug-file ~/mod-debug.log
+```
+
+界面绘制被拒绝时，日志里会留下这样一行。原因就写在括号里。
+
+```text
+ui.render (Pane): a hook returned a tree that does not validate (…); drawing the engine's own
+```
+
+如果会话正处于热重载中，同样的内容也会以灰色的一行出现在对话窗口里。
+
+## 常见的坑
+
+| 症状 | 原因 | 解决 |
+| --- | --- | --- |
+| 改了但界面没变 | `/reload-skills` 不会重新读取 Mod | `/reload-plugins` |
+| 窗口是空的或像卡住了 | 绘制树验证失败，引擎拒绝了窗口 | 修复调试日志里 `does not validate` 的原因 |
+| `Image` 被拒绝 | 在 `source.generation` 中放了小数（如文件修改时间） | 改为整数（`Math.floor`） |
+| `Image` 被拒绝 | `source.png` 的字节里没有 PNG 签名、IHDR | 传入前先检查文件头 |
+| 验证报 `$ is passed to ... imported from` | 把 `$` 传给了其他文件的函数 | 使用 `$` 的代码放在同一个文件里，只把纯函数拆出去 |
+| 验证报 `registered twice without a matcher` | 把 `session.start` 之类的事件注册了两次 | 在一个钩子里调用多项工作 |
+| 用 `$.process.run` 调用的脚本没有输出就结束了 | 在链接的文件夹里 `argv[1]` 与 `import.meta.url` 不同，导致“直接运行”的判断为假 | 两者都用 `realpath` 解析后再比较 |
+| 绘制过程中调用的进程输出被截断 | 绘制重新开始，正在做的事被打断 | 耗时的工作用 `$.clock.after` 放到绘制之外 |
+| 重新打开会话后，修改的 Mod 没有变化 | 会话 ID 变了，开发用的 Mod 文件夹也跟着变 | 固定文件夹 + `--plugin-dir` 或本地插件市场 |
+| 桌面应用里看不到 `Svg` | 超过 131,072 个字符的限制 | 把重复的属性合并为样式，或精简图形 |
+
+## 图片看不到
+
+- `Image` 只会在使用 kitty 图形协议的终端（kitty、Ghostty、基于 Ghostty 的终端）里绘制。在 macOS 自带终端或 iTerm2 里只会显示 `alt` 文字。
+- 桌面应用没有 `Image`，请使用 `Svg`。
+
+## 测试中常卡住的地方
+
+- 测试套件会把相对路径按 Mod 文件夹为基准解析。假的文件系统请用绝对路径来创建。
+- `$` 调用事件（`fs.read` 等）的假响应要包在 `{ value: … }` 里。`tool.call` 则是 `{ result: … }`。
+- 测试套件无法向窗口发送滚动或按键事件。滚动行为请在真实界面里确认。

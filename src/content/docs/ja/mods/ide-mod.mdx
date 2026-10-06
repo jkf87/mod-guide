@@ -1,0 +1,61 @@
+---
+title: ide-mod
+description: Claude Code の中に、エージェントボード、ファイルエクスプローラー、HWP・HWPX・PDF ビューアーを 1 つのペインで表示する Mod。
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod) は、このガイドの作者が公開している Mod です。ペインの上部には**エージェントボード**、下部には**ファイルツリーとタブエディター**があります。
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+上の画面は ide-mod の実際の UI です。画面の文言は韓国語です。
+
+## インストール
+
+<Steps>
+
+1. Claude Code のセッションで次を入力します。
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. マーケットプレイスを追加するか聞かれたら `y`、スコープは user を選びます。
+
+3. `/ide` でペインを開きます。表示されない場合は `/reload-plugins` を実行してください。
+
+</Steps>
+
+## 機能
+
+- **エージェントボード**: メインとサブエージェントを、誰が誰を起動したかのツリーで表示します。モデル・effort・担当タスク・現在の作業・経過時間を表示し、人が読むためのタスク説明は緑、現在の作業は黄色で色分けします。
+- **エクスプローラー**: フォルダツリーと最大 8 個のタブ。シンタックスハイライト、Markdown レンダリング、Claude が変更したファイルへの `●` 表示に対応します。
+- **HWP・HWPX・PDF ビューアー**: [rhwp](https://github.com/edwardkim/rhwp) と [pdf.js](https://github.com/mozilla/pdf.js) でページを描画します。グラフィックスのないターミナルでも、表の罫線と配置を保った文字グリッドで表示し、kitty・Ghostty 系のターミナルでは実際のページ画像を表示します。
+- **リクエスト履歴**（`q`）: このセッションで送ったリクエストを状態付きで蓄積します。セッションを開き直しても残ります。
+- **講義字幕**（`/lecture`）: Claude の作業内容を、やさしい文章で入力欄の上に表示します。
+- **文体ゲート**（`/style-gate`）: 韓国語原稿の AI っぽいパターンを数えて、合格・警告・中断を判定します。
+
+## アクセス範囲
+
+この Mod はファイルを読み取り（エクスプローラー・ビューアー）、ドキュメントを描画するために Node.js と画像変換プログラムを実行します。ボードの 1 行要約では haiku を短く呼び出しますが、`s` でオフにできます。ネットワークでデータを送信することはありません。ソースは `hooks/register.tsx` の 1 ファイルなので、インストール前にすべて読めます。
+
+<Aside>
+function hooks は early access の API です。2.1.290 で作成・検証しました。画面の文言は韓国語です。
+</Aside>
+
+- リポジトリとリリース: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- ライセンス: MIT（rhwp は MIT、pdf.js は Apache-2.0 を含む）

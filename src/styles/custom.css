@@ -1,0 +1,29 @@
+/* 테마: 오렌지 계열 강조색 (Claude Code 터미널 느낌), 다크·라이트 모두 */
+:root {
+  --sl-color-accent-low: #3b1d0e;
+  --sl-color-accent: #d97757;
+  --sl-color-accent-high: #f6c9b4;
+}
+:root[data-theme='light'] {
+  --sl-color-accent-low: #fbe3d7;
+  --sl-color-accent: #b85a3a;
+  --sl-color-accent-high: #5a2412;
+}
+.mod-badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: var(--sl-text-2xs);
+  border: 1px solid var(--sl-color-gray-5);
+  color: var(--sl-color-gray-2);
+}
+/* 한국어는 어절 단위로 줄을 바꾼다 (제목·본문이 글자 중간에서 끊기지 않게) */
+:root:lang(ko) {
+  word-break: keep-all;
+  overflow-wrap: break-word;
+}
+/* 일본어·중국어 제목은 구 단위로 줄을 바꾼다 (지원하는 브라우저에서) */
+:root:lang(ja) :is(h1, h2, h3, .hero .tagline),
+:root:lang(zh-CN) :is(h1, h2, h3) {
+  word-break: auto-phrase;
+}

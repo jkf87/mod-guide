@@ -1,0 +1,93 @@
+---
+title: Was sind Mods?
+description: Was eine Claude-Code-Mod ist, was sie kann, wie sie sich von Settings-Hooks, Skills und MCP unterscheidet und wo sie läuft.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Eine Mod ist ein **Plugin, das Aussehen und Verhalten von Claude Code verändert**. Du schreibst sie als JavaScript- oder TypeScript-Funktionen (Hooks), und Claude Code ruft sie bei jedem Ereignis auf. Ereignisse sind Tool-Aufrufe, das Absenden von Prompts, das Zeichnen der Anzeige, Beginn und Ende eines Turns sowie Beginn und Ende der Session.
+
+## Was ein Hook mit einem Ereignis macht
+
+Ein Hook nimmt ein Ereignis entgegen und tut eines von drei Dingen:
+
+1. **Beobachten:** Er sieht sich das Ereignis an und lässt es unverändert durch, zum Beispiel um Tool-Aufrufe zu zählen.
+2. **Umschreiben:** Er ändert den Inhalt und gibt ihn weiter, zum Beispiel indem er neben dem Spinner eine Zahl anzeigt.
+3. **Selbst antworten:** Er behandelt das Ereignis selbst und verhindert die ursprüngliche Aktion, zum Beispiel indem er einen gefährlichen Befehl ablehnt.
+
+Der einzige Weg, auf dem ein Hook die Außenwelt erreicht, ist die Mods-API (`$`). Dateien lesen, Prozesse starten, Netzwerk und Modellaufrufe laufen alle über `$`. Deshalb kannst du dir vor der Installation mit `claude plugin validate` auflisten lassen, was eine Mod tut.
+
+## Die kleinste Mod
+
+Drei Dateien genügen.
+
+```text
+first-mod/
+├── .claude-plugin/plugin.json   ← Manifest
+└── hooks/
+    ├── hooks.json               ← Ort des Hook-Moduls
+    └── register.js              ← Hook-Code (.ts und .tsx gehen auch)
+```
+
+```js title="hooks/register.js"
+let calls = 0
+
+export function register(on) {
+  // Jedes Mal, kurz bevor Claude ein Tool benutzt
+  on('tool.call', async ($, e, next) => {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+  // Jedes Mal, wenn der Spinner gezeichnet wird: nur die Zahl an den Original-Spinner anhängen
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    return next({ ...e, props: { ...e.props, suffix: ` · tool calls: ${calls}…` } })
+  })
+}
+```
+
+## Worin unterscheidet sie sich von anderen Erweiterungen?
+
+Der Kernunterschied ist der Ausführungsort. Settings-Hooks, Skills, MCP und Statuszeile reagieren **außerhalb** von Claude Code, eine Mod greift **innerhalb** ein.
+
+| | Mod | Settings-Hook | Skill | MCP-Server |
+| --- | --- | --- | --- | --- |
+| Was es ist | Funktion im Claude-Code-Prozess | Shell-Befehl, HTTP-Aufruf oder Prompt, der bei einem Ereignis läuft | `SKILL.md`-Anweisungen, die Claude liest | Externer Prozess oder Dienst, der Tools bereitstellt |
+| Was sich ändern lässt | Tool-Aufrufe, Prompts, Befehle, Turns, Anzeige | Ob es weitergeht, Tool-Argumente und -Ergebnisse, zusätzlicher Kontext | Was Claude weiß und wie es vorgeht | Die Tools, die Claude nutzen kann |
+| Anzeige zeichnen | Ja | Nein | Nein | Nein |
+| Sprache | JavaScript/TypeScript | Skript + `settings.json` | Markdown | Beliebig |
+| Wann du sie wählst | Du brauchst Fenster, Bänder oder eigene Befehle oder musst Ereignisse ändern | Du willst mit vorhandenen Skripten nur blockieren, erlauben oder protokollieren | Du fügst immer wieder dieselbe Anweisung ein | Claude soll externe Systeme erreichen |
+
+Ein Plugin kann alle vier zusammen enthalten. Reichen Settings-Hooks oder Skills aus, nimm besser keine Mod, denn sie hat die weitesten Rechte.
+
+## Wo läuft sie?
+
+Mods sind im Terminal ab 2.1.287 und in der Desktop-App ab 2.1.286 **standardmäßig aktiv**.
+
+| Ausführungsort | Hooks laufen | Anzeige |
+| --- | --- | --- |
+| Terminal `claude` (auch eingebettete Editor-Terminals, JetBrains inklusive) | Ja | Ja |
+| Desktop-App, Code-Tab | Ja | Ja (ohne Terminal-only-Elemente) |
+| Desktop-App, WSL-Session | Nein | Nein |
+| VS-Code-Erweiterung, Chat-Panel | Ja | Nein |
+| `claude -p`, Agent SDK | Ja | Nein |
+| Remote Control (claude.ai, Mobilgerät) | Ja (in der Session auf deinem Rechner) | Nur im Terminal deines Rechners |
+| Cloud-Sessions | Nur wenn das Plugin mitgegeben wird | Nein |
+
+<Aside type="caution" title="Mods laufen nicht in einer Sandbox">
+  Eine Mod läuft mit den Rechten deines Kontos. Sie kann Dateien lesen und schreiben, Programme ausführen, Netzwerkanfragen senden und jeden Prompt und jeden Tool-Aufruf sehen. Gehe vor der Installation unbedingt den [Sicherheitscheck](/de/guide/safety-checklist/) durch.
+</Aside>
+
+## Bereits eingebaute Mods
+
+Einige Funktionen von Claude Code sind selbst Mods. Du siehst sie im Tab Installed von `/plugin` unter Built-in.
+
+- `cc-plugin-diff`: das `/diff`-Fenster
+- `cc-plugin-agents-md`: lädt `AGENTS.md` als Projektanweisung
+- `cc-plugin-sec-default`: Schutz, der von der Organisation verwaltete Einstellungen vor Benutzer-Mods bewahrt
+- `cc-plugin-telemetry`: sendet Analysedaten
+- `cc-plugin-plugin-authoring`: Skill zum Erstellen von Mods (ohne Code)
+
+Der Quellcode einiger davon liegt öffentlich im [mods-Ordner von anthropics/claude-code](https://github.com/anthropics/claude-code/tree/main/mods) und ist eine gute Vorlage für eigene Mods.

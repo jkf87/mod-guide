@@ -1,0 +1,46 @@
+---
+title: Fehlerbehebung
+description: Fallstricke, auf die man beim Bauen und Nutzen von Mods tatsächlich stößt, und ihre Lösungen. Vom Lesen der Logs bis zu Bildern, die nicht erscheinen.
+sidebar:
+  order: 6
+---
+
+## Schau zuerst ins Log
+
+```bash
+claude --debug-file ~/mod-debug.log
+```
+
+Lehnt die Engine das Zeichnen ab, steht im Log eine Zeile wie diese. Die Ursache steht in der Klammer.
+
+```text
+ui.render (Pane): a hook returned a tree that does not validate (…); drawing the engine's own
+```
+
+In einer Session mit Hot Reload erscheint dasselbe auch als blasse Zeile im Chat.
+
+## Häufige Fallstricke
+
+| Symptom | Ursache | Lösung |
+| --- | --- | --- |
+| Geändert, aber die Anzeige bleibt gleich | `/reload-skills` lädt Mods nicht neu | `/reload-plugins` |
+| Fenster leer oder wie eingefroren | Der Zeichenbaum besteht die Validierung nicht und die Engine lehnt das Fenster ab | Den Grund bei `does not validate` im Debug-Log beheben |
+| `Image` wird abgelehnt | In `source.generation` steht eine Dezimalzahl (etwa eine Änderungszeit) | Als Ganzzahl übergeben (`Math.floor`) |
+| `Image` wird abgelehnt | Den Bytes von `source.png` fehlen PNG-Signatur und IHDR | Den Header vor der Übergabe prüfen |
+| Validierung meldet `$ is passed to ... imported from` | `$` wurde an eine Funktion aus einer anderen Datei übergeben | Code mit `$` in einer Datei halten, nur reine Funktionen auslagern |
+| Validierung meldet `registered twice without a matcher` | Ein Ereignis wie `session.start` wurde zweimal registriert | In einem Hook mehrere Dinge aufrufen |
+| Ein per `$.process.run` gestartetes Skript endet ohne Ausgabe | In einem verlinkten Ordner unterscheiden sich `argv[1]` und `import.meta.url`, die Prüfung auf "direkte Ausführung" ist falsch | Beide mit `realpath` auflösen und vergleichen |
+| Die Ausgabe eines beim Zeichnen gestarteten Prozesses wird abgeschnitten | Das Zeichnen startet neu und unterbricht die laufende Arbeit | Lange Aufgaben mit `$.clock.after` außerhalb des Zeichnens erledigen |
+| Nach dem Wiederöffnen der Session ist die geänderte Mod nicht aktuell | Die Session-ID ändert sich und damit auch der Entwicklungs-Mod-Ordner | Fester Ordner + `--plugin-dir` oder lokaler Marketplace |
+| `Svg` erscheint in der Desktop-App nicht | Das Limit von 131.072 Zeichen ist überschritten | Wiederkehrende Attribute in Styles bündeln oder die Grafik verkleinern |
+
+## Das Bild erscheint nicht
+
+- `Image` wird nur in Terminals gezeichnet, die das kitty-Grafikprotokoll nutzen (kitty, Ghostty und Ghostty-basierte Terminals). Im macOS-Standardterminal oder in iTerm2 siehst du nur den `alt`-Text.
+- In der Desktop-App gibt es kein `Image`, nutze dort `Svg`.
+
+## Wo es in Tests oft hakt
+
+- Das Test-Kit löst relative Pfade relativ zum Mod-Ordner auf. Das Fake-Dateisystem legst du mit absoluten Pfaden an.
+- Fake-Antworten für Ereignisse mit `$`-Aufruf (etwa `fs.read`) packst du in `{ value: … }`. Bei `tool.call` ist es `{ result: … }`.
+- Das Test-Kit kann keine Scroll- oder Tastenereignisse an Fenster senden. Das Scrollverhalten prüfst du in der echten Anzeige.

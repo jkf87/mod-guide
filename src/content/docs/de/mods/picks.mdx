@@ -1,0 +1,83 @@
+---
+title: Ausgewählte Mods
+description: Nach Kategorien ausgewählte Mods, die du zuerst ausprobieren kannst. Mit Angabe, was sie tun und worauf sie zugreifen.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Ausgewählt anhand von Nutzen und Zugriffsumfang im [Verzeichnis](/de/mods/directory/). Die Sterne entsprechen dem Stand der Repositories beim Schreiben dieser Seite. Liegen mehrere Mods im selben Repository, steht die Sternezahl für das ganze Repository.
+
+<Aside type="caution">
+Eine Empfehlung ist keine Garantie. Geh vor der Installation den [Sicherheitscheck](/de/guide/safety-checklist/) durch und sei in Firmen-Repositories bei Zugriffsstufe 2 und höher besonders vorsichtig.
+</Aside>
+
+Zugriffsstufen: **0** nur Anzeige und Speicher · **1** Dateien lesen · **2** Schreiben und Ausführen · **3** Netzwerk
+
+## Nutzung und Kontext
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | Zeigt das 5-Stunden- und Wochenlimit samt Reset-Zeit in einer Zeile über dem Eingabefeld | 2 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Zeigt die Tariflimits (5-Stunden- und 7-Tage-Fenster) | 0 |
+| [context-lens](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/context-lens) | Zeigt in einer festen Zeile, wie voll das Kontextfenster ist und wie viel es pro Turn gewachsen ist | 0 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | Zeichnet eine Kontextprognose und den Countdown bis zum Ablauf des Prompt-Caches | 2 |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Stoppt die Session, bevor ein festgelegtes Budget überschritten wird | 2 |
+
+## Agents im Blick
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | Fenster, das Subagents und Teammitglieder als Baum zeigt | 0 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | Listet die von der Session gestarteten Subagents und ihre jeweiligen Aufgaben in einem Seitenfenster auf | 2 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | Dashboard für den internen Zustand von Claude Code im Stil von btop | 2 |
+| [ide-mod](/de/mods/ide-mod/) | Agent-Board sowie Datei-Explorer und Dokumentenviewer in einem Fenster | 2 |
+
+## Sicherheit
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | Fängt gefährliche Bash-Befehle ab und zeigt vor der Ausführung, was sich ändern würde | 2 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | Maskiert Geheimnisse, E-Mail-Adressen und IPs im Gesprächsverlauf | 0 |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | Fragt zuerst nach, wenn Claude eine Datei ändern will, die in einem anderen Fenster in den letzten 30 Minuten geändert wurde | 2 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | Maskiert vor einer Bildschirmaufnahme per `/rec` Schlüssel, persönliche Daten und Geschäftszahlen | 2 |
+
+## Anzeige und Lesen
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | Eingebaute Mod, die nicht committete Änderungen in einem Fenster neben dem Chat zeigt | 2 |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) | Dateibaum im IDE-Stil, der zeigt, in welcher Datei Claude gerade arbeitet | 2 |
+| [replay-theater](https://github.com/hamzafer/claude-code-mods/tree/main/mods/replay-theater) | Blättert die Dateiänderungen vergangener Turns Diff für Diff durch | 1 |
+| [mdview](https://github.com/xuanji86/claude-mdview) | Öffnet beim Klick auf einen `.md`-Pfad im Chat das gerenderte Markdown daneben | 2 |
+| [prismantis](https://github.com/NahumLitvin/prismantis) | Gestaltet Tabellen, Überschriften, Code und Zahlen in Antworten mit Farben und Themes | 2 |
+| [terminal-browser](https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin) | Ein Browser, der innerhalb von Claude Code läuft | 3 |
+
+## Git und CI
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) | Zeigt Merge-Status, Reviews und erforderliche Checks eines GitHub-PRs über dem Eingabefeld | 2 |
+| [gh-ci-status](https://github.com/diegorv/claude-functions-hook/tree/main/plugins/gh-ci-status) | Zeigt fest die GitHub-Actions-Läufe des aktuellen Repositories | 2 |
+
+## Gedächtnis und Notizen
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [pinboard](https://github.com/sirkitree/pinboard) | Heftet offene Fragen, Aufgaben und erzeugte Links der Session als Pins in ein Seitenfenster | 2 |
+| [aside](https://github.com/JayDoubleu/aside) | Öffnet neben dem Chat einen schreibgeschützten Seitenchat, in dem du Fragen zur Session stellst | 2 |
+
+## Zum Spaß
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [intermission](https://github.com/jarrodwatts/intermission) | Ein Doom-Deathmatch, solange Claude arbeitet, und danach geht es zurück | 2 |
+| [session-wrapped](https://github.com/OneWave-AI/claude-code-mods/tree/main/session-wrapped) | Zeigt Session-Statistiken wie bei Spotify Wrapped und speichert sie als PNG-Karte | 2 |
+
+## Für koreanischsprachige Nutzer
+
+| Mod | Was sie tut | Stufe |
+|---|---|---|
+| [ko-ui](https://github.com/moduvoice/claude-code-ko-ui) | Zeigt Beschreibungen von Slash-Befehlen und einen Teil der `/config`-Einträge auf Koreanisch | 1 |
+| [ide-mod](/de/mods/ide-mod/) | Viewer für HWP und HWPX in originaler Seitenansicht und ein Stil-Gate für koreanische Texte | 2 |

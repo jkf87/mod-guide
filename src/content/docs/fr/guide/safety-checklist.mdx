@@ -1,0 +1,77 @@
+---
+title: Contrôle de sécurité avant installation
+description: Un mod s'exécute avec les droits de votre compte. Les questions à se poser avant d'installer, les appels à repérer dans le code source et les règles de décision.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Un mod est à la fois une fonction de productivité et une nouvelle surface d'attaque. **Lisez d'abord, installez ensuite.**
+
+## À quoi un mod peut accéder
+
+Un mod chargé peut faire ceci.
+
+- Lire et écrire des fichiers, exécuter des programmes et envoyer des requêtes réseau avec votre compte.
+- Lire les variables d'environnement et les fichiers de configuration, y compris les clés d'API qui s'y trouvent.
+- Voir et modifier tous les prompts et tous les appels d'outils, et envoyer des prompts comme si vous les aviez saisis.
+- Approuver des appels d'outils avant qu'ils ne vous soient soumis, y compris ceux qu'une règle `ask` ou l'un de vos hooks `PreToolUse` a bloqués.
+- Appeler un modèle avec votre abonnement ou votre clé d'API.
+
+Un mod ne peut pas modifier l'affichage de la fenêtre de confirmation des permissions. Même avec le bac à sable activé, seul le Bash exécuté par Claude est isolé : les processus lancés par un mod s'exécutent en dehors.
+
+## Questions à se poser avant d'installer
+
+- [ ] Le problème que ce mod résout existe-t-il vraiment ?
+- [ ] Un hook de configuration ou un skill ne suffirait-il pas ?
+- [ ] Le code source est-il public et le mod maintenu ?
+- [ ] La place de marché est-elle digne de confiance ?
+- [ ] L'accès au réseau, l'exécution de processus, l'écriture de fichiers et la lecture des variables d'environnement sont-ils vraiment indispensables ?
+- [ ] Modifie-t-il ou approuve-t-il des prompts ou des appels d'outils ?
+- [ ] Peut-on l'utiliser dans une session qui contient du code d'entreprise et des secrets ?
+
+## Appels à repérer dans le code source
+
+Ne vous fiez pas au README : ouvrez `.claude-plugin/marketplace.json`, `plugin.json`, `hooks/hooks.json` et le module de hooks. Lancez ensuite la validation.
+
+```bash
+claude plugin validate ./some-mod
+```
+
+Dans la sortie, la ligne `hooks:` indique les événements reçus et la ligne `calls:` les API appelées. La ligne `gating hook` signale les hooks capables de refuser quelque chose.
+
+| Appel | Ce qu'il fait | Risque |
+| --- | --- | --- |
+| `$.http.fetch` | Requête réseau | Fuite de code ou de prompts |
+| `$.process.run`, `$.process.spawn` | Exécution de programmes | Exécution arbitraire hors du bac à sable |
+| `$.fs.write` | Écriture de fichiers | Altération de fichiers |
+| `$.env.get`, `$.settings.read` | Lecture des variables d'environnement et des réglages | Exposition de clés d'API |
+| `$.prompt.submit`, `$.prompt.fill` | Envoi ou remplissage de prompts | Instructions données à votre insu |
+| `$.model.complete`, `$.model.fork` | Appel au modèle | Consommation de quota |
+| `$.tool.register` | Ajout d'un outil appelé par le modèle | Outil qui se fait passer pour un autre |
+
+<Aside type="caution">
+  Une validation réussie ne garantit pas la sécurité. Elle n'inspecte que le code source et ne prouve pas l'ensemble du comportement réel à l'exécution.
+</Aside>
+
+## Indication de la portée d'accès dans le catalogue communautaire
+
+Le [répertoire des mods](/fr/mods/directory/) de ce site indique, en quatre niveaux, la portée d'accès que le validateur du catalogue communautaire a relevée.
+
+| Niveau | Signification |
+| --- | --- |
+| Affichage et mémoire seulement | Il dessine l'écran et ne mémorise que son propre état |
+| Lecture | Il lit des fichiers, des variables d'environnement, l'historique de conversation, etc. |
+| Écriture et exécution | Il écrit des fichiers ou exécute des processus |
+| Réseau | Il envoie des requêtes vers l'extérieur |
+
+## Règles de décision
+
+- Dans un dépôt d'expérimentation personnel, testez les mods à faible risque.
+- Dans un dépôt d'entreprise, passez par une revue de sécurité.
+- Dans un dépôt contenant des secrets, évitez les mods qui utilisent le réseau.
+- Pour un mod qui envoie des requêtes à un autre fournisseur, vérifiez ses conditions d'utilisation et le flux des données.
+- Évitez les places de marché que vous ne connaissez pas.
+
+En cas de problème, utilisez la [méthode de désactivation](/fr/guide/install-and-manage/#désactiver).

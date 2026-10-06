@@ -1,0 +1,74 @@
+---
+title: Installieren und verwalten
+description: Mods aus dem Marketplace installieren und aktualisieren, geladene Mods prüfen und bei Problemen ausschalten.
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Mods sind Plugins und werden über einen Marketplace installiert.
+
+## Installation
+
+<Steps>
+
+1. Lies vor der Installation anhand des [Sicherheitschecks](/de/guide/safety-checklist/) den Quellcode und führe `claude plugin validate` aus.
+
+2. Installiere in einer Claude-Code-Session. Hänge hinter den Plugin-Namen ein `@` und den Marketplace-Namen.
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   In der Shell geht es so:
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   Ist ein GitHub-Repository selbst der Marketplace, erledigst du Hinzufügen und Installieren in einer Zeile.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. Hast du in der Shell installiert, führe in einer geöffneten Session `/reload-plugins` aus. Sonst wird die Mod beim nächsten Start geladen.
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills` lädt nur Skills neu. Hast du eine Mod geändert oder neu installiert, nimm `/reload-plugins`.
+</Aside>
+
+## Geladene Mods prüfen
+
+Öffne `/plugin`. In der blassen Zeile unter den Tabs siehst du Anzahl und Namen, etwa `1 mod active · first-mod`. Eingebaute Mods erscheinen dort nicht.
+
+## Aktualisieren
+
+```bash
+claude plugin marketplace update <marketplace>
+claude plugin update <plugin>@<marketplace>
+```
+
+Ein Update wird nach einem Neustart wirksam. Ist der Marketplace ein lokaler Ordner und der Pfad des Eintrags relativ, liest das Plugin diesen Ordner direkt. Dann genügt es, den Ordner zu bearbeiten und `/reload-plugins` auszuführen.
+
+## Nur einmal zum Testen laden
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+Sie wird nur in dieser Session geladen. Praktisch, um etwas ohne Installation auszuprobieren oder eine selbst gebaute Mod zu testen.
+
+## Ausschalten
+
+| Umfang | Vorgehen |
+| --- | --- |
+| Eine Mod | Im Tab Installed von `/plugin` ausschalten oder entfernen |
+| Alle installierten Mods, nur diese Session | `claude --safe-mode` (schaltet auch andere Benutzereinstellungen ab) |
+| Alle installierten Mods, alle Sessions | `"disableAllHooks": true` in `~/.claude/settings.json` (stoppt auch Settings-Hooks und die Benutzer-Statuszeile) |
+| Auf Organisationsebene | Verwaltete Einstellung `allowManagedModsOnly` |
+
+Eingebaute Mods lassen sich mit diesen Einstellungen nicht stoppen. `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` aus der Early-Access-Zeit wird seit 2.1.287 ignoriert, du kannst es also löschen.

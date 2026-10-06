@@ -1,0 +1,74 @@
+---
+title: Install and manage
+description: How to install and update mods from a marketplace, check which mods are loaded, and turn them off when something goes wrong.
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Mods are plugins, and you install them through a marketplace.
+
+## Install
+
+<Steps>
+
+1. Before you install, read the source and run `claude plugin validate` as described in the [safety check](/en/guide/safety-checklist/).
+
+2. Install from a Claude Code session. Add `@` and the marketplace name after the plugin name.
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   From the shell, do this instead.
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   For a mod whose GitHub repository is itself the marketplace, one line adds the marketplace and installs the mod.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. If you installed from the shell, run `/reload-plugins` in any open session. Otherwise the mod loads on the next launch.
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills` reloads skills only. If you edited a mod or just installed one, use `/reload-plugins`.
+</Aside>
+
+## Check loaded mods
+
+Open `/plugin` and a dim line under the tabs shows the count and names, like `1 mod active · first-mod`. Built-in mods are not counted on this line.
+
+## Update
+
+```bash
+claude plugin marketplace update <marketplace>
+claude plugin update <plugin>@<marketplace>
+```
+
+Updates take effect after a restart. If the marketplace is a local folder and the entry uses a relative path, the plugin reads that folder directly. In that case, edit the folder and run `/reload-plugins`.
+
+## Load once for a trial
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+It loads for that session only. This is handy for trying a mod without installing it, or for testing a mod you wrote.
+
+## Disable
+
+| Scope | How |
+| --- | --- |
+| One mod | Turn it off or remove it in the Installed tab of `/plugin` |
+| All installed mods, this session only | `claude --safe-mode` (also turns off your other user settings) |
+| All installed mods, every session | `"disableAllHooks": true` in `~/.claude/settings.json` (also stops settings hooks and user status lines) |
+| Organization-wide | The managed setting `allowManagedModsOnly` |
+
+These settings don't stop built-in mods. `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, used during the old early access, has been ignored since 2.1.287, so delete it.

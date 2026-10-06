@@ -1,0 +1,74 @@
+---
+title: インストールと管理
+description: マーケットプレイスから Mod をインストール・更新し、読み込み済みの Mod を確認し、問題があるときに無効にする方法。
+sidebar:
+  order: 2
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Mod はプラグインなので、マーケットプレイス経由でインストールします。
+
+## インストール
+
+<Steps>
+
+1. インストールする前に、[安全チェック](/ja/guide/safety-checklist/)に従ってソースを読み、`claude plugin validate` を実行します。
+
+2. Claude Code のセッションでインストールします。プラグイン名の後ろに `@` とマーケットプレイス名を付けます。
+
+   ```text
+   /plugin install token-chart@your-org
+   ```
+
+   シェルからは次のようにします。
+
+   ```bash
+   claude plugin install token-chart@your-org
+   ```
+
+   GitHub リポジトリそのものがマーケットプレイスになっている Mod は、1 行でマーケットプレイスの追加とインストールをまとめて行えます。
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+3. シェルからインストールした場合は、開いているセッションで `/reload-plugins` を実行します。実行しなくても、次回の起動時に読み込まれます。
+
+</Steps>
+
+<Aside type="tip">
+  `/reload-skills` はスキルだけを読み込み直します。Mod を編集した場合や新しくインストールした場合は `/reload-plugins` を使ってください。
+</Aside>
+
+## 読み込み済みの Mod を確認する
+
+`/plugin` を開くと、タブの下の薄い行に `1 mod active · first-mod` のように、数と名前が表示されます。組み込みの Mod はこの行には含まれません。
+
+## 更新
+
+```bash
+claude plugin marketplace update <マーケットプレイス>
+claude plugin update <プラグイン>@<マーケットプレイス>
+```
+
+更新は再起動すると反映されます。マーケットプレイスがローカルフォルダで、項目のパスが相対パスの場合、プラグインはそのフォルダを直接読みます。その場合は、フォルダを編集して `/reload-plugins` を実行するだけで済みます。
+
+## お試しで 1 回だけ読み込む
+
+```bash
+claude --plugin-dir ./some-mod
+```
+
+そのセッションにだけ読み込まれます。インストールせずに試したいときや、自作の Mod をテストするときに便利です。
+
+## 無効にする
+
+| 範囲 | 方法 |
+| --- | --- |
+| Mod 1 つ | `/plugin` の Installed タブで無効化または削除 |
+| インストール済みの Mod すべて、今回のセッションのみ | `claude --safe-mode`（ほかのユーザー設定も無効になります） |
+| インストール済みの Mod すべて、全セッション | `~/.claude/settings.json` に `"disableAllHooks": true`（設定フック・ユーザーのステータスラインも停止します） |
+| 組織単位 | 管理設定の `allowManagedModsOnly` |
+
+組み込みの Mod は、これらの設定では止まりません。early access の時期に使っていた `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` は 2.1.287 から無視されるので、削除してください。

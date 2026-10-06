@@ -1,0 +1,67 @@
+---
+title: API 速查表
+description: 一览 Mod 能接收的事件和能通过 `$` 调用的功能。以 Claude Code 2.1.290 类型声明为准。
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+钩子的形状只有一种：`($, e, next)`。`$` 是引擎接口，`e` 是事件输入（冻结的值），`next(e)` 会运行下层插件和引擎的原有行为并返回结果。不调用 `next` 直接返回，就是自己作答；`next({ ...e, x })` 则会改变后面看到的值。
+
+<Aside>
+  最准确的依据是引擎安装在 Mod 文件夹里的类型声明（`.claude-plugin/types/claude-code/index.d.ts`）。下面的列表以 2.1.290 为准，它是 early access API，可能随版本变化。
+</Aside>
+
+## 常用事件
+
+| 事件 | 时机 | 常见用途 |
+| --- | --- | --- |
+| `session.start` / `session.end` | 会话开始、结束（含 `/clear`） | 注册命令、启动计时器、清理 |
+| `prompt.submit` | 用户提交提示词时 | 记录、改写、阻止 |
+| `prompt.compose` | 构建系统提示词时 | 添加、替换段落 |
+| `turn.start` / `turn.step` / `turn.complete` | 回合开始、每次模型请求（流式）、回合结束 | 观察模型和 effort、显示进度、总结回答 |
+| `tool.call` | 即将使用工具时 | 阻止（`{ deny }`）、修改参数、观察结果 |
+| `agent.spawn` | 启动子代理时 | 记录角色和模型、更换模型 |
+| `command.run` | 执行已注册的 `/命令` | 打开窗口、用文本回应 |
+| `ui.render` | 绘制界面元素时 | 绘制 `Pane`、`AbovePrompt`，修改 `Spinner` 等默认界面 |
+| `ui.scroll` | 滚动窗口、横条时 | 自行滚动自己的窗口 |
+| `ui.press` / `ui.input` / `ui.select` | 按钮、输入框、选择 | 处理交互 |
+
+## 能通过 `$` 调用的内容
+
+| 名称 | 示例 | 作用 |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | 打开窗口、状态栏和提示、剪贴板、界面元素表 |
+| `$.state` / `$.store` | `get`, `set`, `keys` | 会话状态（绘制会订阅它）、跨会话存储 |
+| `$.command` | `register`, `run`, `list` | 制作 `/命令` |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | 模型可调用的工具、代理类型 |
+| `$.model` | `complete`, `fork` | 调用一次模型、承接会话上下文的提问 |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | 会话信息 |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | 文件 |
+| `$.process` | `run`, `spawn` | 运行程序（WASM 等编译后的代码也通过这里） |
+| `$.http` | `fetch` | 网络 |
+| `$.clock` | `after`, `every`, `sleep`, `now` | 计时器（Mod 里没有 `setTimeout`） |
+| `$.prompt` | `submit`, `fill`, `read` | 填写输入框、发送提示词 |
+| `$.env` / `$.settings` | `get`, `read` | 环境变量、设置 |
+
+## 绘制元素
+
+用 `const { Box, Text, Button } = $.ui.resolve(e)` 取出各界面对应的元素，再用 JSX 绘制。
+
+| 元素 | 用途 | 界面 |
+| --- | --- | --- |
+| `Box`, `Text` | 布局和文字（颜色用主题键 `success`、`warning`、`error` 等） | 全部 |
+| `Button`, `Input`, `Select` | 交互（快捷键 `hotkey`） | 手机端没有 `Input`、`Select` |
+| `Code`, `Markdown` | 高亮代码、Markdown | 全部 |
+| `Image`, `Raster` | 图片（kitty、Ghostty 图形）、着色的格子网格 | 仅终端 |
+| `Svg` | 矢量图（最多 131,072 个字符） | 桌面、VS Code、手机 |
+| `Client` | 由插件自身模块绘制的区域 | 终端、桌面 |
+
+## 必须知道的规则
+
+- Mod 环境里没有 DOM、Node、`WebAssembly`。外部的事情全部通过 `$` 完成。
+- `$` 只能传给**同一文件内的函数**。传给从其他文件 import 的函数，验证会失败。
+- 绘制过程中不能写状态。请在按钮处理函数或其他事件里用 `update()` 写入。
+- 同一个事件不带匹配器注册两次会被拒绝。
+- 只做观察的钩子，如果加上 `.catch(($, e, next) => next(e))`，即使失败，已经调用过的 `next` 也不会再运行一遍。

@@ -1,0 +1,109 @@
+---
+title: 制作第一个 Mod
+description: 对 Claude 说一句话来制作 Mod，用热重载修改，验证、测试，再通过 GitHub 发布的流程。
+sidebar:
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+最快的方式是**直接用一句话让 Claude 来做**。Claude Code 内置了制作 Mod 的 `plugin-authoring` 技能。
+
+## 用一句话让 Claude 做
+
+```text
+在对话旁边做一个窗口，统计本次会话的工具调用次数
+```
+
+Claude 在 Mod 文件夹里写下第一个文件时，会询问 **"Enable hot reloading for this session?"**。选择 **Enable for this session** 后，每个回合结束时，修改的内容都会立即重新加载。
+
+<Aside type="tip">
+  会话重新启动后，会话专用的 Mod 文件夹也会改变。要长期使用的 Mod，请放在固定文件夹里，再用 `claude --plugin-dir` 或本地插件市场加载。
+</Aside>
+
+## 自己动手写
+
+<Steps>
+
+1. 创建清单。
+
+   ```json title=".claude-plugin/plugin.json"
+   { "name": "first-mod", "version": "0.1.0", "description": "统计工具调用次数" }
+   ```
+
+2. 写明钩子模块的位置。路径以这个文件为基准。
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+3. 注册钩子。窗口用 `$.ui.open` 打开，由 `ui.render` 钩子绘制其中的内容。
+
+   ```tsx title="hooks/register.tsx"
+   import type { Register } from 'claude-code'
+
+   let calls = 0
+
+   export const register: Register = on => {
+     on('session.start', async ($, e, next) => {
+       await $.command.register({ name: 'calls', description: '打开工具调用次数窗口' })
+       return next(e)
+     })
+     on('command.run', { command: 'calls' }, async $ => {
+       await $.ui.open({ id: 'calls', title: 'Tool calls' })
+       return { text: '窗口已打开。' }
+     })
+     on('tool.call', async ($, e, next) => {
+       calls += 1
+       $.ui.invalidate('ui.render')
+       return next(e)
+     })
+     on('ui.render', { component: 'Pane', requestId: 'calls' }, async ($, e) => {
+       const { Text } = $.ui.resolve(e)
+       return <Text>工具调用 {calls} 次</Text>
+     })
+   }
+   ```
+
+4. 在一个会话中加载试用。
+
+   ```bash
+   claude --plugin-dir ./first-mod
+   ```
+
+</Steps>
+
+## 验证与测试
+
+```bash
+claude plugin validate ./first-mod   # 钩子和调用列表，以及引擎会拒绝的部分
+claude plugin test ./first-mod       # 运行 *.test.ts(x)
+```
+
+测试使用 `claude-code/testing` 的 `test`、`expect`、`mock`。用测试中的 `on` 在引擎的位置铺设假响应，再用 `$.ui.mount` 把窗口按终端、桌面的界面原样绘制出来，点击按钮并检查结果。类型由引擎安装在 Mod 文件夹的 `.claude-plugin/types/` 中，加载一次之后，就可以用 `tsc -p <文件夹>` 检查。
+
+## 分享
+
+在仓库根目录放一个插件市场文件就完成了。
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "first-mod",
+  "owner": { "name": "you" },
+  "plugins": [{ "name": "first-mod", "source": "./" }]
+}
+```
+
+其他人这样安装。
+
+```text
+/plugin install first-mod --marketplace you/first-mod
+```
+
+给 GitHub 仓库加上 `claude-code-mod` topic，社区目录会在几小时内收录。
+
+## 延伸阅读
+
+- [API 速查表](/zh-cn/guide/api-cheatsheet/)：事件和 `$` 调用列表
+- [问题排查](/zh-cn/guide/troubleshooting/)：实际踩过的坑和解决办法
+- [官方文档](https://code.claude.com/docs/en/plugins/mods/overview)

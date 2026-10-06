@@ -1,0 +1,109 @@
+---
+title: Deine erste Mod bauen
+description: Eine Mod per Anweisung in natürlicher Sprache von Claude bauen lassen, per Hot Reload anpassen, validieren, testen und über GitHub veröffentlichen.
+sidebar:
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Der schnellste Weg ist, **Claude einfach zu beauftragen**. Claude Code enthält den Skill `plugin-authoring`, mit dem Mods entstehen.
+
+## Per Anweisung bauen lassen
+
+```text
+Mach mir ein Fenster neben dem Chat, das die Tool-Aufrufe dieser Session zählt
+```
+
+Schreibt Claude die erste Datei in den Mod-Ordner, fragt es **"Enable hot reloading for this session?"**. Wählst du **Enable for this session**, wird jede Änderung am Ende eines Turns sofort neu geladen.
+
+<Aside type="tip">
+  Wenn die Session neu startet, ändert sich auch der sessionbezogene Mod-Ordner. Lege Mods, die du länger nutzen willst, in einen festen Ordner und lade sie mit `claude --plugin-dir` oder über einen lokalen Marketplace.
+</Aside>
+
+## Selbst schreiben
+
+<Steps>
+
+1. Lege das Manifest an.
+
+   ```json title=".claude-plugin/plugin.json"
+   { "name": "first-mod", "version": "0.1.0", "description": "Zählt Tool-Aufrufe" }
+   ```
+
+2. Trage den Ort des Hook-Moduls ein. Der Pfad ist relativ zu dieser Datei.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+3. Registriere die Hooks. Das Fenster öffnest du mit `$.ui.open`, und der `ui.render`-Hook zeichnet seinen Inhalt.
+
+   ```tsx title="hooks/register.tsx"
+   import type { Register } from 'claude-code'
+
+   let calls = 0
+
+   export const register: Register = on => {
+     on('session.start', async ($, e, next) => {
+       await $.command.register({ name: 'calls', description: 'Fenster mit der Zahl der Tool-Aufrufe öffnen' })
+       return next(e)
+     })
+     on('command.run', { command: 'calls' }, async $ => {
+       await $.ui.open({ id: 'calls', title: 'Tool calls' })
+       return { text: 'Das Fenster ist offen.' }
+     })
+     on('tool.call', async ($, e, next) => {
+       calls += 1
+       $.ui.invalidate('ui.render')
+       return next(e)
+     })
+     on('ui.render', { component: 'Pane', requestId: 'calls' }, async ($, e) => {
+       const { Text } = $.ui.resolve(e)
+       return <Text>Tool-Aufrufe: {calls}</Text>
+     })
+   }
+   ```
+
+4. Lade sie in einer Session und probiere sie aus.
+
+   ```bash
+   claude --plugin-dir ./first-mod
+   ```
+
+</Steps>
+
+## Validieren und testen
+
+```bash
+claude plugin validate ./first-mod   # Liste der Hooks und Aufrufe, Stellen, die die Engine ablehnt
+claude plugin test ./first-mod       # führt *.test.ts(x) aus
+```
+
+Tests nutzen `test`, `expect` und `mock` aus `claude-code/testing`. Mit dem `on` im Test legst du anstelle der Engine Fake-Antworten an. Mit `$.ui.mount` zeichnest du das Fenster identisch für Terminal- und Desktop-Anzeige, drückst Buttons und prüfst das Ergebnis. Die Typen installiert die Engine im Mod-Ordner unter `.claude-plugin/types/`, du kannst sie also nach dem ersten Laden mit `tsc -p <Ordner>` prüfen.
+
+## Teilen
+
+Es genügt eine Marketplace-Datei im Wurzelverzeichnis des Repositories.
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "first-mod",
+  "owner": { "name": "you" },
+  "plugins": [{ "name": "first-mod", "source": "./" }]
+}
+```
+
+Andere installieren sie so:
+
+```text
+/plugin install first-mod --marketplace you/first-mod
+```
+
+Vergib am GitHub-Repository das Topic `claude-code-mod`, dann nimmt der Community-Katalog es innerhalb weniger Stunden auf.
+
+## Weiterlesen
+
+- [API-Spickzettel](/de/guide/api-cheatsheet/): Liste der Ereignisse und `$`-Aufrufe
+- [Fehlerbehebung](/de/guide/troubleshooting/): Fallstricke aus der Praxis und ihre Lösungen
+- [Offizielle Dokumentation](https://code.claude.com/docs/en/plugins/mods/overview)

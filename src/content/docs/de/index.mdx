@@ -1,0 +1,51 @@
+---
+title: Claude Code Mods Guide
+description: Alles über Mods, mit denen du Claude Code an dich anpasst. Konzept, sichere Installation, eigene Mods bauen und ein Verzeichnis mit über 1.400 Mods.
+template: splash
+hero:
+  tagline: Function-hooks-Plugins, die in Claude Code im Terminal Fenster öffnen, Tool-Aufrufe absichern und die Anzeige neu zeichnen. Was sie sind, wie du sie sicher nutzt und wie du sie baust, alles an einem Ort.
+  actions:
+    - text: Mit dem Guide starten
+      link: /de/guide/what-are-mods/
+      icon: right-arrow
+    - text: Mod-Verzeichnis
+      link: /de/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  <strong>{stats.total.toLocaleString()}</strong> geprüfte Mods · <strong>{stats.repos.toLocaleString()}</strong> Repositories · Stand Claude Code {stats.claudeVersion} (Scan vom {stats.generated.slice(0, 10)})
+</div>
+
+## Was Mods können
+
+<CardGrid>
+  <Card title="Fenster und Bänder zeichnen" icon="laptop">
+    Ein Fenster (Pane) neben dem Chat, ein Band (Band) über dem Eingabefeld. Auch Buttons und Eingabefelder sind möglich.
+  </Card>
+  <Card title="Tool-Aufrufe absichern" icon="warning">
+    Gefährliche Befehle wie `rm -rf` abfangen, nachfragen oder blockieren. Geheimnisse werden maskiert, bevor das Modell sie sieht.
+  </Card>
+  <Card title="Nutzung anzeigen" icon="information">
+    Kontext, Tokens, Kosten und die 5-Stunden- und Wochenlimits dauerhaft in der Statuszeile oder in einem Fenster.
+  </Card>
+  <Card title="Befehle hinzufügen" icon="puzzle">
+    Eigene `/befehle`, die ohne Claude-Turn sofort laufen, auch während Claude arbeitet.
+  </Card>
+</CardGrid>
+
+## Wo fängst du an?
+
+<CardGrid>
+  <LinkCard title="Was sind Mods?" description="Wie sie sich von Settings-Hooks, Skills und MCP unterscheiden und wo sie laufen" href="/de/guide/what-are-mods/" />
+  <LinkCard title="Sicherheitscheck vor der Installation" description="Mods laufen mit deinen Rechten. Was du vor der Installation prüfst und wie du sie ausschaltest" href="/de/guide/safety-checklist/" />
+  <LinkCard title="Deine erste Mod bauen" description="Von der Anweisung in natürlicher Sprache bis zu Validierung, Tests und Veröffentlichung" href="/de/guide/build-your-first-mod/" />
+  <LinkCard title="Ausgewählte Mods" description="Nach Kategorien sortiert: Mods, die du zuerst ausprobieren kannst" href="/de/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

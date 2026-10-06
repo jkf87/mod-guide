@@ -1,0 +1,36 @@
+---
+title: 자주 묻는 질문
+description: mod와 플러그인의 차이, 버전 요구 사항, 보안, 이 사이트에 대한 질문.
+---
+
+## mod와 플러그인은 뭐가 달라요?
+
+mod는 플러그인의 한 종류예요. 플러그인은 스킬·명령·에이전트·설정 훅·MCP 서버를 묶어 배포하는 단위이고, 그 안에 `hooks/hooks.json`으로 **function hooks 모듈**을 넣으면 mod라고 불러요. 설정 훅이 셸 명령으로 이벤트에 반응한다면, mod는 엔진 안에서 이벤트를 가로채고 화면을 그려요.
+
+## 어떤 버전부터 돼요?
+
+function hooks는 2.1.287부터 기본으로 켜져 있어요. `claude --version`으로 확인하고, 오래됐으면 `claude update`를 실행해요. 아직 early access API라서 버전마다 바뀔 수 있어요.
+
+## 설치했는데 안 보여요.
+
+`/reload-plugins`를 실행해요. `/reload-skills`는 스킬만 다시 읽어요. 그래도 안 되면 [문제 해결](/ko/guide/troubleshooting/)을 봐요.
+
+## mod는 안전한가요?
+
+mod는 내 계정 권한으로 파일을 읽고 쓰고, 프로그램을 실행하고, 네트워크에 접근할 수 있어요. 설치 전에 소스를 읽고 `claude plugin validate`를 돌려요. 자세한 기준은 [안전 점검](/ko/guide/safety-checklist/)에 있어요.
+
+## 데스크톱 앱이나 VS Code에서도 돼요?
+
+훅은 어디서나 돌아요. 화면은 `e.surface`(`terminal`, `desktop`, `vscode`, `mobile`)에 맞춰 그려지고, 그림처럼 일부 요소는 표면마다 다르게 보여요. 터미널에서 그림을 보려면 kitty 그래픽 프로토콜을 지원하는 터미널(Ghostty, kitty 등)이 필요해요.
+
+## 이 사이트는 공식인가요?
+
+아니요. Anthropic과 관계없는 **비공식 커뮤니티 가이드**예요. 공식 정보는 Claude Code 문서와 엔진이 깔아 주는 타입 정의(`claude-code.d.ts`)를 기준으로 해요.
+
+## 디렉터리에 내 mod를 올리고 싶어요.
+
+디렉터리는 공개 커뮤니티 목록 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods)에서 가져와요. 저장소를 공개하고 GitHub 토픽 `claude-code-mod`를 달면 그 목록이 수집해요. 이 사이트는 주기적으로 데이터를 다시 받아요.
+
+## 내용이 틀렸어요.
+
+[GitHub 저장소](https://github.com/jkf87/mod-guide)에 이슈를 열거나 고친 내용을 PR로 보내 주세요.

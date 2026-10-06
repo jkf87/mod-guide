@@ -1,0 +1,61 @@
+---
+title: ide-mod
+description: Eine Mod, die Agent-Board, Datei-Explorer und HWP-, HWPX- und PDF-Viewer in einem Fenster in Claude Code öffnet.
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod) ist eine Mod, die der Autor dieses Guides veröffentlicht hat. Oben im Fenster sitzt das **Agent-Board**, unten der **Dateibaum mit Tab-Editor**.
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+Die Oberfläche der Mod ist auf Koreanisch, deshalb zeigt der Ausschnitt oben koreanische Texte.
+
+## Installation
+
+<Steps>
+
+1. Gib in einer Claude-Code-Session ein:
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. Fragt Claude Code, ob der Marketplace hinzugefügt werden soll, antworte mit `y` und wähle als Bereich user.
+
+3. Öffne das Fenster mit `/ide`. Ist es nicht zu sehen, führe `/reload-plugins` aus.
+
+</Steps>
+
+## Was sie kann
+
+- **Agent-Board:** Zeigt den Hauptagent und die Subagents als Baum, wer wen gestartet hat. Es zeigt Modell, effort, zugewiesene Aufgabe, aktuelle Tätigkeit und verstrichene Zeit. Die von Menschen lesbare Aufgabenbeschreibung ist grün, die aktuelle Tätigkeit gelb eingefärbt.
+- **Explorer:** Ordnerbaum und bis zu 8 Tabs. Syntax-Highlighting, Markdown-Rendering und eine Markierung `●` für Dateien, die Claude geändert hat.
+- **HWP-, HWPX- und PDF-Viewer:** Zeichnet Seiten mit [rhwp](https://github.com/edwardkim/rhwp) und [pdf.js](https://github.com/mozilla/pdf.js). In Terminals ohne Grafik zeigt er ein Zeichenraster, das Tabellenränder und Ausrichtung erhält, in Terminals der kitty- und Ghostty-Familie zeigt er die Seite als echtes Bild.
+- **Anfrageverlauf** (`q`): Sammelt die in dieser Session gesendeten Anfragen samt Status. Er bleibt auch nach dem erneuten Öffnen der Session erhalten.
+- **Vorlesungsuntertitel** (`/lecture`): Zeigt über dem Eingabefeld in einfachen Sätzen, was Claude gerade tut.
+- **Stil-Gate** (`/style-gate`): Zählt KI-typische Muster in koreanischen Texten und urteilt mit bestanden, Warnung oder Abbruch.
+
+## Zugriffsumfang
+
+Die Mod liest Dateien (Explorer und Viewer) und startet zum Zeichnen von Dokumenten Node.js und ein Bildkonvertierungsprogramm. Für die einzeilige Zusammenfassung im Board ruft sie kurz haiku auf, das du mit `s` ausschalten kannst. Sie sendet keine Daten über das Netzwerk. Der Quellcode besteht aus einer einzigen Datei, `hooks/register.tsx`, du kannst ihn also vor der Installation komplett lesen.
+
+<Aside>
+Function hooks sind eine Early-Access-API. Die Mod wurde mit 2.1.290 gebaut und getestet. Die Texte der Oberfläche sind auf Koreanisch.
+</Aside>
+
+- Repository und Releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- Lizenz: MIT (rhwp MIT, pdf.js Apache-2.0 enthalten)

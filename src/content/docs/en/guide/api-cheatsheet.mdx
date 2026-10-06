@@ -1,0 +1,67 @@
+---
+title: API cheatsheet
+description: The events a mod can receive and what you can call through `$`, at a glance. Based on the Claude Code 2.1.290 type declarations.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+A hook has one shape: `($, e, next)`. `$` is the engine interface, `e` is the event input (a frozen value), and `next(e)` runs the plugins below and the engine's original behavior and returns the result. Returning without `next` means you answered directly. `next({ ...e, x })` changes the value that everything after you sees.
+
+<Aside>
+  The most accurate reference is the type declaration the engine installs in the mod folder (`.claude-plugin/types/claude-code/index.d.ts`). The lists below are based on 2.1.290. This is an early access API and may change between versions.
+</Aside>
+
+## Common events
+
+| Event | When | Typical use |
+| --- | --- | --- |
+| `session.start` / `session.end` | Session start and end (including `/clear`) | Register commands, start timers, clean up |
+| `prompt.submit` | When the user sends a prompt | Log, rewrite, block |
+| `prompt.compose` | When the system prompt is built | Add or replace sections |
+| `turn.start` / `turn.step` / `turn.complete` | Turn start, each model request (stream), turn end | Observe model and effort, show progress, summarize the answer |
+| `tool.call` | Right before a tool is used | Block (`{ deny }`), change arguments, observe results |
+| `agent.spawn` | When a subagent is launched | Record role and model, change the model |
+| `command.run` | When a registered `/command` runs | Open a pane, reply with text |
+| `ui.render` | When a screen element is drawn | Draw `Pane` and `AbovePrompt`, change defaults like `Spinner` |
+| `ui.scroll` | When a pane or band scrolls | Scroll your own pane directly |
+| `ui.press` / `ui.input` / `ui.select` | Button, input field, selection | Handle interaction |
+
+## What you can call through `$`
+
+| Name | Examples | What it does |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | Open panes, status line and toasts, clipboard, the per-surface element table |
+| `$.state` / `$.store` | `get`, `set`, `keys` | Session state (drawing subscribes to it), storage that outlives the session |
+| `$.command` | `register`, `run`, `list` | Create `/commands` |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | Tools the model calls, agent types |
+| `$.model` | `complete`, `fork` | One model call, a question that inherits the session context |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | Session info |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | Files |
+| `$.process` | `run`, `spawn` | Run programs (compiled code such as WASM goes through here too) |
+| `$.http` | `fetch` | Network |
+| `$.clock` | `after`, `every`, `sleep`, `now` | Timers (mods have no `setTimeout`) |
+| `$.prompt` | `submit`, `fill`, `read` | Fill the input box, submit prompts |
+| `$.env` / `$.settings` | `get`, `read` | Environment variables, settings |
+
+## Drawing elements
+
+Get the per-surface elements with `const { Box, Text, Button } = $.ui.resolve(e)` and draw them in JSX.
+
+| Element | Use | Surface |
+| --- | --- | --- |
+| `Box`, `Text` | Layout and text (colors are theme keys like `success`, `warning`, `error`) | All |
+| `Button`, `Input`, `Select` | Interaction (shortcut with `hotkey`) | No `Input` or `Select` on mobile |
+| `Code`, `Markdown` | Highlighted code, Markdown | All |
+| `Image`, `Raster` | Images (kitty and Ghostty graphics), a grid of colored cells | Terminal only |
+| `Svg` | Vector graphics (up to 131,072 characters) | Desktop, VS Code, mobile |
+| `Client` | An area drawn by the plugin's own module | Terminal, desktop |
+
+## Rules to remember
+
+- The mod environment has no DOM, Node, or `WebAssembly`. Do everything outside through `$`.
+- You can pass `$` only to functions **in the same file**. Passing it to a function imported from another file fails validation.
+- You can't write state while drawing. Write it with `update()` from a button handler or another event.
+- Registering the same event twice without a matcher is rejected.
+- For observe-only hooks, add `.catch(($, e, next) => next(e))`. Then a failure won't re-run a `next` that was already called.

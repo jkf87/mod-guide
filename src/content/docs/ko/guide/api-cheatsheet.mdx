@@ -1,0 +1,67 @@
+---
+title: API 치트시트
+description: mod가 받을 수 있는 이벤트와 `$`로 부를 수 있는 기능을 한눈에. Claude Code 2.1.290 타입 선언 기준.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+훅의 모양은 하나예요: `($, e, next)`. `$`는 엔진 인터페이스, `e`는 이벤트 입력(얼어 있는 값), `next(e)`는 아래 플러그인과 엔진의 원래 동작을 돌려 결과를 받아요. `next` 없이 돌려주면 직접 답한 것이고, `next({ ...e, x })`는 뒤에서 보는 값을 바꿔요.
+
+<Aside>
+  가장 정확한 기준은 엔진이 mod 폴더에 깔아 주는 타입 선언(`.claude-plugin/types/claude-code/index.d.ts`)이에요. 아래 목록은 2.1.290 기준이고, 얼리 액세스 API라 버전마다 바뀔 수 있어요.
+</Aside>
+
+## 자주 쓰는 이벤트
+
+| 이벤트 | 언제 | 주로 하는 일 |
+| --- | --- | --- |
+| `session.start` / `session.end` | 세션 시작·끝 (`/clear` 포함) | 명령 등록, 타이머 시작, 정리 |
+| `prompt.submit` | 사람이 프롬프트를 보낼 때 | 기록, 다시 쓰기, 막기 |
+| `prompt.compose` | 시스템 프롬프트를 만들 때 | 섹션 추가·교체 |
+| `turn.start` / `turn.step` / `turn.complete` | 턴 시작, 모델 요청마다(스트림), 턴 끝 | 모델·effort 관찰, 진행 표시, 답 요약 |
+| `tool.call` | 도구를 쓰기 직전 | 막기(`{ deny }`), 인자 바꾸기, 결과 관찰 |
+| `agent.spawn` | 서브에이전트를 띄울 때 | 역할·모델 기록, 모델 바꾸기 |
+| `command.run` | 등록한 `/명령` 실행 | 창 열기, 텍스트로 답하기 |
+| `ui.render` | 화면 요소를 그릴 때 | `Pane`·`AbovePrompt` 그리기, `Spinner` 등 기본 화면 바꾸기 |
+| `ui.scroll` | 창·띠를 스크롤할 때 | 자기 창을 직접 스크롤 |
+| `ui.press` / `ui.input` / `ui.select` | 버튼·입력칸·선택 | 상호작용 처리 |
+
+## `$`로 부를 수 있는 것
+
+| 이름 | 예 | 하는 일 |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | 창 열기, 상태줄·토스트, 클립보드, 화면 요소 표 |
+| `$.state` / `$.store` | `get`, `set`, `keys` | 세션 상태(그리기가 구독), 세션을 넘는 저장소 |
+| `$.command` | `register`, `run`, `list` | `/명령` 만들기 |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | 모델이 부르는 도구, 에이전트 타입 |
+| `$.model` | `complete`, `fork` | 모델 한 번 호출, 세션 맥락을 이어받은 질문 |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | 세션 정보 |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | 파일 |
+| `$.process` | `run`, `spawn` | 프로그램 실행 (WASM 같은 컴파일된 코드도 여기로) |
+| `$.http` | `fetch` | 네트워크 |
+| `$.clock` | `after`, `every`, `sleep`, `now` | 타이머 (mod 안에는 `setTimeout`이 없어요) |
+| `$.prompt` | `submit`, `fill`, `read` | 입력창 채우기, 프롬프트 보내기 |
+| `$.env` / `$.settings` | `get`, `read` | 환경 변수, 설정 |
+
+## 그리기 요소
+
+`const { Box, Text, Button } = $.ui.resolve(e)`로 화면별 요소를 꺼내 JSX로 그려요.
+
+| 요소 | 쓰임 | 화면 |
+| --- | --- | --- |
+| `Box`, `Text` | 배치와 글자 (색은 테마 키 `success`·`warning`·`error` 등) | 전부 |
+| `Button`, `Input`, `Select` | 상호작용 (단축키 `hotkey`) | 모바일은 `Input`·`Select` 없음 |
+| `Code`, `Markdown` | 하이라이트된 코드, 마크다운 | 전부 |
+| `Image`, `Raster` | 그림(kitty·Ghostty 그래픽), 색칠한 칸 격자 | 터미널만 |
+| `Svg` | 벡터 그림 (최대 131,072자) | 데스크톱·VS Code·모바일 |
+| `Client` | 플러그인 자체 모듈이 그리는 영역 | 터미널·데스크톱 |
+
+## 꼭 알아 둘 규칙
+
+- mod 환경에는 DOM, Node, `WebAssembly`가 없어요. 바깥 일은 전부 `$`로 해요.
+- `$`는 **같은 파일 안의 함수로만** 넘길 수 있어요. 다른 파일에서 import한 함수에 넘기면 검증이 실패해요.
+- 그리기 중에는 상태를 쓸 수 없어요. 버튼 핸들러나 다른 이벤트에서 `update()`로 써요.
+- 같은 이벤트를 매처 없이 두 번 등록하면 거절돼요.
+- 관찰만 하는 훅은 `.catch(($, e, next) => next(e))`를 붙여 두면, 실패해도 이미 부른 `next`가 다시 돌지 않아요.

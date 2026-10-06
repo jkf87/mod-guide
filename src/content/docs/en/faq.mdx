@@ -1,0 +1,36 @@
+---
+title: FAQ
+description: Questions about the difference between mods and plugins, version requirements, security, and this site.
+---
+
+## How are mods different from plugins?
+
+A mod is a kind of plugin. A plugin is a unit that bundles skills, commands, agents, settings hooks, and MCP servers for distribution. When a plugin includes a **function hooks module** through `hooks/hooks.json`, we call it a mod. Settings hooks react to events with shell commands. A mod intercepts events inside the engine and draws on the screen.
+
+## Which versions support mods?
+
+Function hooks are on by default from 2.1.287. Check with `claude --version`, and run `claude update` if your version is older. This is still an early access API, so it may change between versions.
+
+## I installed a mod but I don't see it.
+
+Run `/reload-plugins`. `/reload-skills` reloads skills only. If that doesn't help, see [Troubleshooting](/en/guide/troubleshooting/).
+
+## Are mods safe?
+
+A mod can read and write files, run programs, and access the network with your account's permissions. Read the source and run `claude plugin validate` before you install. The full criteria are in the [safety check](/en/guide/safety-checklist/).
+
+## Do mods work in the desktop app or VS Code?
+
+Hooks run everywhere. The UI is drawn to match `e.surface` (`terminal`, `desktop`, `vscode`, `mobile`), and some elements, such as images, look different on each surface. To see images in a terminal, you need one that supports the kitty graphics protocol (Ghostty, kitty, and others).
+
+## Is this site official?
+
+No. It is an **unofficial community guide** with no affiliation to Anthropic. Official information comes from the Claude Code docs and the type definitions the engine installs for you (`claude-code.d.ts`).
+
+## I want to list my mod in the directory.
+
+The directory pulls from the public community list [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods). Make your repository public and add the GitHub topic `claude-code-mod`, and that list will pick it up. This site refreshes its data periodically.
+
+## Something here is wrong.
+
+Open an issue in the [GitHub repository](https://github.com/jkf87/mod-guide), or send a pull request with the fix.

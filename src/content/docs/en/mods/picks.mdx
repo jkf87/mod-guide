@@ -1,0 +1,83 @@
+---
+title: Picked mods
+description: Mods worth trying first, grouped by category. Each entry says what it does and what it touches.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+We chose these from the [directory](/en/mods/directory/) by usefulness and access scope. Star counts reflect the repositories at the time this page was written. When one repository holds several mods, the star count applies to all of them.
+
+<Aside type="caution">
+A pick is not an endorsement. Go through the [safety check](/en/guide/safety-checklist/) before you install, and be especially careful with access level 2 and above in company repositories.
+</Aside>
+
+Access levels: **0** draws and remembers only · **1** reads files · **2** writes and executes · **3** network
+
+## Usage and context
+
+| mod | What it does | Level |
+|---|---|---|
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | Shows the 5-hour and weekly limits and their reset times on one line above the prompt | 2 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Shows your plan limits (5-hour and 7-day windows) | 0 |
+| [context-lens](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/context-lens) | Pins a line showing how full the context window is and how much it grows each turn | 0 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | Draws a context forecast and a prompt cache expiry countdown | 2 |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Stops the session before it goes over a budget you set | 2 |
+
+## Watching agents
+
+| mod | What it does | Level |
+|---|---|---|
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | A pane that shows subagents and teammates as a tree | 0 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | Lists the subagents a session launched, and what each is doing, in a side pane | 2 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | A btop-style dashboard of Claude Code's internal state | 2 |
+| [ide-mod](/en/mods/ide-mod/) | An agent board plus a file explorer and document viewer in one pane | 2 |
+
+## Safety
+
+| mod | What it does | Level |
+|---|---|---|
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | Catches dangerous Bash commands and shows what would change before they run | 2 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | Masks secrets, emails, and IPs in the conversation history | 0 |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | Asks first when Claude is about to edit a file that was changed in another window within the last 30 minutes | 2 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | Hides keys, personal information, and business numbers with `/rec` before you record your screen | 2 |
+
+## Display and reading
+
+| mod | What it does | Level |
+|---|---|---|
+| [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | The built-in mod that shows uncommitted changes in a pane next to the conversation | 2 |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) | An IDE-style file tree that shows which files Claude is working in | 2 |
+| [replay-theater](https://github.com/hamzafer/claude-code-mods/tree/main/mods/replay-theater) | Steps through the file edits of past turns, one diff at a time | 1 |
+| [mdview](https://github.com/xuanji86/claude-mdview) | Click a `.md` path in the conversation to open the rendered Markdown beside it | 2 |
+| [prismantis](https://github.com/NahumLitvin/prismantis) | Styles tables, headings, code, and numbers in answers with colors and themes | 2 |
+| [terminal-browser](https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin) | A browser that runs inside Claude Code | 3 |
+
+## Git and CI
+
+| mod | What it does | Level |
+|---|---|---|
+| [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) | Shows a GitHub PR's merge status, reviews, and required checks above the prompt | 2 |
+| [gh-ci-status](https://github.com/diegorv/claude-functions-hook/tree/main/plugins/gh-ci-status) | Pins the current repository's GitHub Actions runs | 2 |
+
+## Memory and notes
+
+| mod | What it does | Level |
+|---|---|---|
+| [pinboard](https://github.com/sirkitree/pinboard) | Pins the session's open questions, to-dos, and generated links in a side pane | 2 |
+| [aside](https://github.com/JayDoubleu/aside) | Opens a read-only side chat next to the conversation so you can ask about the session | 2 |
+
+## Fun
+
+| mod | What it does | Level |
+|---|---|---|
+| [intermission](https://github.com/jarrodwatts/intermission) | Plays a Doom deathmatch while Claude works, then brings you back when it's done | 2 |
+| [session-wrapped](https://github.com/OneWave-AI/claude-code-mods/tree/main/session-wrapped) | Shows session stats like Spotify Wrapped and saves them as a PNG card | 2 |
+
+## For Korean speakers
+
+| mod | What it does | Level |
+|---|---|---|
+| [ko-ui](https://github.com/moduvoice/claude-code-ko-ui) | Shows slash command descriptions and some `/config` items in Korean | 1 |
+| [ide-mod](/en/mods/ide-mod/) | A viewer that shows HWP and HWPX with true page layout, plus a Korean writing-style gate | 2 |

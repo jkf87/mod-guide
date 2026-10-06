@@ -1,0 +1,109 @@
+---
+title: はじめての Mod 作り
+description: Claude に言葉で頼んで Mod を作り、ホットリロードで直し、検証・テストして、GitHub で配布するまでの流れ。
+sidebar:
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+いちばん早い方法は、**Claude に言葉で頼む**ことです。Claude Code には、Mod を作るための `plugin-authoring` スキルが入っています。
+
+## 言葉で頼む
+
+```text
+会話の横に、このセッションのツール呼び出し回数を数えるペインを作って
+```
+
+Claude が Mod フォルダに最初のファイルを書くと、**「Enable hot reloading for this session?」**と聞かれます。**Enable for this session** を選ぶと、ターンが終わるたびに変更内容がすぐに再読み込みされます。
+
+<Aside type="tip">
+  セッションが再開されると、セッション専用の Mod フォルダも変わります。長く使う Mod は固定のフォルダに置き、`claude --plugin-dir` かローカルのマーケットプレイスで読み込んでください。
+</Aside>
+
+## 自分で書く
+
+<Steps>
+
+1. マニフェストを作ります。
+
+   ```json title=".claude-plugin/plugin.json"
+   { "name": "first-mod", "version": "0.1.0", "description": "ツール呼び出し回数を数える" }
+   ```
+
+2. フックモジュールの場所を書きます。パスはこのファイルが基準です。
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+3. フックを登録します。ペインは `$.ui.open` で開き、`ui.render` フックがその中身を描画します。
+
+   ```tsx title="hooks/register.tsx"
+   import type { Register } from 'claude-code'
+
+   let calls = 0
+
+   export const register: Register = on => {
+     on('session.start', async ($, e, next) => {
+       await $.command.register({ name: 'calls', description: 'ツール呼び出し回数ペインを開く' })
+       return next(e)
+     })
+     on('command.run', { command: 'calls' }, async $ => {
+       await $.ui.open({ id: 'calls', title: 'Tool calls' })
+       return { text: 'ペインを開きました。' }
+     })
+     on('tool.call', async ($, e, next) => {
+       calls += 1
+       $.ui.invalidate('ui.render')
+       return next(e)
+     })
+     on('ui.render', { component: 'Pane', requestId: 'calls' }, async ($, e) => {
+       const { Text } = $.ui.resolve(e)
+       return <Text>ツール呼び出し {calls} 回</Text>
+     })
+   }
+   ```
+
+4. 1 つのセッションで読み込んで試します。
+
+   ```bash
+   claude --plugin-dir ./first-mod
+   ```
+
+</Steps>
+
+## 検証とテスト
+
+```bash
+claude plugin validate ./first-mod   # フック・呼び出しの一覧、エンジンが拒否する箇所
+claude plugin test ./first-mod       # *.test.ts(x) を実行
+```
+
+テストでは `claude-code/testing` の `test`、`expect`、`mock` を使います。テストの `on` でエンジンの代わりに偽の応答を差し込み、`$.ui.mount` でペインをターミナルとデスクトップの両方の画面に同じように描画して、ボタンを押して結果を確認します。型はエンジンが Mod フォルダの `.claude-plugin/types/` に配置するので、一度読み込まれたあとに `tsc -p <フォルダ>` で検査できます。
+
+## 共有する
+
+リポジトリのルートにマーケットプレイスファイルを 1 つ置けば完了です。
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "first-mod",
+  "owner": { "name": "you" },
+  "plugins": [{ "name": "first-mod", "source": "./" }]
+}
+```
+
+ほかの人は次のようにインストールします。
+
+```text
+/plugin install first-mod --marketplace you/first-mod
+```
+
+GitHub リポジトリに `claude-code-mod` トピックを付けると、コミュニティのカタログが数時間以内に収集します。
+
+## 関連ページ
+
+- [API チートシート](/ja/guide/api-cheatsheet/): イベントと `$` 呼び出しの一覧
+- [トラブルシューティング](/ja/guide/troubleshooting/): 実際にはまった落とし穴と解決法
+- [公式ドキュメント](https://code.claude.com/docs/en/plugins/mods/overview)

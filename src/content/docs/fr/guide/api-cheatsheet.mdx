@@ -1,0 +1,67 @@
+---
+title: Aide-mémoire de l'API
+description: Les événements qu'un mod peut recevoir et les fonctions appelables via `$`, en un coup d'œil. Basé sur les déclarations de types de Claude Code 2.1.290.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Un hook a toujours la même forme : `($, e, next)`. `$` est l'interface du moteur, `e` l'entrée de l'événement (une valeur figée) et `next(e)` exécute les plugins suivants et le comportement d'origine du moteur, puis renvoie le résultat. Si vous renvoyez une valeur sans appeler `next`, vous répondez vous-même ; `next({ ...e, x })` modifie la valeur vue par la suite de la chaîne.
+
+<Aside>
+  La référence la plus exacte reste la déclaration de types que le moteur installe dans le dossier du mod (`.claude-plugin/types/claude-code/index.d.ts`). Les listes ci-dessous correspondent à la version 2.1.290 ; l'API étant en accès anticipé, elles peuvent changer d'une version à l'autre.
+</Aside>
+
+## Événements courants
+
+| Événement | Quand | Usage principal |
+| --- | --- | --- |
+| `session.start` / `session.end` | Début et fin de session (y compris `/clear`) | Enregistrer des commandes, démarrer des minuteurs, nettoyer |
+| `prompt.submit` | Quand l'utilisateur envoie un prompt | Journaliser, réécrire, bloquer |
+| `prompt.compose` | À la construction du prompt système | Ajouter ou remplacer des sections |
+| `turn.start` / `turn.step` / `turn.complete` | Début du tour, à chaque requête au modèle (flux), fin du tour | Observer le modèle et l'effort, afficher la progression, résumer la réponse |
+| `tool.call` | Juste avant l'utilisation d'un outil | Bloquer (`{ deny }`), modifier les arguments, observer le résultat |
+| `agent.spawn` | Au lancement d'un sous-agent | Journaliser le rôle et le modèle, changer de modèle |
+| `command.run` | Exécution d'une `/commande` enregistrée | Ouvrir un volet, répondre par du texte |
+| `ui.render` | Au dessin d'un élément d'écran | Dessiner `Pane` et `AbovePrompt`, modifier des éléments par défaut comme `Spinner` |
+| `ui.scroll` | Au défilement d'un volet ou d'un bandeau | Faire défiler soi-même son propre volet |
+| `ui.press` / `ui.input` / `ui.select` | Bouton, champ de saisie, sélection | Gérer les interactions |
+
+## Ce qu'on peut appeler avec `$`
+
+| Nom | Exemples | Rôle |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | Ouvrir des volets, barre d'état et toasts, presse-papiers, table des éléments d'écran |
+| `$.state` / `$.store` | `get`, `set`, `keys` | État de session (auquel le dessin s'abonne), stockage durable entre sessions |
+| `$.command` | `register`, `run`, `list` | Créer des `/commandes` |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | Outils appelés par le modèle, types d'agents |
+| `$.model` | `complete`, `fork` | Un seul appel au modèle, question qui reprend le contexte de la session |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | Informations sur la session |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | Fichiers |
+| `$.process` | `run`, `spawn` | Exécution de programmes (y compris du code compilé comme WASM) |
+| `$.http` | `fetch` | Réseau |
+| `$.clock` | `after`, `every`, `sleep`, `now` | Minuteurs (`setTimeout` n'existe pas dans un mod) |
+| `$.prompt` | `submit`, `fill`, `read` | Remplir la zone de saisie, envoyer des prompts |
+| `$.env` / `$.settings` | `get`, `read` | Variables d'environnement, réglages |
+
+## Éléments de dessin
+
+Avec `const { Box, Text, Button } = $.ui.resolve(e)`, vous récupérez les éléments propres à chaque écran et vous les dessinez en JSX.
+
+| Élément | Usage | Écrans |
+| --- | --- | --- |
+| `Box`, `Text` | Mise en page et texte (couleurs par clés de thème : `success`, `warning`, `error`, etc.) | Tous |
+| `Button`, `Input`, `Select` | Interaction (raccourci `hotkey`) | Pas d'`Input` ni de `Select` sur mobile |
+| `Code`, `Markdown` | Code avec coloration syntaxique, Markdown | Tous |
+| `Image`, `Raster` | Images (graphiques kitty et Ghostty), grille de cellules colorées | Terminal uniquement |
+| `Svg` | Image vectorielle (131 072 caractères au maximum) | Bureau, VS Code, mobile |
+| `Client` | Zone dessinée par le propre module du plugin | Terminal, bureau |
+
+## Règles à connaître absolument
+
+- L'environnement d'un mod n'a ni DOM, ni Node, ni `WebAssembly`. Tout ce qui touche l'extérieur passe par `$`.
+- `$` ne peut être transmis qu'à des **fonctions du même fichier**. Le transmettre à une fonction importée d'un autre fichier fait échouer la validation.
+- Pendant le dessin, on ne peut pas écrire dans l'état. Écrivez avec `update()` depuis un gestionnaire de bouton ou un autre événement.
+- Enregistrer deux fois le même événement sans matcher est refusé.
+- Pour un hook qui se contente d'observer, ajoutez `.catch(($, e, next) => next(e))` : en cas d'échec, le `next` déjà appelé ne sera pas relancé.

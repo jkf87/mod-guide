@@ -1,0 +1,36 @@
+---
+title: Questions fréquentes
+description: Différence entre mod et plugin, versions requises, sécurité et questions sur ce site.
+---
+
+## Quelle est la différence entre un mod et un plugin ?
+
+Un mod est un type de plugin. Un plugin est une unité de distribution qui regroupe skills, commandes, agents, hooks de configuration et serveurs MCP ; lorsqu'il contient un **module de function hooks** déclaré dans `hooks/hooks.json`, on l'appelle un mod. Là où un hook de configuration réagit aux événements par une commande shell, un mod intercepte les événements au sein même du moteur et dessine l'écran.
+
+## À partir de quelle version ?
+
+Les function hooks sont activés par défaut depuis la version 2.1.287. Vérifiez avec `claude --version` et, si votre version est ancienne, lancez `claude update`. Il s'agit encore d'une API en accès anticipé, qui peut changer d'une version à l'autre.
+
+## J'ai installé un mod, mais je ne le vois pas.
+
+Lancez `/reload-plugins`. `/reload-skills` ne recharge que les skills. Si cela ne suffit pas, consultez [Dépannage](/fr/guide/troubleshooting/).
+
+## Les mods sont-ils sûrs ?
+
+Un mod peut lire et écrire des fichiers, exécuter des programmes et accéder au réseau avec les droits de votre compte. Avant d'installer, lisez le code source et lancez `claude plugin validate`. Les critères détaillés se trouvent dans le [contrôle de sécurité](/fr/guide/safety-checklist/).
+
+## Cela fonctionne-t-il aussi dans l'application de bureau ou dans VS Code ?
+
+Les hooks s'exécutent partout. L'affichage s'adapte à `e.surface` (`terminal`, `desktop`, `vscode`, `mobile`), et certains éléments, comme les images, se présentent différemment selon la surface. Pour voir des images dans un terminal, il vous faut un terminal compatible avec le protocole graphique kitty (Ghostty, kitty, etc.).
+
+## Ce site est-il officiel ?
+
+Non. C'est un **guide communautaire non officiel**, sans lien avec Anthropic. Les informations officielles sont celles de la documentation de Claude Code et des définitions de types (`claude-code.d.ts`) installées par le moteur.
+
+## Je voudrais ajouter mon mod au répertoire.
+
+Le répertoire est alimenté par la liste communautaire publique [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods). Rendez votre dépôt public et ajoutez-lui le topic GitHub `claude-code-mod` : cette liste le collectera. Ce site récupère régulièrement les données à jour.
+
+## Une information est inexacte.
+
+Ouvrez une issue sur le [dépôt GitHub](https://github.com/jkf87/mod-guide) ou proposez votre correction par pull request.

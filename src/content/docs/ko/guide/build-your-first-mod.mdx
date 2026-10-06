@@ -1,0 +1,109 @@
+---
+title: 첫 mod 만들기
+description: Claude에게 말로 시켜 mod를 만들고, 핫 리로드로 고치고, 검증·테스트하고, GitHub로 배포하는 흐름.
+sidebar:
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+가장 빠른 길은 **Claude에게 말로 시키는 것**이에요. Claude Code에는 mod를 만드는 `plugin-authoring` 스킬이 들어 있어요.
+
+## 말로 시키기
+
+```text
+대화 옆에 이번 세션의 도구 호출 수를 세는 창을 만들어 줘
+```
+
+Claude가 mod 폴더에 첫 파일을 쓰면 **"Enable hot reloading for this session?"**을 물어요. **Enable for this session**을 고르면 턴이 끝날 때마다 고친 내용이 바로 다시 로드돼요.
+
+<Aside type="tip">
+  세션이 다시 시작되면 세션 전용 mod 폴더도 바뀌어요. 오래 쓸 mod는 고정 폴더에 두고 `claude --plugin-dir`이나 로컬 마켓플레이스로 불러오세요.
+</Aside>
+
+## 직접 쓰기
+
+<Steps>
+
+1. 매니페스트를 만들어요.
+
+   ```json title=".claude-plugin/plugin.json"
+   { "name": "first-mod", "version": "0.1.0", "description": "도구 호출 수를 센다" }
+   ```
+
+2. 훅 모듈 위치를 적어요. 경로는 이 파일 기준이에요.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+3. 훅을 등록해요. 창은 `$.ui.open`으로 열고, `ui.render` 훅이 그 안을 그려요.
+
+   ```tsx title="hooks/register.tsx"
+   import type { Register } from 'claude-code'
+
+   let calls = 0
+
+   export const register: Register = on => {
+     on('session.start', async ($, e, next) => {
+       await $.command.register({ name: 'calls', description: '도구 호출 수 창 열기' })
+       return next(e)
+     })
+     on('command.run', { command: 'calls' }, async $ => {
+       await $.ui.open({ id: 'calls', title: 'Tool calls' })
+       return { text: '창을 열었어요.' }
+     })
+     on('tool.call', async ($, e, next) => {
+       calls += 1
+       $.ui.invalidate('ui.render')
+       return next(e)
+     })
+     on('ui.render', { component: 'Pane', requestId: 'calls' }, async ($, e) => {
+       const { Text } = $.ui.resolve(e)
+       return <Text>도구 호출 {calls}회</Text>
+     })
+   }
+   ```
+
+4. 한 세션에서 불러 써 봐요.
+
+   ```bash
+   claude --plugin-dir ./first-mod
+   ```
+
+</Steps>
+
+## 검증과 테스트
+
+```bash
+claude plugin validate ./first-mod   # 훅·호출 목록, 엔진이 거절할 부분
+claude plugin test ./first-mod       # *.test.ts(x) 실행
+```
+
+테스트는 `claude-code/testing`의 `test`, `expect`, `mock`을 써요. 테스트의 `on`으로 엔진 자리에 가짜 응답을 깔고, `$.ui.mount`로 창을 터미널·데스크톱 화면에 똑같이 그려서 버튼을 누르고 결과를 확인해요. 타입은 엔진이 mod 폴더의 `.claude-plugin/types/`에 깔아 주니, 한 번 로드된 뒤 `tsc -p <폴더>`로 검사할 수 있어요.
+
+## 공유하기
+
+저장소 루트에 마켓플레이스 파일 하나를 두면 끝이에요.
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "first-mod",
+  "owner": { "name": "you" },
+  "plugins": [{ "name": "first-mod", "source": "./" }]
+}
+```
+
+다른 사람은 이렇게 설치해요.
+
+```text
+/plugin install first-mod --marketplace you/first-mod
+```
+
+GitHub 저장소에 `claude-code-mod` 토픽을 달면 커뮤니티 카탈로그가 몇 시간 안에 수집해 가요.
+
+## 더 보기
+
+- [API 치트시트](/ko/guide/api-cheatsheet/): 이벤트와 `$` 호출 목록
+- [문제 해결](/ko/guide/troubleshooting/): 실제로 부딪힌 함정과 해결법
+- [공식 문서](https://code.claude.com/docs/en/plugins/mods/overview)

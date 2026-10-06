@@ -1,0 +1,51 @@
+---
+title: Claude Code Mods ガイド
+description: Claude Code を自分好みに変える Mod のすべて。概念、安全なインストール、自作の方法、そして 1,400 個を超える Mod ディレクトリ。
+template: splash
+hero:
+  tagline: ターミナルの Claude Code にペインを表示し、ツール呼び出しを守り、画面を描き直す function hooks（関数フック）プラグイン。Mod とは何か、どう安全に使うか、どう作るかを一か所にまとめました。
+  actions:
+    - text: ガイドを読む
+      link: /ja/guide/what-are-mods/
+      icon: right-arrow
+    - text: Mod ディレクトリ
+      link: /ja/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  検証を通過した Mod <strong>{stats.total.toLocaleString()}</strong> 個 · リポジトリ <strong>{stats.repos.toLocaleString()}</strong> 件 · Claude Code {stats.claudeVersion} 基準（{stats.generated.slice(0, 10)} スキャン）
+</div>
+
+## Mod でできること
+
+<CardGrid>
+  <Card title="ペインとバンドを描画します" icon="laptop">
+    会話の横にペイン（pane）、入力欄の上にバンド（band）を表示します。ボタンや入力欄も置けます。
+  </Card>
+  <Card title="ツール呼び出しを守ります" icon="warning">
+    `rm -rf` のような危険なコマンドを止めて確認したりブロックしたりし、シークレットはモデルに見える前に隠します。
+  </Card>
+  <Card title="使用量を表示します" icon="information">
+    コンテキスト、トークン、コスト、5 時間・週間の上限をステータスラインやペインに常時表示します。
+  </Card>
+  <Card title="コマンドを追加します" icon="puzzle">
+    Claude のターンを介さず即実行される `/コマンド` を作れます。Claude が作業中でも動きます。
+  </Card>
+</CardGrid>
+
+## どこから読みますか
+
+<CardGrid>
+  <LinkCard title="Mod とは" description="設定フック・スキル・MCP との違いと、どこで動くか" href="/ja/guide/what-are-mods/" />
+  <LinkCard title="インストール前の安全チェック" description="Mod は自分の権限で動きます。インストール前に確認すること、無効にする方法" href="/ja/guide/safety-checklist/" />
+  <LinkCard title="はじめての Mod 作り" description="Claude に言葉で頼むところから、検証・テスト・配布まで" href="/ja/guide/build-your-first-mod/" />
+  <LinkCard title="おすすめ Mod" description="分野別に、まず試してみたい Mod をまとめました" href="/ja/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

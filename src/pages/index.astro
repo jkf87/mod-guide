@@ -1,0 +1,28 @@
+---
+// 첫 화면: 브라우저 언어에 맞는 언어 페이지로 보낸다 (자바스크립트가 없으면 영어 링크)
+const langs = ['ko', 'ja', 'zh-cn', 'fr', 'de', 'en']
+---
+
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Claude Code Mods Guide</title>
+    <link rel="canonical" href="/en/" />
+    {langs.map(l => <link rel="alternate" hreflang={l === 'zh-cn' ? 'zh-CN' : l} href={`/${l}/`} />)}
+    <script is:inline define:vars={{ langs }}>
+      const want = (navigator.languages || [navigator.language || 'en']).map(l => l.toLowerCase())
+      let hit = 'en'
+      for (const l of want) {
+        if (l.startsWith('zh')) { hit = 'zh-cn'; break }
+        const base = l.split('-')[0]
+        if (langs.includes(base)) { hit = base; break }
+      }
+      location.replace(`/${hit}/`)
+    </script>
+  </head>
+  <body>
+    <p><a href="/en/">Claude Code Mods Guide →</a></p>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+---
+title: Mods recommandés
+description: Une sélection de mods à essayer en premier, par catégorie, avec ce qu'ils font et à quoi ils accèdent.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Ces mods ont été choisis dans le [répertoire](/fr/mods/directory/) selon leur utilité et leur portée d'accès. Les étoiles correspondent à l'état des dépôts au moment de la rédaction de cette page. Lorsqu'un même dépôt contient plusieurs mods, les étoiles sont indiquées ensemble.
+
+<Aside type="caution">
+Une recommandation n'est pas une garantie. Passez par le [contrôle de sécurité](/fr/guide/safety-checklist/) avant d'installer, et soyez particulièrement prudent avec le niveau d'accès 2 ou supérieur dans un dépôt d'entreprise.
+</Aside>
+
+Niveaux d'accès : **0** dessin et mémoire seulement · **1** lecture de fichiers · **2** écriture et exécution · **3** réseau
+
+## Consommation et contexte
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | Affiche sur une ligne au-dessus de la zone de saisie les limites de 5 heures et hebdomadaires ainsi que leur heure de réinitialisation | 2 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Affiche les limites de l'abonnement (fenêtres de 5 heures et de 7 jours) | 0 |
+| [context-lens](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/context-lens) | Montre sur une ligne fixe le remplissage de la fenêtre de contexte et sa progression à chaque tour | 0 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | Dessine les prévisions de contexte et le compte à rebours d'expiration du cache de prompts | 2 |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arrête la session avant que le budget fixé ne soit dépassé | 2 |
+
+## Suivi des agents
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | Un volet qui affiche les sous-agents et les équipiers sous forme d'arbre | 0 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | Liste dans un volet latéral les sous-agents lancés par la session et ce que fait chacun | 2 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | Un tableau de bord pour observer l'état interne de Claude Code, à la manière de btop | 2 |
+| [ide-mod](/fr/mods/ide-mod/) | Un tableau des agents, un explorateur de fichiers et un lecteur de documents dans un seul volet | 2 |
+
+## Sécurité
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | Intercepte les commandes Bash dangereuses et montre ce qui va changer avant l'exécution | 2 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | Masque les secrets, les e-mails et les adresses IP dans l'historique de conversation | 0 |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | Demande confirmation lorsque Claude veut modifier un fichier modifié dans une autre fenêtre depuis moins de 30 minutes | 2 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | Masque clés, informations personnelles et chiffres d'activité avec `/rec` avant un enregistrement d'écran | 2 |
+
+## Affichage et lecture
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | Le mod intégré qui affiche dans un volet latéral les modifications non commitées | 2 |
+| [filetree](https://github.com/data-goblin/claude-code-filetree) | Un arbre de fichiers façon IDE qui montre sur quel fichier Claude travaille | 2 |
+| [replay-theater](https://github.com/hamzafer/claude-code-mods/tree/main/mods/replay-theater) | Parcourt un par un, diff après diff, les modifications de fichiers des tours précédents | 1 |
+| [mdview](https://github.com/xuanji86/claude-mdview) | Ouvre à côté le Markdown rendu quand on clique sur un chemin `.md` dans la conversation | 2 |
+| [prismantis](https://github.com/NahumLitvin/prismantis) | Habille de couleurs et de thèmes les tableaux, titres, codes et nombres des réponses | 2 |
+| [terminal-browser](https://github.com/zenbu-labs/terminal-browser/tree/main/claude-code-plugin) | Un navigateur qui s'exécute dans Claude Code | 3 |
+
+## Git et CI
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [cc-pr-tracker](https://github.com/sezaakgun/cc-pr-tracker) | Affiche au-dessus de la zone de saisie l'état de fusion, les revues et les vérifications obligatoires d'une PR GitHub | 2 |
+| [gh-ci-status](https://github.com/diegorv/claude-functions-hook/tree/main/plugins/gh-ci-status) | Affiche en permanence les exécutions GitHub Actions du dépôt courant | 2 |
+
+## Mémoire et notes
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [pinboard](https://github.com/sirkitree/pinboard) | Épingle dans un volet latéral les questions ouvertes, les tâches à faire et les liens créés pendant la session | 2 |
+| [aside](https://github.com/JayDoubleu/aside) | Ouvre à côté de la conversation un chat annexe en lecture seule pour poser des questions sur la session | 2 |
+
+## Pour le plaisir
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [intermission](https://github.com/jarrodwatts/intermission) | Lance un deathmatch Doom pendant que Claude travaille, et vous ramène à la session quand il a fini | 2 |
+| [session-wrapped](https://github.com/OneWave-AI/claude-code-mods/tree/main/session-wrapped) | Présente les statistiques de session façon Spotify Wrapped et les enregistre sous forme de carte PNG | 2 |
+
+## Pour les utilisateurs coréens
+
+| mod | Ce qu'il fait | Niveau |
+|---|---|---|
+| [ko-ui](https://github.com/moduvoice/claude-code-ko-ui) | Affiche en coréen les descriptions des commandes slash et une partie des entrées de `/config` | 1 |
+| [ide-mod](/fr/mods/ide-mod/) | Un lecteur qui affiche HWP et HWPX fidèlement à la mise en page, et un contrôle de style pour le coréen | 2 |

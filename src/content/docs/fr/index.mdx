@@ -1,0 +1,51 @@
+---
+title: Guide des mods Claude Code
+description: "Tout sur les mods qui adaptent Claude Code à vos habitudes : concepts, installation sûre, création de vos propres mods et un répertoire de plus de 1 400 mods."
+template: splash
+hero:
+  tagline: Des plugins à function hooks qui ouvrent des volets dans Claude Code, surveillent les appels d'outils et redessinent l'écran, directement dans votre terminal. Ce que c'est, comment les utiliser en toute sécurité et comment en créer, le tout au même endroit.
+  actions:
+    - text: Commencer le guide
+      link: /fr/guide/what-are-mods/
+      icon: right-arrow
+    - text: Répertoire des mods
+      link: /fr/mods/directory/
+      variant: minimal
+---
+
+import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
+import stats from '../../../data/stats.json'
+
+<div class="home-stats">
+  <strong>{stats.total.toLocaleString()}</strong> mods validés · <strong>{stats.repos.toLocaleString()}</strong> dépôts · basé sur Claude Code {stats.claudeVersion} (analyse du {stats.generated.slice(0, 10)})
+</div>
+
+## Ce que les mods permettent de faire
+
+<CardGrid>
+  <Card title="Dessiner des volets et des bandeaux" icon="laptop">
+    Affichez un volet (pane) à côté de la conversation et un bandeau (band) au-dessus de la zone de saisie, avec boutons et champs de saisie si besoin.
+  </Card>
+  <Card title="Surveiller les appels d'outils" icon="warning">
+    Interceptez les commandes dangereuses comme `rm -rf` pour demander confirmation ou les bloquer, et masquez les secrets avant que le modèle ne les voie.
+  </Card>
+  <Card title="Afficher la consommation" icon="information">
+    Gardez en permanence sous les yeux le contexte, les tokens, le coût et les limites de 5 heures et hebdomadaires, dans la barre d'état ou dans un volet.
+  </Card>
+  <Card title="Ajouter des commandes" icon="puzzle">
+    Créez des `/commandes` qui s'exécutent immédiatement, sans tour de Claude, même pendant que Claude travaille.
+  </Card>
+</CardGrid>
+
+## Par où commencer
+
+<CardGrid>
+  <LinkCard title="Qu'est-ce qu'un mod ?" description="En quoi il diffère des hooks de configuration, des skills et de MCP, et où il s'exécute" href="/fr/guide/what-are-mods/" />
+  <LinkCard title="Contrôle de sécurité avant installation" description="Un mod s'exécute avec vos droits. Ce qu'il faut vérifier avant d'installer, et comment le désactiver" href="/fr/guide/safety-checklist/" />
+  <LinkCard title="Créer votre premier mod" description="De la demande en langage naturel à Claude jusqu'à la validation, aux tests et à la publication" href="/fr/guide/build-your-first-mod/" />
+  <LinkCard title="Mods sélectionnés" description="Une sélection de mods à essayer en premier, par catégorie" href="/fr/mods/picks/" />
+</CardGrid>
+
+<style>{`
+  .home-stats { text-align: center; color: var(--sl-color-gray-2); }
+`}</style>

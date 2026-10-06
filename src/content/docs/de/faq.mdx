@@ -1,0 +1,36 @@
+---
+title: Häufige Fragen
+description: Fragen zum Unterschied zwischen Mods und Plugins, zu Versionsanforderungen, Sicherheit und zu dieser Seite.
+---
+
+## Was ist der Unterschied zwischen Mods und Plugins?
+
+Eine Mod ist eine Art von Plugin. Ein Plugin bündelt Skills, Befehle, Agents, Settings-Hooks und MCP-Server zu einer Einheit. Enthält es per `hooks/hooks.json` ein **Function-hooks-Modul**, nennt man es Mod. Settings-Hooks reagieren mit Shell-Befehlen auf Ereignisse. Eine Mod dagegen fängt Ereignisse direkt in der Engine ab und zeichnet die Anzeige.
+
+## Ab welcher Version funktioniert das?
+
+Function hooks sind ab 2.1.287 standardmäßig aktiv. Prüfe die Version mit `claude --version` und führe bei einer alten Version `claude update` aus. Es ist noch eine Early-Access-API und kann sich von Version zu Version ändern.
+
+## Ich habe installiert, aber nichts ist zu sehen.
+
+Führe `/reload-plugins` aus. `/reload-skills` lädt nur Skills neu. Hilft das nicht, schau in die [Fehlerbehebung](/de/guide/troubleshooting/).
+
+## Sind Mods sicher?
+
+Eine Mod kann mit den Rechten deines Kontos Dateien lesen und schreiben, Programme ausführen und auf das Netzwerk zugreifen. Lies vor der Installation den Quellcode und führe `claude plugin validate` aus. Die ausführlichen Kriterien findest du im [Sicherheitscheck](/de/guide/safety-checklist/).
+
+## Funktioniert das auch in der Desktop-App oder in VS Code?
+
+Hooks laufen überall. Die Anzeige wird passend zu `e.surface` (`terminal`, `desktop`, `vscode`, `mobile`) gezeichnet, und manche Elemente, etwa Bilder, sehen je nach Oberfläche anders aus. Für Bilder im Terminal brauchst du ein Terminal mit Unterstützung des kitty-Grafikprotokolls (Ghostty, kitty usw.).
+
+## Ist diese Seite offiziell?
+
+Nein. Sie ist ein **inoffizieller Community-Guide** ohne Verbindung zu Anthropic. Offizielle Informationen findest du in der Claude-Code-Dokumentation und in den Typdefinitionen (`claude-code.d.ts`), die die Engine installiert.
+
+## Ich möchte meine Mod ins Verzeichnis aufnehmen.
+
+Das Verzeichnis bezieht seine Daten aus der öffentlichen Community-Liste [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods). Mach dein Repository öffentlich und vergib das GitHub-Topic `claude-code-mod`, dann nimmt die Liste es auf. Diese Seite lädt die Daten regelmäßig neu.
+
+## Auf der Seite steht etwas Falsches.
+
+Eröffne ein Issue im [GitHub-Repository](https://github.com/jkf87/mod-guide) oder schick deine Korrektur als PR.

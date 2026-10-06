@@ -1,0 +1,109 @@
+---
+title: Build your first mod
+description: How to ask Claude in plain language to build a mod, fix it with hot reload, validate and test it, and publish it on GitHub.
+sidebar:
+  order: 4
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+The fastest way is to **ask Claude in plain language**. Claude Code includes a `plugin-authoring` skill for building mods.
+
+## Ask in plain language
+
+```text
+Make a pane next to the conversation that counts this session's tool calls
+```
+
+When Claude writes the first file in the mod folder, it asks **"Enable hot reloading for this session?"**. Choose **Enable for this session** and your changes reload right after each turn ends.
+
+<Aside type="tip">
+  When a session restarts, the session-only mod folder changes too. Keep a mod you plan to use for a long time in a fixed folder and load it with `claude --plugin-dir` or a local marketplace.
+</Aside>
+
+## Write it yourself
+
+<Steps>
+
+1. Create the manifest.
+
+   ```json title=".claude-plugin/plugin.json"
+   { "name": "first-mod", "version": "0.1.0", "description": "Counts tool calls" }
+   ```
+
+2. List the hook module location. The path is relative to this file.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+3. Register the hooks. Open the pane with `$.ui.open`, and the `ui.render` hook draws its contents.
+
+   ```tsx title="hooks/register.tsx"
+   import type { Register } from 'claude-code'
+
+   let calls = 0
+
+   export const register: Register = on => {
+     on('session.start', async ($, e, next) => {
+       await $.command.register({ name: 'calls', description: 'Open the tool calls pane' })
+       return next(e)
+     })
+     on('command.run', { command: 'calls' }, async $ => {
+       await $.ui.open({ id: 'calls', title: 'Tool calls' })
+       return { text: 'Opened the pane.' }
+     })
+     on('tool.call', async ($, e, next) => {
+       calls += 1
+       $.ui.invalidate('ui.render')
+       return next(e)
+     })
+     on('ui.render', { component: 'Pane', requestId: 'calls' }, async ($, e) => {
+       const { Text } = $.ui.resolve(e)
+       return <Text>Tool calls: {calls}</Text>
+     })
+   }
+   ```
+
+4. Load it in one session and try it.
+
+   ```bash
+   claude --plugin-dir ./first-mod
+   ```
+
+</Steps>
+
+## Validate and test
+
+```bash
+claude plugin validate ./first-mod   # list of hooks and calls, plus anything the engine will reject
+claude plugin test ./first-mod       # run *.test.ts(x)
+```
+
+Tests use `test`, `expect`, and `mock` from `claude-code/testing`. In a test, `on` lets you lay down fake responses in place of the engine, and `$.ui.mount` draws the pane identically for the terminal and desktop screens so you can press buttons and check the result. The engine installs the types in the mod folder's `.claude-plugin/types/`, so once the mod has loaded, you can type-check with `tsc -p <folder>`.
+
+## Share it
+
+Put one marketplace file at the repository root and you're done.
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "first-mod",
+  "owner": { "name": "you" },
+  "plugins": [{ "name": "first-mod", "source": "./" }]
+}
+```
+
+Others install it like this.
+
+```text
+/plugin install first-mod --marketplace you/first-mod
+```
+
+Add the `claude-code-mod` topic to your GitHub repository, and the community catalog picks it up within a few hours.
+
+## See also
+
+- [API cheatsheet](/en/guide/api-cheatsheet/): events and `$` calls
+- [Troubleshooting](/en/guide/troubleshooting/): pitfalls people actually hit, and how to fix them
+- [Official docs](https://code.claude.com/docs/en/plugins/mods/overview)

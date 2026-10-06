@@ -1,0 +1,77 @@
+---
+title: Pre-install safety check
+description: Mods run with your account's permissions. Questions to ask before installing, calls to look for in the source, and rules of thumb.
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+A mod is both a productivity feature and a new attack surface. **Read first, then install.**
+
+## What a mod can reach
+
+A loaded mod can do the following.
+
+- Read and write files, run programs, and send network requests as you.
+- Read environment variables and settings files, including any API keys you keep there.
+- See and change every prompt and tool call, and submit prompts as if you typed them.
+- Approve tool calls before they ask you. It can even approve calls blocked by an `ask` rule or your `PreToolUse` hook.
+- Call models with your plan or API key.
+
+A mod cannot change what the permission prompt shows. Even with the sandbox on, only the Bash that Claude runs is isolated. Processes started by a mod run outside it.
+
+## Ask before installing
+
+- [ ] Does this mod solve a problem you actually have?
+- [ ] Wouldn't a settings hook or skill be enough?
+- [ ] Is the source public and maintained?
+- [ ] Can you trust the marketplace?
+- [ ] Does it really need network access, process execution, file writes, or environment variable reads?
+- [ ] Does it change or approve prompts or tool calls?
+- [ ] Is it OK to use in a session with company code and secrets?
+
+## Calls to look for in the source
+
+Don't trust the README alone. Open `.claude-plugin/marketplace.json`, `plugin.json`, `hooks/hooks.json`, and the hook modules. Then run validation.
+
+```bash
+claude plugin validate ./some-mod
+```
+
+In the output, the `hooks:` line lists the events the mod receives, and the `calls:` line lists the APIs it calls. A `gating hook` line points to a hook that can reject something.
+
+| Call | What it does | Risk |
+| --- | --- | --- |
+| `$.http.fetch` | Network request | Leaking code or prompts |
+| `$.process.run`, `$.process.spawn` | Run a program | Arbitrary execution outside the sandbox |
+| `$.fs.write` | Write a file | Tampering with files |
+| `$.env.get`, `$.settings.read` | Read environment variables and settings | Exposing API keys |
+| `$.prompt.submit`, `$.prompt.fill` | Submit or fill a prompt | Giving work instructions without you knowing |
+| `$.model.complete`, `$.model.fork` | Call a model | Using up your quota |
+| `$.tool.register` | Add a tool the model can call | Disguising what a tool does |
+
+<Aside type="caution">
+  Passing validation is not a safety guarantee. It inspects the source, but it can't prove everything the mod does at runtime.
+</Aside>
+
+## Access levels in the community catalog
+
+This site's [mod directory](/en/mods/directory/) shows the access scope that the community catalog's validator read from each mod, in four levels.
+
+| Level | Meaning |
+| --- | --- |
+| Display and memory only | It draws on screen and remembers only its own state |
+| Read | It reads files, environment variables, conversation history, and the like |
+| Write and execute | It writes files or runs processes |
+| Network | It sends requests outside |
+
+## Rules of thumb
+
+- Try low-risk mods in a personal experiment repository.
+- Put mods through a security review before using them in company repositories.
+- Avoid network mods in repositories that hold secrets.
+- If a mod sends requests to another provider, check its terms and data flow.
+- Avoid unknown marketplaces.
+
+If something goes wrong, use the [steps to turn mods off](/en/guide/install-and-manage/#disable).

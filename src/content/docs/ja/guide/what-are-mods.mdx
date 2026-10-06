@@ -1,0 +1,93 @@
+---
+title: Mod とは
+description: Claude Code Mod の定義、できること、設定フック・スキル・MCP との違い、そしてどこで動くか。
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Mod は、**Claude Code の見た目と動作を変えるプラグイン**です。JavaScript または TypeScript の関数（フック）で作り、Claude Code がイベントに出会うたびにその関数を呼び出します。イベントには、ツール呼び出し、プロンプトの送信、画面の描画、ターンの開始と終了、セッションの開始と終了があります。
+
+## フックがイベントに対してすること
+
+フックはイベントを受け取り、次の 3 つのうち 1 つを行います。
+
+1. **観察:** 見て、そのまま通します。たとえば、ツール呼び出しの回数を数えます。
+2. **書き換え:** 内容を変えて渡します。たとえば、スピナーの横に数字を付けます。
+3. **代わりに応答:** 自分で処理して、本来の動作を止めます。たとえば、危険なコマンドを拒否します。
+
+フックが外の世界に触れる経路は、mods API（`$`）ただ 1 つです。ファイルの読み取り、プロセスの実行、ネットワーク、モデルの呼び出しは、すべて `$` を経由します。そのため、インストールする前に `claude plugin validate` で、Mod が何をするかの一覧を取り出せます。
+
+## いちばん小さな Mod
+
+ファイル 3 つで作れます。
+
+```text
+first-mod/
+├── .claude-plugin/plugin.json   ← マニフェスト
+└── hooks/
+    ├── hooks.json               ← フックモジュールの場所
+    └── register.js              ← フックのコード (.ts・.tsx も可)
+```
+
+```js title="hooks/register.js"
+let calls = 0
+
+export function register(on) {
+  // Claude がツールを使う直前ごとに
+  on('tool.call', async ($, e, next) => {
+    calls += 1
+    $.ui.invalidate('ui.render')
+    return next(e)
+  })
+  // スピナーを描画するたびに: 元のスピナーに数字だけを付ける
+  on('ui.render', { component: 'Spinner' }, async ($, e, next) => {
+    return next({ ...e, props: { ...e.props, suffix: ` · tool calls: ${calls}…` } })
+  })
+}
+```
+
+## ほかの拡張との違い
+
+核心的な違いは実行される場所です。設定フック・スキル・MCP・ステータスラインは Claude Code の**外側で**反応し、Mod は**内側で**介入します。
+
+| | Mod | 設定フック | スキル | MCP サーバー |
+| --- | --- | --- | --- | --- |
+| 正体 | Claude Code プロセス内の関数 | イベント時に実行されるシェルコマンド・HTTP・プロンプト | Claude が読む `SKILL.md` の指示 | ツールを提供する外部のプロセス・サービス |
+| 変えられるもの | ツール呼び出し、プロンプト、コマンド、ターン、画面 | 進行の許可、ツールの引数・結果、追加のコンテキスト | Claude が知っていること、振る舞い方 | Claude が使えるツール |
+| 画面の描画 | 可能 | 不可 | 不可 | 不可 |
+| 記述言語 | JavaScript/TypeScript | スクリプト + `settings.json` | Markdown | 任意の言語 |
+| 選ぶ場面 | ペイン・バンド・専用コマンドが必要なとき、またはイベントを書き換えたいとき | すでにあるスクリプトで、ブロック・許可・記録だけを行うとき | 同じ指示を何度も貼り付けているとき | Claude が外部システムにアクセスする必要があるとき |
+
+1 つのプラグインに、この 4 つをまとめて入れることもできます。設定フックやスキルで足りるなら、Mod は使わないほうがよいでしょう。権限がもっとも広いからです。
+
+## どこで動くか
+
+Mod は、ターミナル 2.1.287 以上、デスクトップアプリ 2.1.286 以上で**デフォルトで有効**です。
+
+| 実行場所 | フックの実行 | 画面表示 |
+| --- | --- | --- |
+| ターミナルの `claude`（エディター内蔵ターミナル、JetBrains を含む） | はい | はい |
+| デスクトップアプリの Code タブ | はい | はい（ターミナル専用の要素を除く） |
+| デスクトップアプリの WSL セッション | いいえ | いいえ |
+| VS Code 拡張のチャットパネル | はい | いいえ |
+| `claude -p`、Agent SDK | はい | いいえ |
+| Remote Control（claude.ai、モバイル） | はい（自分のコンピューターのセッションで） | 自分のコンピューターのターミナルのみ |
+| クラウドセッション | プラグインが引き継がれる場合のみ | いいえ |
+
+<Aside type="caution" title="Mod はサンドボックスに閉じ込められません">
+  Mod は自分のアカウントの権限で動きます。ファイルの読み書き、プログラムの実行、ネットワークへのリクエストができ、すべてのプロンプトとツール呼び出しを見られます。インストール前に、必ず[安全チェック](/ja/guide/safety-checklist/)を行ってください。
+</Aside>
+
+## すでに入っている Mod
+
+Claude Code の機能の一部は、それ自体が Mod です。`/plugin` の Installed タブの Built-in の下に表示されます。
+
+- `cc-plugin-diff`: `/diff` ペイン
+- `cc-plugin-agents-md`: `AGENTS.md` をプロジェクトの指示として読み込む
+- `cc-plugin-sec-default`: 組織が管理する設定を、ユーザーの Mod から守るガード
+- `cc-plugin-telemetry`: 分析ログの送信
+- `cc-plugin-plugin-authoring`: Mod を作るスキル（コードなし）
+
+一部のソースは [anthropics/claude-code の mods フォルダ](https://github.com/anthropics/claude-code/tree/main/mods)で公開されているので、Mod を作るときのよい手本になります。

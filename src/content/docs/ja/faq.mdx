@@ -1,0 +1,36 @@
+---
+title: よくある質問
+description: Mod とプラグインの違い、バージョン要件、セキュリティ、このサイトについての質問。
+---
+
+## Mod とプラグインは何が違いますか？
+
+Mod はプラグインの一種です。プラグインはスキル・コマンド・エージェント・設定フック・MCP サーバーをまとめて配布する単位で、その中に `hooks/hooks.json` で **function hooks モジュール**を入れたものを Mod と呼びます。設定フックがシェルコマンドでイベントに反応するのに対し、Mod はエンジンの内部でイベントを横取りし、画面を描画します。
+
+## どのバージョンから使えますか？
+
+function hooks は 2.1.287 からデフォルトで有効です。`claude --version` で確認し、古ければ `claude update` を実行してください。まだ early access の API なので、バージョンによって変わることがあります。
+
+## インストールしたのに表示されません。
+
+`/reload-plugins` を実行してください。`/reload-skills` はスキルだけを読み込み直します。それでも解決しない場合は[トラブルシューティング](/ja/guide/troubleshooting/)を参照してください。
+
+## Mod は安全ですか？
+
+Mod は自分のアカウントの権限で、ファイルの読み書き、プログラムの実行、ネットワークへのアクセスができます。インストール前にソースを読み、`claude plugin validate` を実行してください。詳しい基準は[安全チェック](/ja/guide/safety-checklist/)にあります。
+
+## デスクトップアプリや VS Code でも使えますか？
+
+フックはどこでも動きます。画面は `e.surface`（`terminal`、`desktop`、`vscode`、`mobile`）に合わせて描画され、画像のように一部の要素は表示先によって見え方が異なります。ターミナルで画像を表示するには、kitty グラフィックスプロトコルに対応したターミナル（Ghostty、kitty など）が必要です。
+
+## このサイトは公式ですか？
+
+いいえ。Anthropic とは無関係の**非公式コミュニティガイド**です。公式情報は Claude Code のドキュメントと、エンジンが配置する型定義（`claude-code.d.ts`）を基準にしてください。
+
+## 自分の Mod をディレクトリに載せたいです。
+
+ディレクトリは、公開コミュニティリスト [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) から取得しています。リポジトリを公開し、GitHub トピック `claude-code-mod` を付けると、そのリストが収集します。このサイトは定期的にデータを取得し直しています。
+
+## 内容が間違っています。
+
+[GitHub リポジトリ](https://github.com/jkf87/mod-guide)で Issue を作成するか、修正内容を PR で送ってください。

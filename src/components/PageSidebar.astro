@@ -1,0 +1,20 @@
+---
+import Default from '@astrojs/starlight/components/PageSidebar.astro'
+import AdSlot from './AdSlot.astro'
+const isSplash = Astro.locals.starlightRoute.entry.data.template === 'splash'
+---
+
+<Default />
+{
+  !isSplash && (
+    <div class="sidebar-ad sl-hidden lg:sl-block">
+      <AdSlot slot="sidebar" />
+    </div>
+  )
+}
+
+<style>
+  .sidebar-ad {
+    padding: 0 var(--sl-sidebar-pad-x) 1rem;
+  }
+</style>

@@ -1,0 +1,67 @@
+---
+title: API チートシート
+description: Mod が受け取れるイベントと、`$` で呼び出せる機能を一覧で。Claude Code 2.1.290 の型宣言に基づきます。
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+フックの形は 1 つだけです: `($, e, next)`。`$` はエンジンのインターフェース、`e` はイベント入力（凍結された値）、`next(e)` は下位のプラグインとエンジン本来の動作を実行して結果を受け取ります。`next` を呼ばずに返すと自分で応答したことになり、`next({ ...e, x })` は後続が見る値を書き換えます。
+
+<Aside>
+  もっとも正確な基準は、エンジンが Mod フォルダに配置する型宣言（`.claude-plugin/types/claude-code/index.d.ts`）です。以下の一覧は 2.1.290 基準で、early access の API なのでバージョンによって変わることがあります。
+</Aside>
+
+## よく使うイベント
+
+| イベント | タイミング | 主な用途 |
+| --- | --- | --- |
+| `session.start` / `session.end` | セッションの開始・終了（`/clear` を含む） | コマンドの登録、タイマー開始、後片付け |
+| `prompt.submit` | ユーザーがプロンプトを送信するとき | 記録、書き換え、ブロック |
+| `prompt.compose` | システムプロンプトを組み立てるとき | セクションの追加・置換 |
+| `turn.start` / `turn.step` / `turn.complete` | ターン開始、モデルリクエストごと（ストリーム）、ターン終了 | モデル・effort の観察、進捗表示、回答の要約 |
+| `tool.call` | ツールを使う直前 | ブロック（`{ deny }`）、引数の書き換え、結果の観察 |
+| `agent.spawn` | サブエージェントを起動するとき | 役割・モデルの記録、モデルの変更 |
+| `command.run` | 登録した `/コマンド` の実行 | ペインを開く、テキストで応答する |
+| `ui.render` | 画面要素を描画するとき | `Pane`・`AbovePrompt` の描画、`Spinner` など標準画面の書き換え |
+| `ui.scroll` | ペインやバンドをスクロールするとき | 自分のペインを直接スクロール |
+| `ui.press` / `ui.input` / `ui.select` | ボタン・入力欄・選択 | 操作の処理 |
+
+## `$` で呼び出せるもの
+
+| 名前 | 例 | 内容 |
+| --- | --- | --- |
+| `$.ui` | `open`, `status`, `toast`, `copy`, `resolve`, `scroll`, `selection` | ペインを開く、ステータスライン・トースト、クリップボード、画面要素の取得 |
+| `$.state` / `$.store` | `get`, `set`, `keys` | セッション状態（描画が購読）、セッションをまたぐストア |
+| `$.command` | `register`, `run`, `list` | `/コマンド` の作成 |
+| `$.tool` / `$.agent` | `register`, `call`, `spawn`, `list` | モデルが呼ぶツール、エージェントタイプ |
+| `$.model` | `complete`, `fork` | モデルの 1 回呼び出し、セッションの文脈を引き継いだ質問 |
+| `$.session` | `id`, `cwd`, `messages`, `usage`, `model` | セッション情報 |
+| `$.fs` | `read`, `write`, `list`, `stat`, `exists` | ファイル |
+| `$.process` | `run`, `spawn` | プログラムの実行（WASM などのコンパイル済みコードもここ経由） |
+| `$.http` | `fetch` | ネットワーク |
+| `$.clock` | `after`, `every`, `sleep`, `now` | タイマー（Mod 内に `setTimeout` はありません） |
+| `$.prompt` | `submit`, `fill`, `read` | 入力欄への入力、プロンプトの送信 |
+| `$.env` / `$.settings` | `get`, `read` | 環境変数、設定 |
+
+## 描画要素
+
+`const { Box, Text, Button } = $.ui.resolve(e)` で画面ごとの要素を取り出し、JSX で描画します。
+
+| 要素 | 用途 | 対応する画面 |
+| --- | --- | --- |
+| `Box`, `Text` | レイアウトと文字（色はテーマキーの `success`・`warning`・`error` など） | すべて |
+| `Button`, `Input`, `Select` | 操作（ショートカットは `hotkey`） | モバイルは `Input`・`Select` なし |
+| `Code`, `Markdown` | ハイライト付きコード、Markdown | すべて |
+| `Image`, `Raster` | 画像（kitty・Ghostty のグラフィックス）、色付きマスのグリッド | ターミナルのみ |
+| `Svg` | ベクター画像（最大 131,072 文字） | デスクトップ・VS Code・モバイル |
+| `Client` | プラグイン自身のモジュールが描画する領域 | ターミナル・デスクトップ |
+
+## 必ず知っておきたいルール
+
+- Mod 環境には DOM、Node、`WebAssembly` がありません。外部とのやり取りはすべて `$` で行います。
+- `$` は**同じファイル内の関数にしか**渡せません。別ファイルから import した関数に渡すと、検証に失敗します。
+- 描画中に状態を書き込むことはできません。ボタンのハンドラーや別のイベントから `update()` で書き込みます。
+- 同じイベントをマッチャーなしで 2 回登録すると拒否されます。
+- 観察だけを行うフックには `.catch(($, e, next) => next(e))` を付けておくと、失敗しても、すでに呼び出した `next` が再実行されません。

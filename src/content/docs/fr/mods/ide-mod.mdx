@@ -1,0 +1,59 @@
+---
+title: ide-mod
+description: Un mod qui ouvre dans Claude Code, en un seul volet, un tableau des agents, un explorateur de fichiers et un lecteur HWP, HWPX et PDF.
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod) est un mod publié par l'auteur de ce guide. Le **tableau des agents** occupe le haut du volet, et l'**arborescence de fichiers avec éditeur à onglets** le bas.
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+## Installation
+
+<Steps>
+
+1. Saisissez ceci dans une session Claude Code.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. Quand on vous demande si vous voulez ajouter la place de marché, répondez `y`, puis choisissez la portée user.
+
+3. Ouvrez le volet avec `/ide`. S'il n'apparaît pas, lancez `/reload-plugins`.
+
+</Steps>
+
+## Ce qu'il fait
+
+- **Tableau des agents** : affiche sous forme d'arbre l'agent principal et les sous-agents, avec qui a lancé qui. Il indique le modèle, l'effort, la tâche confiée, l'action en cours et le temps écoulé ; la description de la tâche lisible par un humain est en vert et l'action en cours en jaune.
+- **Explorateur** : arborescence des dossiers et jusqu'à 8 onglets. Coloration syntaxique, rendu Markdown et marqueur `●` sur les fichiers modifiés par Claude.
+- **Lecteur HWP, HWPX et PDF** : dessine les pages avec [rhwp](https://github.com/edwardkim/rhwp) et [pdf.js](https://github.com/mozilla/pdf.js). Dans un terminal sans graphiques, il affiche une grille de caractères qui conserve les bordures de tableaux et l'alignement ; dans les terminaux de la famille kitty et Ghostty, il affiche une véritable image de la page.
+- **Historique des demandes** (`q`) : conserve, avec leur état, les demandes envoyées pendant la session. Il reste disponible quand vous rouvrez la session.
+- **Sous-titres de cours** (`/lecture`) : affiche au-dessus de la zone de saisie, en phrases simples, ce que fait Claude.
+- **Contrôle de style** (`/style-gate`) : compte les marques de texte généré par IA dans un manuscrit coréen et rend un verdict : réussite, avertissement ou arrêt.
+
+## Portée d'accès
+
+Ce mod lit des fichiers (explorateur et lecteur) et exécute Node.js ainsi qu'un programme de conversion d'images pour dessiner les documents. Le résumé en une ligne du tableau appelle brièvement haiku et peut être désactivé avec `s`. Il n'envoie aucune donnée par le réseau. Son code source tient dans un seul fichier, `hooks/register.tsx`, que vous pouvez donc lire entièrement avant d'installer.
+
+<Aside>
+Les function hooks sont une API en accès anticipé (early access). Ce mod a été développé et testé sur la version 2.1.290. Les textes affichés à l'écran sont en coréen.
+</Aside>
+
+- Dépôt et versions : [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- Licence : MIT (inclut rhwp MIT et pdf.js Apache-2.0)

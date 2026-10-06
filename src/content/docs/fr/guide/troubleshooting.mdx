@@ -1,0 +1,46 @@
+---
+title: Dépannage
+description: Les pièges rencontrés en pratique lors de la création et de l'utilisation de mods, et leurs solutions, de la lecture des journaux aux images qui ne s'affichent pas.
+sidebar:
+  order: 6
+---
+
+## Commencez par lire les journaux
+
+```bash
+claude --debug-file ~/mod-debug.log
+```
+
+Quand le dessin de l'écran est refusé, le journal contient une ligne de ce genre. La cause est indiquée telle quelle entre parenthèses.
+
+```text
+ui.render (Pane): a hook returned a tree that does not validate (…); drawing the engine's own
+```
+
+Dans une session en rechargement à chaud, le même message apparaît aussi sous forme d'une ligne grisée dans la conversation.
+
+## Les pièges courants
+
+| Symptôme | Cause | Solution |
+| --- | --- | --- |
+| J'ai modifié le mod, mais l'écran n'a pas changé | `/reload-skills` ne recharge pas les mods | `/reload-plugins` |
+| Le volet est vide ou semble figé | L'arbre de dessin a échoué à la validation et le moteur a refusé le volet | Corriger la raison indiquée par `does not validate` dans le journal de débogage |
+| `Image` est refusée | Un nombre décimal (comme l'heure de modification d'un fichier) a été passé à `source.generation` | Utiliser un entier (`Math.floor`) |
+| `Image` est refusée | Les octets de `source.png` n'ont ni signature PNG ni IHDR | Vérifier l'en-tête avant de les transmettre |
+| La validation affiche `$ is passed to ... imported from` | `$` a été transmis à une fonction d'un autre fichier | Garder le code qui utilise `$` dans un seul fichier et ne séparer que les fonctions pures |
+| La validation affiche `registered twice without a matcher` | Un événement comme `session.start` a été enregistré deux fois | Appeler plusieurs tâches depuis un seul hook |
+| Un script lancé avec `$.process.run` se termine sans rien afficher | Dans un dossier lié, `argv[1]` et `import.meta.url` diffèrent, donc le test « exécuté directement » est faux | Résoudre les deux avec `realpath` avant de les comparer |
+| La sortie d'un processus lancé pendant le dessin est tronquée | Le dessin redémarre et interrompt ce qui était en cours | Placer les tâches longues hors du dessin avec `$.clock.after` |
+| Après la réouverture de la session, le mod modifié n'a pas changé | L'ID de session a changé et le dossier du mod de développement avec lui | Dossier fixe + `--plugin-dir` ou place de marché locale |
+| `Svg` n'apparaît pas dans l'application de bureau | La limite de 131 072 caractères est dépassée | Regrouper les attributs répétés dans un style, ou alléger l'image |
+
+## Les images ne s'affichent pas
+
+- `Image` ne se dessine que dans les terminaux qui utilisent le protocole graphique kitty (kitty, Ghostty et les terminaux basés sur Ghostty). Dans le Terminal par défaut de macOS ou dans iTerm2, seul le texte `alt` s'affiche.
+- L'application de bureau n'a pas `Image` ; utilisez `Svg`.
+
+## Où l'on bloque souvent dans les tests
+
+- Le kit de test résout les chemins relatifs par rapport au dossier du mod. Créez le faux système de fichiers avec des chemins absolus.
+- Les fausses réponses des événements d'appel `$` (comme `fs.read`) doivent être enveloppées dans `{ value: … }`. Pour `tool.call`, c'est `{ result: … }`.
+- Le kit de test ne peut pas envoyer d'événements de défilement ou de touches à un volet. Vérifiez le défilement sur un écran réel.

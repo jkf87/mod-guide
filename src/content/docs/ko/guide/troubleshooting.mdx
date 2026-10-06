@@ -1,0 +1,46 @@
+---
+title: 문제 해결
+description: mod를 만들고 쓰면서 실제로 부딪힌 함정과 해결법. 로그 보는 법부터 그림이 안 그려질 때까지.
+sidebar:
+  order: 6
+---
+
+## 먼저 로그를 봐요
+
+```bash
+claude --debug-file ~/mod-debug.log
+```
+
+화면 그리기가 거절되면 로그에 이런 줄이 남아요. 원인이 괄호 안에 그대로 적혀 있어요.
+
+```text
+ui.render (Pane): a hook returned a tree that does not validate (…); drawing the engine's own
+```
+
+핫 리로드 중인 세션이라면 같은 내용이 대화창에 흐린 한 줄로도 떠요.
+
+## 자주 만나는 함정
+
+| 증상 | 원인 | 해결 |
+| --- | --- | --- |
+| 고쳤는데 화면이 그대로 | `/reload-skills`는 mod를 다시 읽지 않음 | `/reload-plugins` |
+| 창이 비거나 멈춘 것처럼 보임 | 그리기 트리가 검증에 실패해 엔진이 창을 거절 | 디버그 로그의 `does not validate` 이유를 고친다 |
+| `Image`가 거절됨 | `source.generation`에 소수(파일 수정 시각 등)를 넣음 | 정수로 (`Math.floor`) |
+| `Image`가 거절됨 | `source.png`의 바이트에 PNG 서명·IHDR이 없음 | 넘기기 전에 머리말을 검사 |
+| 검증이 `$ is passed to ... imported from` | 다른 파일의 함수에 `$`를 넘김 | `$`를 쓰는 코드는 한 파일에, 순수 함수만 분리 |
+| 검증이 `registered twice without a matcher` | `session.start` 같은 이벤트를 두 번 등록 | 훅 하나에서 여러 일을 부른다 |
+| `$.process.run`으로 부른 스크립트가 출력 없이 끝남 | 링크된 폴더에서 `argv[1]`과 `import.meta.url`이 달라 "직접 실행" 판별이 거짓 | 둘 다 `realpath`로 풀어 비교 |
+| 그리는 중에 부른 프로세스 출력이 잘림 | 그리기가 다시 시작되며 하던 일이 끊김 | 오래 걸리는 일은 `$.clock.after`로 그리기 밖에서 |
+| 세션을 다시 열었더니 고친 mod가 안 바뀜 | 세션 ID가 바뀌며 개발용 mod 폴더도 바뀜 | 고정 폴더 + `--plugin-dir` 또는 로컬 마켓플레이스 |
+| 데스크톱 앱에서 `Svg`가 안 보임 | 131,072자 제한 초과 | 반복되는 속성을 스타일로 묶거나 그림을 줄인다 |
+
+## 그림이 안 보여요
+
+- `Image`는 kitty 그래픽 프로토콜을 쓰는 터미널(kitty, Ghostty, Ghostty 기반 터미널)에서만 그려져요. macOS 기본 터미널이나 iTerm2에서는 `alt` 글자만 보여요.
+- 데스크톱 앱에는 `Image`가 없고 `Svg`를 써요.
+
+## 테스트에서 자주 막히는 곳
+
+- 테스트 키트는 상대 경로를 mod 폴더 기준으로 풀어요. 가짜 파일 시스템은 절대 경로로 만들어요.
+- `$` 호출 이벤트(`fs.read` 등)의 가짜 응답은 `{ value: … }`로 감싸요. `tool.call`은 `{ result: … }`예요.
+- 테스트 키트는 창에 스크롤이나 키 이벤트를 보내지 못해요. 스크롤 동작은 실제 화면에서 확인해요.

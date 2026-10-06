@@ -1,0 +1,46 @@
+---
+title: Troubleshooting
+description: Pitfalls people actually hit while building and using mods, and how to fix them. From reading logs to images that won't draw.
+sidebar:
+  order: 6
+---
+
+## Check the log first
+
+```bash
+claude --debug-file ~/mod-debug.log
+```
+
+When a draw is rejected, the log gets a line like this. The cause is written right there in the parentheses.
+
+```text
+ui.render (Pane): a hook returned a tree that does not validate (…); drawing the engine's own
+```
+
+In a hot-reloading session, the same message also shows up as a dim line in the conversation.
+
+## Common pitfalls
+
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| You edited the mod but the screen is unchanged | `/reload-skills` doesn't reload mods | `/reload-plugins` |
+| The pane is empty or looks frozen | The draw tree failed validation, so the engine rejected the pane | Fix the `does not validate` reason in the debug log |
+| `Image` is rejected | You put a decimal (such as a file modified time) in `source.generation` | Use an integer (`Math.floor`) |
+| `Image` is rejected | The bytes in `source.png` lack the PNG signature and IHDR | Check the header before passing it |
+| Validation says `$ is passed to ... imported from` | You passed `$` to a function from another file | Keep code that uses `$` in one file and split out only pure functions |
+| Validation says `registered twice without a matcher` | You registered an event like `session.start` twice | Call several tasks from one hook |
+| A script started with `$.process.run` ends with no output | In a linked folder, `argv[1]` and `import.meta.url` differ, so the "run directly" check is false | Resolve both with `realpath` before comparing |
+| Output from a process started during drawing gets cut off | Drawing restarts and interrupts the work in progress | Run long work outside drawing with `$.clock.after` |
+| You reopened the session and your edited mod didn't change | The session ID changed, and the dev mod folder changed with it | Use a fixed folder with `--plugin-dir`, or a local marketplace |
+| `Svg` doesn't show in the desktop app | It exceeds the 131,072-character limit | Group repeated attributes into styles, or shrink the graphic |
+
+## I can't see the image
+
+- `Image` draws only in terminals that use the kitty graphics protocol (kitty, Ghostty, and Ghostty-based terminals). In the default macOS Terminal or iTerm2, you see only the `alt` text.
+- The desktop app has no `Image`. Use `Svg`.
+
+## Where tests commonly get stuck
+
+- The test kit resolves relative paths against the mod folder. Build the fake file system with absolute paths.
+- Wrap fake responses for `$` call events (such as `fs.read`) in `{ value: … }`. For `tool.call`, use `{ result: … }`.
+- The test kit can't send scroll or key events to a pane. Check scrolling in a real screen.

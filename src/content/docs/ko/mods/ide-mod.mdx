@@ -1,0 +1,59 @@
+---
+title: ide-mod
+description: Claude Code 안에 에이전트 보드, 파일 탐색기, HWP·HWPX·PDF 뷰어를 한 창으로 띄우는 mod.
+sidebar:
+  order: 3
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+[ide-mod](https://github.com/jkf87/ide-mod)는 이 가이드를 만든 사람이 공개한 mod예요. 창 위쪽에는 **에이전트 보드**가, 아래쪽에는 **파일 트리와 탭 에디터**가 있어요.
+
+```text
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
+  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
+├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
+└─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
+──────────────────────────────────────────────────────────────
+my-project  1-24/57          │ ▎app.ts ●   README.md
+▾ src/                        │  1 import { login } from './auth'
+    ▾ auth/                ●  │  2
+        login.ts           ●  │  3 export const answer = 42
+```
+
+## 설치
+
+<Steps>
+
+1. Claude Code 세션에서 입력해요.
+
+   ```text
+   /plugin install ide-mod --marketplace jkf87/ide-mod
+   ```
+
+2. 마켓플레이스를 추가할지 물으면 `y`, 범위는 user를 골라요.
+
+3. `/ide`로 창을 열어요. 보이지 않으면 `/reload-plugins`를 실행해요.
+
+</Steps>
+
+## 무엇을 하나
+
+- **에이전트 보드**: 메인과 서브에이전트를 누가 누구를 띄웠는지 트리로 보여줘요. 모델·effort·맡은 작업·지금 하는 일·경과 시간을 띄우고, 사람이 읽는 작업 설명은 초록, 지금 하는 일은 노랑으로 칠해요.
+- **탐색기**: 폴더 트리와 최대 8개 탭. 문법 하이라이트, 마크다운 렌더, Claude가 고친 파일 `●` 표시.
+- **HWP·HWPX·PDF 뷰어**: [rhwp](https://github.com/edwardkim/rhwp)와 [pdf.js](https://github.com/mozilla/pdf.js)로 쪽을 그려요. 그래픽이 없는 터미널에서도 표 테두리와 정렬을 살린 글자 격자로 보여주고, kitty·Ghostty 계열 터미널에서는 실제 쪽 그림을 띄워요.
+- **요청 기록**(`q`): 이번 세션에서 보낸 요청을 상태와 함께 쌓아 둬요. 세션을 다시 열어도 남아요.
+- **강의 자막**(`/lecture`): Claude가 하는 일을 입력창 위에 쉬운 문장으로 보여줘요.
+- **문체 게이트**(`/style-gate`): 한국어 원고의 AI티 패턴을 세서 통과·경고·중단을 판정해요.
+
+## 접근 범위
+
+이 mod는 파일을 읽고(탐색기·뷰어), 문서를 그리려고 Node.js와 이미지 변환 프로그램을 실행해요. 보드의 한 줄 요약은 haiku를 짧게 호출하고 `s`로 끌 수 있어요. 네트워크로 데이터를 보내지 않아요. 소스는 `hooks/register.tsx` 한 파일이라 설치 전에 다 읽어 볼 수 있어요.
+
+<Aside>
+function hooks는 early access API예요. 2.1.290에서 만들고 시험했어요. 화면 문구는 한국어예요.
+</Aside>
+
+- 저장소와 릴리스: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- 라이선스: MIT (rhwp MIT, pdf.js Apache-2.0 포함)
