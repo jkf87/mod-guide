@@ -39,6 +39,16 @@ export const WHERE = {
   de: { P: 'Seitenbereich', A: 'Band über dem Prompt', M: 'Nachrichten', S: 'Spinner & Hinweise', T: 'Statuszeile' },
 }
 
+// 검증을 경고와 함께 통과한 mod 표시 (대개 author 같은 메타데이터 누락)
+export const WARN = {
+  en: ['validation warning', 'Passed claude plugin validate with warnings, usually missing metadata such as author.'],
+  ko: ['검증 경고', '경고와 함께 claude plugin validate를 통과했어요. 대개 author 같은 메타데이터가 빠진 경우예요.'],
+  ja: ['検証の警告', '警告付きで claude plugin validate を通過しました。多くは author などのメタデータ不足です。'],
+  'zh-CN': ['验证警告', '带警告通过了 claude plugin validate，通常是缺少 author 等元数据。'],
+  fr: ['avertissement', 'A passé claude plugin validate avec des avertissements, souvent des métadonnées manquantes comme author.'],
+  de: ['Validierungswarnung', 'Hat claude plugin validate mit Warnungen bestanden, meist fehlen Metadaten wie author.'],
+}
+
 // 카드 문구 묶음 (modCard.js의 t)
 export function cardText(lang) {
   const k = langKey(lang)
@@ -48,5 +58,6 @@ export function cardText(lang) {
     cats: Object.fromEntries(Object.entries(CATEGORIES).map(([id, names]) => [id, names[k]])),
     levels: LEVELS[k],
     where: WHERE[k],
+    warn: WARN[k],
   }
 }

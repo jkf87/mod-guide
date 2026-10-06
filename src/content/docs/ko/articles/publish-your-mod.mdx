@@ -61,7 +61,7 @@ vendor/rhwp/LICENSE
 }
 ```
 
-카탈로그 디렉터리의 777개 저장소 가운데 626개가 mod 하나짜리, 151개가 여러 mod를 담은 저장소예요. 여러 mod 저장소에 든 mod가 862개로 전체 1,488개의 절반을 넘어요.
+검증을 경고 없이 통과한 mod(1,488개)의 저장소 777개 가운데 626개가 mod 하나짜리, 151개가 여러 mod를 담은 저장소예요. 여러 mod 저장소에 든 mod가 862개로 전체 1,488개의 절반을 넘어요.
 
 ## marketplace.json 쓰기
 
@@ -107,7 +107,7 @@ mod 하나짜리라면 `source`를 `"./"`로 두면 끝이에요. ide-mod의 파
 
 실패 메시지는 두 가지예요. 저장소에 마켓플레이스 파일이 없으면 질문 화면에 `Marketplace file not found at`과 경로가 떠요. 이름이 틀리면 `Plugin "<mod>" not found in marketplace "<marketplace>"`가 나와요. 이 명령은 터미널 전용이에요. 데스크톱 앱의 Code 탭에서는 쓸 수 없다고 답해요.
 
-카탈로그 디렉터리의 mod 1,488개 중 277개(180개 저장소)는 저장소 어디에도 마켓플레이스 파일이 없었어요. 이런 mod는 쓰는 사람이 소스를 내려받아 `--plugin-dir`로 띄워야 해요. 한 줄 설치를 기대하기 어려워요.
+검증을 경고 없이 통과한 mod 1,488개 중 277개(180개 저장소)는 저장소 어디에도 마켓플레이스 파일이 없었어요. 이런 mod는 쓰는 사람이 소스를 내려받아 `--plugin-dir`로 띄워야 해요. 한 줄 설치를 기대하기 어려워요.
 
 ## 이름 규칙: `claude-`로 시작하면 막혀요
 
@@ -142,7 +142,7 @@ claude plugin tag --dry-run .
 # ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
 ```
 
-라이선스가 없는 mod가 생각보다 많아요. 디렉터리 1,488개 중 324개(777개 저장소 중 164개)는 라이선스 정보가 비어 있었고, 44개는 `NOASSERTION`(파일은 있지만 종류를 알아보지 못함)이었어요. [choosealicense.com](https://choosealicense.com/no-permission/)의 설명대로 라이선스가 없으면 저작자가 저작권을 독점해요. 공개 저장소라도 다른 사람이 복사·수정·배포할 권리는 생기지 않아요. 회사에서 쓰려는 사람은 법무 검토에서 바로 막혀요.
+라이선스가 없는 mod가 생각보다 많아요. 검증을 경고 없이 통과한 1,488개 중 324개(777개 저장소 중 164개)는 라이선스 정보가 비어 있었고, 44개는 `NOASSERTION`(파일은 있지만 종류를 알아보지 못함)이었어요. [choosealicense.com](https://choosealicense.com/no-permission/)의 설명대로 라이선스가 없으면 저작자가 저작권을 독점해요. 공개 저장소라도 다른 사람이 복사·수정·배포할 권리는 생기지 않아요. 회사에서 쓰려는 사람은 법무 검토에서 바로 막혀요.
 
 다른 사람의 코드를 함께 싣는다면 그 라이선스도 챙겨요. ide-mod는 rhwp(MIT)와 pdf.js(Apache-2.0)를 `vendor/` 아래 각자의 `LICENSE` 파일과 함께 두고, README의 License 절에 두 라이브러리와 라이선스를 적었어요.
 
@@ -185,7 +185,7 @@ claude plugin tag --dry-run .
 진짜 mod를 `examples/` 아래 두면 시험용으로 분류돼요. 폴더를 옮기거나 `data/fixture-exceptions.txt`에 id를 넣는 PR을 보내요.
 
 <Aside type="note">
-  이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 검증 결과가 `passed`인 mod만 보여 줘요. 스캐너는 `✔ Validation passed with warnings`를 `warnings`로 따로 기록해요. `author`나 마켓플레이스 `description`이 빠져서 경고가 붙으면 카탈로그에는 올라가도 여기 디렉터리에는 빠져요. 그런 mod가 252개였어요.
+  스캐너는 `✔ Validation passed with warnings`를 `warnings`로 따로 기록해요. `author`나 마켓플레이스 `description`이 빠지면 경고가 붙어요. 10월 4일 스캔에서 그런 항목이 252개였어요. 이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 이런 mod에 "검증 경고" 표시를 달아요. `author` 한 줄로 없앨 수 있는 표시예요.
 </Aside>
 
 ## 릴리스와 업데이트

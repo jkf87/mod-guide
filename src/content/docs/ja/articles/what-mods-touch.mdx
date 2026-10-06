@@ -1,6 +1,6 @@
 ---
 title: Modは実際に何に触れるのか
-description: ディレクトリのMod 1,488個のソーススキャンで見たアクセス範囲。プロセスを実行する594個、すべてのプロンプトを見る474個、外部へリクエストする195個が何に触れるのかをまとめました。
+description: 検証を警告なしで通過したMod 1,488個のソーススキャンで見たアクセス範囲。プロセスを実行する594個、すべてのプロンプトを見る474個、外部へリクエストする195個が何に触れるのかをまとめました。
 sidebar:
   order: 2
 ---
@@ -9,7 +9,7 @@ import { Aside } from '@astrojs/starlight/components'
 
 基準: コミュニティカタログの2026-10-04スキャン、Claude Code 2.1.289
 
-[Modディレクトリ](/ja/mods/directory/)に載っている1,488個が、どのAPIを呼び出し、どのイベントを受け取るかを数えました。データは [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) カタログです。各APIの意味は、Claude Code 2.1.290が配布する型ファイル `claude-code.d.ts` で確認しました。
+検証を警告なしで通過したMod 1,488個が、どのAPIを呼び出し、どのイベントを受け取るかを数えました。データは [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) カタログです。各APIの意味は、Claude Code 2.1.290が配布する型ファイル `claude-code.d.ts` で確認しました。
 
 ## 数字を読む前に
 

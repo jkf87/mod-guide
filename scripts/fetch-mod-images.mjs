@@ -93,7 +93,7 @@ async function findImage(m) {
   return null
 }
 
-const mods = raw.mods.filter(m => (m.kind === 'mod' || m.kind === 'builtin') && !m.archived && !m.duplicateOf && m.validate?.status === 'passed')
+const mods = raw.mods.filter(m => (m.kind === 'mod' || m.kind === 'builtin') && !m.archived && !m.duplicateOf && ['passed', 'warnings'].includes(m.validate?.status))
 const todo = mods.filter(m => !(`${m.repo}:${m.path ?? ''}` in cache))
 console.log(`${mods.length} mods, ${todo.length} to fetch`)
 let done = 0

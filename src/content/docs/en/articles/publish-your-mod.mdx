@@ -61,7 +61,7 @@ Like [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods), 
 }
 ```
 
-Of the 777 repositories in the catalog directory, 626 hold a single mod and 151 hold several. The 862 mods in multi-mod repositories are more than half of the 1,488 total.
+Of the 777 repositories holding the mods that passed validation without warnings (1,488), 626 hold a single mod and 151 hold several. The 862 mods in multi-mod repositories are more than half of the 1,488 total.
 
 ## Writing marketplace.json
 
@@ -109,7 +109,7 @@ This is the install command you give to others. `<mod>` is the `name` in `plugin
 
 There are two failure messages. If the repository has no marketplace file, the question screen shows `Marketplace file not found at` and a path. If the name is wrong, you get `Plugin "<mod>" not found in marketplace "<marketplace>"`. This command is terminal-only. In the desktop app's Code tab it answers that it can't be used.
 
-Of the 1,488 mods in the catalog directory, 277 (in 180 repositories) had no marketplace file anywhere in the repository. For these, users have to download the source and launch it with `--plugin-dir`. A one-line install is hard to expect.
+Of the 1,488 mods that passed validation without warnings, 277 (in 180 repositories) had no marketplace file anywhere in the repository. For these, users have to download the source and launch it with `--plugin-dir`. A one-line install is hard to expect.
 
 ## Name rule: names starting with `claude-` are blocked
 
@@ -144,7 +144,7 @@ claude plugin tag --dry-run .
 # ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
 ```
 
-More mods lack a license than you might expect. Of the 1,488 in the directory, 324 (164 of the 777 repositories) had empty license info, and 44 were `NOASSERTION` (a file exists but its type wasn't recognized). As [choosealicense.com](https://choosealicense.com/no-permission/) explains, without a license the author keeps exclusive copyright. Even in a public repository, other people gain no right to copy, modify, or distribute. Anyone who wants to use it at work gets stopped right away in legal review.
+More mods lack a license than you might expect. Of the 1,488 that passed validation without warnings, 324 (164 of the 777 repositories) had empty license info, and 44 were `NOASSERTION` (a file exists but its type wasn't recognized). As [choosealicense.com](https://choosealicense.com/no-permission/) explains, without a license the author keeps exclusive copyright. Even in a public repository, other people gain no right to copy, modify, or distribute. Anyone who wants to use it at work gets stopped right away in legal review.
 
 If you bundle someone else's code, carry its license too. ide-mod keeps rhwp (MIT) and pdf.js (Apache-2.0) under `vendor/` with each one's own `LICENSE` file, and lists both libraries and their licenses in the README's License section.
 
@@ -189,7 +189,7 @@ Some classifications are registered but don't count toward the directory numbers
 A real mod placed under `examples/` gets classified as a test fixture. Move the folder, or send a PR that adds the id to `data/fixture-exceptions.txt`.
 
 <Aside type="note">
-  This site's [mod directory](/en/mods/directory/) shows only mods whose validation result is `passed`. The scanner records `✔ Validation passed with warnings` separately as `warnings`. If a warning appears because `author` or the marketplace `description` is missing, the mod gets into the catalog but is left out of the directory here. There were 252 such mods.
+  The scanner records `✔ Validation passed with warnings` separately as `warnings`. A warning appears when `author` or the marketplace `description` is missing. There were 252 such entries in the October 4 scan. This site's [mod directory](/en/mods/directory/) marks these mods with a "validation warning" badge. One `author` line removes the badge.
 </Aside>
 
 ## Releases and updates

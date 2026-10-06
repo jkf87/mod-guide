@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components'
 
 "알 수 없음" 15건은 검증에 떨어진 것이 아니에요. 11건은 저장소를 읽지 못해 지난번 결과를 보여 주는 경우이고, 4건은 이번 스캔에서 찾지 못한 경우예요.
 
-이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 "통과"만 실어요. 그래서 일반 mod 가운데 경고 224개와 실패 31개가 빠져요. 아래에서 보듯 경고는 대부분 고치기 쉬운 것이에요.
+이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 처음에 "통과"만 실었다가, 10월 6일부터 경고와 함께 통과한 일반 mod 224개도 "검증 경고" 표시를 달아 실어요. 실패 31개는 빠져요. 아래에서 보듯 경고는 대부분 고치기 쉬운 것이에요.
 
 ## 실패 47건, 원인별
 
@@ -123,7 +123,7 @@ on("telemetry.log", { to: "collector" }, hook)
 | 명령 훅의 `${CLAUDE_PLUGIN_ROOT}`에 따옴표 없음 | 1 (14줄) |
 | 심볼릭 링크를 따라가지 않고 읽음 | 1 |
 
-카탈로그 전체로 봐도 같은 그림이에요. 경고 252건 중 169건은 작성자 칸이 비어 있어요. 통과한 1,605건 중에서는 1건뿐이에요. `plugin.json`에 `author` 한 줄이 없어서 디렉터리에 오르지 못한 mod가 많다는 뜻이에요.
+카탈로그 전체로 봐도 같은 그림이에요. 경고 252건 중 169건은 작성자 칸이 비어 있어요. 통과한 1,605건 중에서는 1건뿐이에요. `plugin.json`에 `author` 한 줄이 없어서 경고를 받는 mod가 많다는 뜻이에요.
 
 검증 출력에는 `gating hook without .catch:` 줄도 자주 보여요. 이것은 경고가 아니에요. 거절할 수 있는 자리(`tool.call`, `prompt.submit` 같은)에 건 훅에 `.catch`가 없다는 사실만 알려 줘요. 그런 훅은 오류가 나면 건너뛰어지고 요청이 그대로 통과해요. 막는 것이 목적인 훅이라면 `.catch`를 달아요.
 
@@ -159,7 +159,7 @@ reach that call.
 | 점검 | 피하는 실패 |
 | --- | --- |
 | 이름이 `claude-`, `anthropic-`, `cc-plugin-`으로 시작하지 않고, 하는 일을 말해요 | 예약된 이름 |
-| `plugin.json`에 `author`가 있어요 | 경고 (디렉터리 누락) |
+| `plugin.json`에 `author`가 있어요 | 경고 |
 | `hooks.json`의 `modules`가 커밋된 원본 파일 하나를 가리켜요 | 모듈 파일 없음 |
 | `import`하는 파일이 모두 mod 폴더 안에 있어요 | 폴더 밖 가져오기 |
 | `$.state` 키를 계약 파일의 `PluginState`에 모두 적었어요 | 상태 계약 |
@@ -177,4 +177,4 @@ claude plugin validate ./my-mod
 claude plugin test ./my-mod
 ```
 
-`validate`는 매니페스트, 마켓플레이스 파일, 훅 모듈을 한 번에 읽고 거절할 것을 모두 알려 줘요. 경고까지 0이 되면 디렉터리에 오르는 검증 조건도 채워요. 배포 절차는 [내 mod 배포하기](/ko/articles/publish-your-mod/)에, 로드가 안 될 때 보는 곳은 [문제 해결](/ko/guide/troubleshooting/)에 있어요.
+`validate`는 매니페스트, 마켓플레이스 파일, 훅 모듈을 한 번에 읽고 거절할 것을 모두 알려 줘요. 경고까지 0이 되면 카탈로그와 이 사이트 디렉터리에서 경고 표시 없이 실려요. 배포 절차는 [내 mod 배포하기](/ko/articles/publish-your-mod/)에, 로드가 안 될 때 보는 곳은 [문제 해결](/ko/guide/troubleshooting/)에 있어요.

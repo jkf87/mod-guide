@@ -25,7 +25,7 @@ import { Aside } from '@astrojs/starlight/components'
 
 "未知"的 15 条不是验证没通过。其中 11 条是读不到仓库而显示上次的结果，4 条是这次扫描没有找到。
 
-本站的 [Mod 目录](/zh-cn/mods/directory/)只收录"通过"的条目。所以普通 Mod 中有 224 个警告和 31 个失败不在其中。如下文所见，警告大多很容易修复。
+本站的 [Mod 目录](/zh-cn/mods/directory/)起初只收录“通过”的条目，从 10 月 6 日起，带警告通过的 224 个普通 Mod 也会标上“验证警告”标记收录进来。31 个失败的不在其中。如下文所见，警告大多很容易修复。
 
 ## 47 个失败，按原因
 
@@ -123,7 +123,7 @@ on("telemetry.log", { to: "collector" }, hook)
 | 命令钩子的 `${CLAUDE_PLUGIN_ROOT}` 没有加引号 | 1（14 行） |
 | 读取符号链接而没有跟随 | 1 |
 
-放到目录整体来看也是同样的情况。252 条警告中，有 169 条是作者栏为空。在通过的 1,605 条里，只有 1 条。也就是说，很多 Mod 只是因为 `plugin.json` 里少了一行 `author`，就没能进入目录。
+放到目录整体来看也是同样的情况。252 条警告中，有 169 条是作者栏为空。在通过的 1,605 条里，只有 1 条。也就是说，很多 Mod 只是因为 `plugin.json` 里少了一行 `author`，就收到了警告。
 
 验证输出里还常见 `gating hook without .catch:` 这一行。这不是警告。它只是告诉你：挂在可以拒绝的位置（如 `tool.call`、`prompt.submit`）上的钩子没有 `.catch`。这样的钩子一旦出错就会被跳过，请求原样通过。如果钩子的目的是拦截，就请加上 `.catch`。
 
@@ -159,7 +159,7 @@ reach that call.
 | 检查项 | 避免的失败 |
 | --- | --- |
 | 名称不以 `claude-`、`anthropic-`、`cc-plugin-` 开头，并说明它做什么 | 保留名称 |
-| `plugin.json` 里有 `author` | 警告（未进入目录） |
+| `plugin.json` 里有 `author` | 警告 |
 | `hooks.json` 的 `modules` 指向一个已提交的源文件 | 模块文件不存在 |
 | `import` 的文件全部在 Mod 文件夹内 | 导入文件夹之外 |
 | `$.state` 的键都已写进契约文件的 `PluginState` | 状态契约 |
@@ -177,4 +177,4 @@ claude plugin validate ./my-mod
 claude plugin test ./my-mod
 ```
 
-`validate` 会一次读取清单、市场文件和钩子模块，并告诉你所有会被拒绝的地方。连警告也降到 0，就满足了进入目录的验证条件。发布流程见[发布你的 Mod](/zh-cn/articles/publish-your-mod/)，加载不了时该看哪里，见[故障排查](/zh-cn/guide/troubleshooting/)。
+`validate` 会一次读取清单、市场文件和钩子模块，并告诉你所有会被拒绝的地方。连警告也降到 0，就能在目录和本站的 Mod 目录里不带警告标记地收录。发布流程见[发布你的 Mod](/zh-cn/articles/publish-your-mod/)，加载不了时该看哪里，见[故障排查](/zh-cn/guide/troubleshooting/)。

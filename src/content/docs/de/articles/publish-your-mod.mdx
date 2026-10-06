@@ -65,7 +65,7 @@ Wie bei [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods
 
 (Der Titel „앞 2개“ bedeutet: die ersten zwei Einträge.)
 
-Von den 777 Repositories im Katalogverzeichnis haben 626 eine einzelne Mod und 151 mehrere Mods. Die 862 Mods in Mehr-Mod-Repositories machen mehr als die Hälfte der insgesamt 1.488 aus.
+Von den 777 Repositories der Mods, die die Validierung ohne Warnung bestanden haben (1.488), haben 626 eine einzelne Mod und 151 mehrere Mods. Die 862 Mods in Mehr-Mod-Repositories machen mehr als die Hälfte der insgesamt 1.488 aus.
 
 ## marketplace.json schreiben
 
@@ -113,7 +113,7 @@ Dieser Installationsbefehl ist die eine Zeile, die du anderen gibst. `<mod>` ist
 
 Es gibt zwei Fehlermeldungen. Fehlt im Repository die Marketplace-Datei, steht auf dem Frage-Bildschirm `Marketplace file not found at` mit dem Pfad. Ist der Name falsch, kommt `Plugin "<mod>" not found in marketplace "<marketplace>"`. Dieser Befehl funktioniert nur im Terminal. Im Code-Tab der Desktop-App antwortet er, dass er dort nicht benutzt werden kann.
 
-Von den 1.488 Mods im Katalogverzeichnis hatten 277 (aus 180 Repositories) nirgends im Repository eine Marketplace-Datei. Wer solche Mods benutzt, muss den Quelltext herunterladen und mit `--plugin-dir` starten. Eine Ein-Zeilen-Installation kannst du dort nicht erwarten.
+Von den 1.488 Mods, die die Validierung ohne Warnung bestanden haben, hatten 277 (aus 180 Repositories) nirgends im Repository eine Marketplace-Datei. Wer solche Mods benutzt, muss den Quelltext herunterladen und mit `--plugin-dir` starten. Eine Ein-Zeilen-Installation kannst du dort nicht erwarten.
 
 ## Namensregel: Mit `claude-` beginnende Namen werden blockiert
 
@@ -148,7 +148,7 @@ claude plugin tag --dry-run .
 # ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
 ```
 
-Es gibt mehr Mods ohne Lizenz, als man denkt. Von den 1.488 im Verzeichnis hatten 324 (164 von 777 Repositories) keine Lizenzangabe, und 44 hatten `NOASSERTION` (eine Datei ist vorhanden, aber ihre Art wurde nicht erkannt). Wie [choosealicense.com](https://choosealicense.com/no-permission/) erklärt, behält ohne Lizenz der Urheber alle Rechte allein. Auch bei einem öffentlichen Repository erwirbt niemand das Recht, den Code zu kopieren, zu ändern oder weiterzugeben. Wer die Mod in einer Firma einsetzen will, scheitert sofort an der Rechtsprüfung.
+Es gibt mehr Mods ohne Lizenz, als man denkt. Von den 1.488, die die Validierung ohne Warnung bestanden haben, hatten 324 (164 von 777 Repositories) keine Lizenzangabe, und 44 hatten `NOASSERTION` (eine Datei ist vorhanden, aber ihre Art wurde nicht erkannt). Wie [choosealicense.com](https://choosealicense.com/no-permission/) erklärt, behält ohne Lizenz der Urheber alle Rechte allein. Auch bei einem öffentlichen Repository erwirbt niemand das Recht, den Code zu kopieren, zu ändern oder weiterzugeben. Wer die Mod in einer Firma einsetzen will, scheitert sofort an der Rechtsprüfung.
 
 Lieferst du den Code anderer mit, kümmere dich auch um dessen Lizenz. ide-mod legt rhwp (MIT) und pdf.js (Apache-2.0) unter `vendor/` jeweils mit eigener `LICENSE`-Datei ab und nennt beide Bibliotheken samt Lizenz im Abschnitt License der README.
 
@@ -193,7 +193,7 @@ Auch eingetragene Mods können in Kategorien fallen, die nicht in die Zahlen des
 Legst du eine echte Mod unter `examples/` ab, wird sie als Testmod eingeordnet. Verschiebe den Ordner, oder schicke einen PR, der die ID in `data/fixture-exceptions.txt` einträgt.
 
 <Aside type="note">
-  Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite zeigt nur Mods, deren Validierungsergebnis `passed` ist. Der Scanner erfasst `✔ Validation passed with warnings` getrennt als `warnings`. Fehlen `author` oder die Marketplace-`description` und es gibt deshalb eine Warnung, kommt die Mod zwar in den Katalog, fehlt aber hier im Verzeichnis. Das waren 252 Mods.
+  Der Scanner erfasst `✔ Validation passed with warnings` getrennt als `warnings`. Fehlen `author` oder die Marketplace-`description`, gibt es eine Warnung. Beim Scan vom 4. Oktober waren das 252 Einträge. Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite versieht diese Mods mit der Kennzeichnung „Validierungswarnung“. Mit einer einzigen `author`-Zeile verschwindet sie.
 </Aside>
 
 ## Release und Update

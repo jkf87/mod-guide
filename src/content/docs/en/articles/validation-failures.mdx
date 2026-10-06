@@ -25,7 +25,7 @@ The [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-
 
 The 15 "unknown" entries did not fail validation. In 11 of them the repository could not be read, so the previous result is shown, and 4 were not found in this scan.
 
-The [mod directory](/en/mods/directory/) on this site lists only "pass". That is why 224 warnings and 31 failures among regular mods are left out. As you will see below, most warnings are easy to fix.
+At first the [mod directory](/en/mods/directory/) on this site listed only "pass", but since October 6 it also lists the 224 regular mods that passed with warnings, tagged "validation warning". The 31 failures are left out. As you will see below, most warnings are easy to fix.
 
 ## 47 failures, by cause
 
@@ -123,7 +123,7 @@ The `turn.step` rule was the second error `claude-slots` got along with its name
 | `${CLAUDE_PLUGIN_ROOT}` unquoted in a command hook | 1 (14 lines) |
 | Symbolic link read without following it | 1 |
 
-The picture is the same across the whole catalog. Of the 252 warnings, 169 are an empty author field. Among the 1,605 that passed, only 1 is. That means many mods missed the directory for lack of a single `author` line in `plugin.json`.
+The picture is the same across the whole catalog. Of the 252 warnings, 169 are an empty author field. Among the 1,605 that passed, only 1 is. That means many mods get a warning for lack of a single `author` line in `plugin.json`.
 
 You will also often see a `gating hook without .catch:` line in validation output. This is not a warning. It only tells you that a hook on a spot that can refuse (such as `tool.call` or `prompt.submit`) has no `.catch`. If such a hook errors, it is skipped and the request goes through as is. If the hook exists to block, add `.catch`.
 
@@ -159,7 +159,7 @@ This warning really matters when you pass a string such as an ANSI color code (`
 | Check | Failure it avoids |
 | --- | --- |
 | The name does not start with `claude-`, `anthropic-`, or `cc-plugin-`, and says what the mod does | Reserved name |
-| `plugin.json` has `author` | Warning (left out of the directory) |
+| `plugin.json` has `author` | Warning |
 | `modules` in `hooks.json` points to one committed source file | Missing module file |
 | Every file you `import` is inside the mod folder | Import from outside the folder |
 | Every `$.state` key is listed in `PluginState` in the contract file | State contract |
@@ -177,4 +177,4 @@ claude plugin validate ./my-mod
 claude plugin test ./my-mod
 ```
 
-`validate` reads the manifest, the marketplace file, and the hook modules in one pass and tells you everything it would reject. Getting to zero warnings also meets the validation condition for being listed in the directory. The publishing steps are in [Publish your mod](/en/articles/publish-your-mod/), and where to look when a mod will not load is in [Troubleshooting](/en/guide/troubleshooting/).
+`validate` reads the manifest, the marketplace file, and the hook modules in one pass and tells you everything it would reject. Getting to zero warnings gets the mod listed in the catalog and in this site's directory without the warning badge. The publishing steps are in [Publish your mod](/en/articles/publish-your-mod/), and where to look when a mod will not load is in [Troubleshooting](/en/guide/troubleshooting/).

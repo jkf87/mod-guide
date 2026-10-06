@@ -25,7 +25,7 @@ Der Katalog [awesome-claude-code-mods](https://github.com/karanb192/awesome-clau
 
 Die 15 Einträge mit „Unbekannt“ sind nicht durchgefallen. Bei 11 konnte das Repository nicht gelesen werden, deshalb wird das Ergebnis des letzten Laufs gezeigt, und 4 wurden im aktuellen Scan nicht gefunden.
 
-Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite führt nur „Bestanden“ auf. Deshalb fehlen unter den normalen Mods die 224 mit Warnung und die 31 fehlgeschlagenen. Wie unten zu sehen, lassen sich die meisten Warnungen leicht beheben.
+Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite führte zunächst nur „Bestanden“ auf; seit dem 6. Oktober führt es auch die 224 normalen Mods auf, die mit Warnung bestanden haben, mit der Kennzeichnung „Validierungswarnung“. Nur die 31 fehlgeschlagenen fehlen. Wie unten zu sehen, lassen sich die meisten Warnungen leicht beheben.
 
 ## 47 Fehlschläge nach Ursache
 
@@ -123,7 +123,7 @@ Die `turn.step`-Regel ist der zweite Fehler, den `claude-slots` zusammen mit dem
 | Keine Anführungszeichen um `${CLAUDE_PLUGIN_ROOT}` in einem Befehls-Hook | 1 (14 Zeilen) |
 | Symbolischer Link wird ohne Verfolgung gelesen | 1 |
 
-Im gesamten Katalog ergibt sich dasselbe Bild. Bei 169 der 252 Warnungen ist das Autorenfeld leer. Unter den 1.605 bestandenen Einträgen trifft das nur auf 1 zu. Viele Mods haben es also nur deshalb nicht ins Verzeichnis geschafft, weil in `plugin.json` die eine Zeile `author` fehlt.
+Im gesamten Katalog ergibt sich dasselbe Bild. Bei 169 der 252 Warnungen ist das Autorenfeld leer. Unter den 1.605 bestandenen Einträgen trifft das nur auf 1 zu. Viele Mods bekommen also nur deshalb eine Warnung, weil in `plugin.json` die eine Zeile `author` fehlt.
 
 In der Validierungsausgabe taucht oft auch die Zeile `gating hook without .catch:` auf. Das ist keine Warnung. Sie teilt nur mit, dass ein Hook an einer Stelle, an der abgelehnt werden kann (etwa `tool.call` oder `prompt.submit`), kein `.catch` hat. Ein solcher Hook wird bei einem Fehler übersprungen, und die Anfrage geht unverändert durch. Wenn der Hook blockieren soll, hänge ein `.catch` an.
 
@@ -159,7 +159,7 @@ Wirklich problematisch wird diese Warnung, wenn du Strings mit ANSI-Farbcodes (`
 | Prüfpunkt | Vermeidet |
 | --- | --- |
 | Der Name beginnt nicht mit `claude-`, `anthropic-` oder `cc-plugin-` und sagt, was der Mod tut | reservierter Name |
-| `plugin.json` enthält `author` | Warnung (fehlt im Verzeichnis) |
+| `plugin.json` enthält `author` | Warnung |
 | `modules` in `hooks.json` zeigt auf genau eine committete Quelldatei | fehlende Moduldatei |
 | Alle per `import` eingebundenen Dateien liegen im Mod-Ordner | Import von außerhalb des Ordners |
 | Alle `$.state`-Schlüssel stehen in `PluginState` der Vertragsdatei | Zustandsvertrag |
@@ -177,4 +177,4 @@ claude plugin validate ./my-mod
 claude plugin test ./my-mod
 ```
 
-`validate` liest Manifest, Marketplace-Datei und Hook-Module in einem Durchgang und meldet alles, was abgelehnt wird. Bei null Warnungen erfüllst du auch die Validierungsbedingung für das Verzeichnis. Das Veröffentlichen beschreibt [Deinen Mod veröffentlichen](/de/articles/publish-your-mod/), wo du nachsiehst, wenn ein Mod nicht lädt, steht in der [Fehlerbehebung](/de/guide/troubleshooting/).
+`validate` liest Manifest, Marketplace-Datei und Hook-Module in einem Durchgang und meldet alles, was abgelehnt wird. Bei null Warnungen steht die Mod im Katalog und im Verzeichnis dieser Seite ohne Warnkennzeichnung. Das Veröffentlichen beschreibt [Deinen Mod veröffentlichen](/de/articles/publish-your-mod/), wo du nachsiehst, wenn ein Mod nicht lädt, steht in der [Fehlerbehebung](/de/guide/troubleshooting/).

@@ -63,7 +63,7 @@ Comme [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods),
 }
 ```
 
-Sur les 777 dépôts du répertoire du catalogue, 626 ne contiennent qu'un mod et 151 en contiennent plusieurs. Les 862 mods hébergés dans des dépôts multi-mods représentent plus de la moitié des 1 488 au total.
+Sur les 777 dépôts des mods ayant passé la validation sans avertissement (1 488), 626 ne contiennent qu'un mod et 151 en contiennent plusieurs. Les 862 mods hébergés dans des dépôts multi-mods représentent plus de la moitié des 1 488 au total.
 
 ## Écrire marketplace.json
 
@@ -111,7 +111,7 @@ La commande d'installation à donner aux autres tient en une ligne. `<mod>` est 
 
 Il y a deux messages d'échec. Si le dépôt n'a pas de fichier de marketplace, l'écran de question affiche `Marketplace file not found at` suivi du chemin. Si le nom est faux, on obtient `Plugin "<mod>" not found in marketplace "<marketplace>"`. Cette commande est réservée au terminal : dans l'onglet Code de l'application de bureau, elle répond qu'elle n'est pas utilisable.
 
-Sur les 1 488 mods du répertoire du catalogue, 277 (répartis sur 180 dépôts) n'avaient de fichier de marketplace nulle part dans leur dépôt. Pour ces mods, l'utilisateur doit télécharger la source et la lancer avec `--plugin-dir`. Il est difficile d'y attendre une installation en une ligne.
+Sur les 1 488 mods ayant passé la validation sans avertissement, 277 (répartis sur 180 dépôts) n'avaient de fichier de marketplace nulle part dans leur dépôt. Pour ces mods, l'utilisateur doit télécharger la source et la lancer avec `--plugin-dir`. Il est difficile d'y attendre une installation en une ligne.
 
 ## Règle de nommage : un nom commençant par `claude-` est bloqué
 
@@ -146,7 +146,7 @@ claude plugin tag --dry-run .
 # ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
 ```
 
-Les mods sans licence sont plus nombreux qu'on ne le croit. Sur 1 488 mods du répertoire, 324 (164 dépôts sur 777) avaient une information de licence vide, et 44 avaient `NOASSERTION` (un fichier existe mais son type n'a pas été reconnu). Comme l'explique [choosealicense.com](https://choosealicense.com/no-permission/), sans licence l'auteur garde le monopole du droit d'auteur. Même dans un dépôt public, personne d'autre n'a le droit de copier, modifier ou distribuer. Quiconque veut l'utiliser en entreprise est bloqué d'emblée par la revue juridique.
+Les mods sans licence sont plus nombreux qu'on ne le croit. Sur les 1 488 mods ayant passé la validation sans avertissement, 324 (164 dépôts sur 777) avaient une information de licence vide, et 44 avaient `NOASSERTION` (un fichier existe mais son type n'a pas été reconnu). Comme l'explique [choosealicense.com](https://choosealicense.com/no-permission/), sans licence l'auteur garde le monopole du droit d'auteur. Même dans un dépôt public, personne d'autre n'a le droit de copier, modifier ou distribuer. Quiconque veut l'utiliser en entreprise est bloqué d'emblée par la revue juridique.
 
 Si vous livrez du code d'autrui, respectez aussi sa licence. ide-mod place rhwp (MIT) et pdf.js (Apache-2.0) sous `vendor/`, chacun avec son propre fichier `LICENSE`, et cite les deux bibliothèques et leurs licences dans la section License du README.
 
@@ -191,7 +191,7 @@ Certaines classes, même enregistrées, ne comptent pas dans les chiffres du ré
 Un vrai mod placé sous `examples/` est classé comme test. Déplacez le dossier, ou envoyez une PR qui ajoute son id à `data/fixture-exceptions.txt`.
 
 <Aside type="note">
-  Le [répertoire des mods](/fr/mods/directory/) de ce site n'affiche que les mods dont le résultat de validation est `passed`. Le scanner enregistre à part, sous `warnings`, `✔ Validation passed with warnings`. Si un mod reçoit un avertissement parce qu'il manque `author` ou la `description` du marketplace, il entre dans le catalogue mais pas dans le répertoire d'ici. Il y avait 252 mods de ce type.
+  Le scanner enregistre à part, sous `warnings`, `✔ Validation passed with warnings`. Un avertissement apparaît quand `author` ou la `description` du marketplace manque. Il y avait 252 entrées de ce type lors du scan du 4 octobre. Le [répertoire des mods](/fr/mods/directory/) de ce site affiche la mention « avertissement » sur ces mods. Une seule ligne `author` suffit à la faire disparaître.
 </Aside>
 
 ## Releases et mises à jour

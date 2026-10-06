@@ -25,7 +25,7 @@ Le catalogue [awesome-claude-code-mods](https://github.com/karanb192/awesome-cla
 
 Les 15 cas « inconnu » ne sont pas des échecs de validation. Pour 11 d'entre eux, le dépôt n'a pas pu être lu et le catalogue montre le résultat précédent ; pour les 4 autres, l'entrée n'a pas été retrouvée lors de ce scan.
 
-Le [répertoire des mods](/fr/mods/directory/) de ce site ne retient que les « réussites ». Parmi les mods ordinaires, 224 avertissements et 31 échecs en sont donc exclus. Comme on le voit plus bas, les avertissements sont pour la plupart faciles à corriger.
+Le [répertoire des mods](/fr/mods/directory/) de ce site ne retenait d'abord que les « réussites » ; depuis le 6 octobre, il affiche aussi les 224 mods ordinaires passés avec avertissements, marqués « avertissement ». Les 31 échecs en restent exclus. Comme on le voit plus bas, les avertissements sont pour la plupart faciles à corriger.
 
 ## Les 47 échecs, par cause
 
@@ -123,7 +123,7 @@ La règle de `turn.step` est la seconde erreur reçue par `claude-slots`, en plu
 | `${CLAUDE_PLUGIN_ROOT}` sans guillemets dans un hook de commande | 1 (14 lignes) |
 | Lien symbolique lu sans être suivi | 1 |
 
-Sur l'ensemble du catalogue, le tableau est le même : sur 252 avertissements, 169 viennent d'un champ auteur vide, contre un seul cas parmi les 1 605 entrées réussies. Autrement dit, de nombreux mods n'ont pas pu entrer dans le répertoire faute d'une ligne `author` dans `plugin.json`.
+Sur l'ensemble du catalogue, le tableau est le même : sur 252 avertissements, 169 viennent d'un champ auteur vide, contre un seul cas parmi les 1 605 entrées réussies. Autrement dit, de nombreux mods reçoivent un avertissement faute d'une ligne `author` dans `plugin.json`.
 
 Vous verrez aussi souvent la ligne `gating hook without .catch:` dans la sortie de validation. Ce n'est pas un avertissement. Elle indique seulement qu'un hook accroché à un endroit où l'on peut refuser (comme `tool.call` ou `prompt.submit`) n'a pas de `.catch`. En cas d'erreur, un tel hook est ignoré et la requête passe telle quelle. Si le hook est fait pour bloquer, ajoutez un `.catch`.
 
@@ -159,7 +159,7 @@ Cette alerte devient un vrai problème quand vous passez au moteur une chaîne c
 | Vérification | Échec évité |
 | --- | --- |
 | Le nom ne commence pas par `claude-`, `anthropic-` ou `cc-plugin-`, et dit ce que fait le mod | Nom réservé |
-| `plugin.json` contient `author` | Avertissement (absence du répertoire) |
+| `plugin.json` contient `author` | Avertissement |
 | `modules` dans `hooks.json` pointe vers un seul fichier source commité | Fichier de module absent |
 | Tous les fichiers importés sont dans le dossier du mod | Import hors du dossier |
 | Toutes les clés `$.state` figurent dans `PluginState` du fichier de contrat | Contrat d'état |
@@ -177,4 +177,4 @@ claude plugin validate ./my-mod
 claude plugin test ./my-mod
 ```
 
-`validate` lit en une fois le manifeste, le fichier de marketplace et les modules de hooks, et signale tout ce qu'il refuse. Quand les avertissements tombent eux aussi à 0, vous remplissez également la condition de validation pour figurer dans le répertoire. La procédure de publication se trouve dans [Publier votre mod](/fr/articles/publish-your-mod/), et ce qu'il faut consulter quand un mod ne se charge pas dans [Dépannage](/fr/guide/troubleshooting/).
+`validate` lit en une fois le manifeste, le fichier de marketplace et les modules de hooks, et signale tout ce qu'il refuse. Quand les avertissements tombent eux aussi à 0, le mod figure dans le catalogue et dans le répertoire de ce site sans la mention d'avertissement. La procédure de publication se trouve dans [Publier votre mod](/fr/articles/publish-your-mod/), et ce qu'il faut consulter quand un mod ne se charge pas dans [Dépannage](/fr/guide/troubleshooting/).

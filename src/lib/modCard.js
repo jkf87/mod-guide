@@ -71,6 +71,7 @@ export function cardHtml(m, t, cdn) {
       <div class="mod-card__tags">
         <span class="mod-badge mod-badge--cat">${esc(t.cats[m.c] ?? m.c)}</span>
         <span class="mod-badge mod-badge--lv${m.lv}" title="${esc((m.rl ?? []).filter(x => !x.startsWith('other:')).join(', '))}">${esc(t.levels[m.lv] ?? '')}</span>
+        ${m.w && t.warn ? `<span class="mod-badge mod-badge--warn" title="${esc(t.warn[1])}">${esc(t.warn[0])}</span>` : ''}
       </div>
     </div>
     <div class="mod-card__foot">

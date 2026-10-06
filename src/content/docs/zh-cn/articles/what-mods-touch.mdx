@@ -1,6 +1,6 @@
 ---
 title: Mod 实际会碰什么
-description: 通过对目录中 1,488 个 Mod 的源码扫描来看访问范围。整理了执行进程的 594 个、查看所有提示词的 474 个、向外发送请求的 195 个分别触及哪里。
+description: 通过对验证无警告通过的 1,488 个 Mod 的源码扫描来看访问范围。整理了执行进程的 594 个、查看所有提示词的 474 个、向外发送请求的 195 个分别触及哪里。
 sidebar:
   order: 2
 ---
@@ -9,7 +9,7 @@ import { Aside } from '@astrojs/starlight/components'
 
 基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289
 
-统计了 [Mod 目录](/zh-cn/mods/directory/)收录的 1,488 个 Mod 调用了哪些 API、接收哪些事件。数据来自 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 目录。各 API 的含义，是对照 Claude Code 2.1.290 提供的类型文件 `claude-code.d.ts` 确认的。
+统计了验证无警告通过的 1,488 个 Mod 调用了哪些 API、接收哪些事件。数据来自 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 目录。各 API 的含义，是对照 Claude Code 2.1.290 提供的类型文件 `claude-code.d.ts` 确认的。
 
 ## 读数字之前
 

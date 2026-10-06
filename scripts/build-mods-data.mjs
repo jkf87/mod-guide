@@ -56,7 +56,7 @@ const drawsOf = m => {
 }
 
 const mods = raw.mods
-  .filter(m => (m.kind === 'mod' || m.kind === 'builtin') && !m.archived && !m.duplicateOf && m.validate?.status === 'passed')
+  .filter(m => (m.kind === 'mod' || m.kind === 'builtin') && !m.archived && !m.duplicateOf && ['passed', 'warnings'].includes(m.validate?.status))
   .map(m => ({
     n: m.name,
     r: m.repo,
@@ -73,12 +73,13 @@ const mods = raw.mods
     cr: (m.createdAt ?? '').slice(0, 10),
     img: images[`${m.repo}:${m.path ?? ''}`] ?? null,
     dw: drawsOf(m),
+    w: m.validate?.status === 'warnings' ? 1 : 0,
   }))
   .sort((x, y) => y.b - x.b || y.s - x.s || x.n.localeCompare(y.n))
 
 fs.writeFileSync(path.join('public', 'data', 'mods.json'), JSON.stringify(mods))
 const byCategory = {}
 for (const m of mods) byCategory[m.c] = (byCategory[m.c] ?? 0) + 1
-const stats = { generated: raw.generated, claudeVersion: raw.claudeVersion, total: mods.length, repos: new Set(mods.map(m => m.r)).size, byCategory }
+const stats = { generated: raw.generated, claudeVersion: raw.claudeVersion, total: mods.length, warnings: mods.filter(m => m.w).length, repos: new Set(mods.map(m => m.r)).size, byCategory }
 fs.writeFileSync(path.join('src', 'data', 'stats.json'), JSON.stringify(stats, null, 2))
 console.log(stats)
