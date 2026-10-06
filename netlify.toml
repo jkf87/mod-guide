@@ -19,3 +19,10 @@
     "https://user-images\\.githubusercontent\\.com/.*",
     "https://private-user-images\\.githubusercontent\\.com/.*",
   ]
+
+# 옛 주소(netlify.app)는 mods.guide로 보낸다 (같은 내용이 두 주소에 뜨지 않게)
+[[redirects]]
+  from = "https://cc-mod-guide.netlify.app/*"
+  to = "https://mods.guide/:splat"
+  status = 301
+  force = true

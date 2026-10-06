@@ -71,13 +71,22 @@ const mods = raw.mods
     b: m.kind === 'builtin' ? 1 : 0,
     p: (m.pushedAt ?? '').slice(0, 10),
     cr: (m.createdAt ?? '').slice(0, 10),
-    img: images[`${m.repo}:${m.path ?? ''}`] ?? null,
+    img: typeof images[`${m.repo}:${m.path ?? ''}`] === 'string' ? images[`${m.repo}:${m.path ?? ''}`] : null,
     dw: drawsOf(m),
     w: m.validate?.status === 'warnings' ? 1 : 0,
   }))
   .sort((x, y) => y.b - x.b || y.s - x.s || x.n.localeCompare(y.n))
 
 fs.writeFileSync(path.join('public', 'data', 'mods.json'), JSON.stringify(mods))
+
+// 언어별 설명: mods.json과 같은 순서의 배열 (번역이 없으면 null → 영어 원문을 쓴다)
+for (const lang of ['ko', 'ja', 'zh-CN', 'fr', 'de']) {
+  const file = path.join('scripts', 'cache', `desc-${lang}.json`)
+  const tr = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+  const out = mods.map(m => tr[m.d] ?? null)
+  fs.writeFileSync(path.join('public', 'data', `desc-${lang}.json`), JSON.stringify(out))
+  console.log(`desc-${lang}: ${out.filter(Boolean).length}/${mods.length}`)
+}
 const byCategory = {}
 for (const m of mods) byCategory[m.c] = (byCategory[m.c] ?? 0) + 1
 const stats = { generated: raw.generated, claudeVersion: raw.claudeVersion, total: mods.length, warnings: mods.filter(m => m.w).length, repos: new Set(mods.map(m => m.r)).size, byCategory }

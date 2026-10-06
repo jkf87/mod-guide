@@ -1,10 +1,9 @@
 ---
 // 커뮤니티 카탈로그(CC0)에서 만든 mod 디렉터리. 데이터는 /data/mods.json을 브라우저가 받아 그린다.
 // 첫 화면(별 많은 순 48개)은 빌드 때 HTML로 미리 그려 둔다: 자바스크립트 없이도, 검색 엔진에도 목록이 보이게
-import fs from 'node:fs'
-import path from 'node:path'
 import stats from '../data/stats.json'
-import { UI, CATEGORIES, LEVELS, langKey, cardText } from '../lib/modStrings.js'
+import { UI, CATEGORIES, LEVELS, langKey, cardText, descFile } from '../lib/modStrings.js'
+import { loadMods } from '../lib/loadMods.js'
 import { cardHtml } from '../lib/modCard.js'
 
 interface Props {
@@ -16,9 +15,9 @@ const key = langKey(lang) as keyof typeof UI
 const ui = UI[key]
 const cats = Object.entries(CATEGORIES).map(([id, names]) => ({ id, name: names[key], n: (stats.byCategory as Record<string, number>)[id] ?? 0 }))
 const cdn = process.env.NETLIFY === 'true' // Netlify 빌드에서만 이미지 CDN을 쓴다
-const config = { ui, t: cardText(lang), cdn }
+const config = { ui, t: cardText(lang), cdn, desc: descFile(lang) }
 const date = stats.generated.slice(0, 10)
-const first: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/data/mods.json'), 'utf8')).slice(0, 48)
+const first: any[] = loadMods(lang).slice(0, 48)
 ---
 
 <div class="mod-dir not-content" data-config={JSON.stringify(config)}>
@@ -49,7 +48,7 @@ const first: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public
 
 <script>
   import { cardHtml } from '../lib/modCard.js'
-  type Mod = { n: string; r: string; u: string; a: string; d: string; s: number; l: string | null; lv: number; rl: string[]; c: string; b: number; p: string; cr: string; img: string | null; dw: string }
+  type Mod = { n: string; r: string; u: string; a: string; d: string; s: number; l: string | null; lv: number; rl: string[]; c: string; b: number; p: string; cr: string; img: string | null; dw: string; w?: number; en?: string }
   const PAGE = 48
   for (const root of document.querySelectorAll<HTMLElement>('.mod-dir')) {
     const config = JSON.parse(root.dataset.config ?? '{}')
@@ -69,7 +68,7 @@ const first: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public
     const render = () => {
       const q = search.value.trim().toLowerCase()
       const max = level.value === '' ? 9 : Number(level.value)
-      let rows = mods.filter(m => (cat === '' || m.c === cat) && m.lv <= max && (q === '' || `${m.n} ${m.a} ${m.r} ${m.d}`.toLowerCase().includes(q)))
+      let rows = mods.filter(m => (cat === '' || m.c === cat) && m.lv <= max && (q === '' || `${m.n} ${m.a} ${m.r} ${m.d} ${m.en ?? ''}`.toLowerCase().includes(q)))
       if (sort.value === 'new') rows = [...rows].sort((a, b) => b.cr.localeCompare(a.cr) || b.s - a.s)
       else if (sort.value === 'recent') rows = [...rows].sort((a, b) => b.p.localeCompare(a.p))
       else if (sort.value === 'name') rows = [...rows].sort((a, b) => a.n.localeCompare(b.n))
@@ -108,12 +107,13 @@ const first: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public
         }
       }
     }
-    fetch('/data/mods.json')
-      .then(r => r.json())
-      .then((data: Mod[]) => {
-        mods = data
-        render()
-      })
+    Promise.all([
+      fetch('/data/mods.json').then(r => r.json()),
+      config.desc ? fetch(config.desc).then(r => r.json()).catch(() => []) : Promise.resolve([]),
+    ]).then(([data, desc]: [Mod[], (string | null)[]]) => {
+      mods = data.map((m, i) => ({ ...m, en: m.d, d: desc[i] ?? m.d }))
+      render()
+    })
   }
 </script>
 

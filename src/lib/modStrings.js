@@ -61,3 +61,9 @@ export function cardText(lang) {
     warn: WARN[k],
   }
 }
+
+// 언어별 설명 파일 이름 (public/data/desc-<lang>.json, 영어는 없음)
+export const descFile = lang => {
+  const k = langKey(lang)
+  return k === 'en' ? null : `/data/desc-${k}.json`
+}

@@ -1,11 +1,10 @@
 ---
 // 홈 첫 화면의 프로젝트 쇼케이스: 인기 mod, 새로 올라온 mod, 분야별, 접근 범위, 심층 글.
 // 전부 빌드 때 HTML로 그린다 (검색 엔진·자바스크립트 없는 화면에도 보이게)
-import fs from 'node:fs'
-import path from 'node:path'
 import { getCollection } from 'astro:content'
 import stats from '../data/stats.json'
 import { CATEGORIES, LEVELS, langKey, cardText } from '../lib/modStrings.js'
+import { loadMods } from '../lib/loadMods.js'
 import { cardHtml, CAT_COLOR } from '../lib/modCard.js'
 
 interface Props {
@@ -16,7 +15,7 @@ const key = langKey(lang)
 const base = `/${lang}`
 const t = cardText(lang)
 const cdn = process.env.NETLIFY === 'true' // Netlify 빌드에서만 이미지 CDN을 쓴다
-const all: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/data/mods.json'), 'utf8'))
+const all: any[] = loadMods(lang)
 
 const S = {
   en: { pop: ['Popular', 'Most-starred mods', 'One mod per repository, ranked by repository stars.'], fresh: ['New', 'Just published', 'Repositories created most recently.'], cats: ['Categories', 'Browse by category', 'Grouped by what each mod is for.'], reach: ['Access', 'What mods can reach', 'Highest access level found in each mod’s source.'], deep: ['In depth', 'Analyses and tutorials', 'Our own numbers, source reviews and tested code.'], all: 'Browse all', mods: 'mods', safety: 'How to check a mod before installing' },
