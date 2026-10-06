@@ -1,0 +1,41 @@
+# 매일 커뮤니티 카탈로그(karanb192/awesome-claude-code-mods, CC0)에서 새 mod를 받아 디렉터리 데이터를 다시 만든다.
+# 바뀐 것이 있으면 커밋하고, push를 받은 Netlify가 사이트를 다시 배포한다.
+# 새 설명의 번역은 여기서 하지 않는다 (번역 전에는 영어로 보임). 번역은 클라우드 루틴이
+# scripts/translate-descriptions.mjs --export / --import 로 채운다.
+name: Refresh mod directory
+on:
+  schedule:
+    - cron: '0 21 * * *' # 매일 06:00 KST
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: refresh-mods
+  cancel-in-progress: false
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Download catalogue
+        run: curl -fsSL https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/data/mods.json -o "$RUNNER_TEMP/catalogue.json"
+      - name: Find thumbnails for new mods
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: node scripts/fetch-mod-images.mjs "$RUNNER_TEMP/catalogue.json"
+      - name: Build directory data
+        run: node scripts/build-mods-data.mjs "$RUNNER_TEMP/catalogue.json"
+      - name: Report untranslated descriptions
+        run: node scripts/translate-descriptions.mjs --export "$RUNNER_TEMP/pending.json"
+      - name: Commit if changed
+        run: |
+          git add public/data src/data scripts/cache
+          if git diff --cached --quiet; then echo "no changes"; exit 0; fi
+          total=$(node -p "require('./src/data/stats.json').total")
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "Refresh mod directory: ${total} mods"
+          git push

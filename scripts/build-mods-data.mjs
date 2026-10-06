@@ -6,7 +6,25 @@ import fs from 'node:fs'
 import path from 'node:path'
 
 const SOURCE = 'https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/data/mods.json'
-const local = process.argv[2]
+
+// 언어별 설명: mods.json과 같은 순서의 배열 (번역이 없으면 null → 영어 원문을 쓴다)
+function writeDescriptions(mods) {
+  for (const lang of ['ko', 'ja', 'zh-CN', 'fr', 'de']) {
+    const file = path.join('scripts', 'cache', `desc-${lang}.json`)
+    const tr = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
+    const out = mods.map(m => tr[m.d] ?? null)
+    fs.writeFileSync(path.join('public', 'data', `desc-${lang}.json`), JSON.stringify(out))
+    console.log(`desc-${lang}: ${out.filter(Boolean).length}/${mods.length}`)
+  }
+}
+
+// --desc-only: mod 목록은 그대로 두고 번역 캐시로 언어별 설명 파일만 다시 쓴다 (번역 루틴용)
+if (process.argv.includes('--desc-only')) {
+  writeDescriptions(JSON.parse(fs.readFileSync(path.join('public', 'data', 'mods.json'), 'utf8')))
+  process.exit(0)
+}
+
+const local = process.argv.slice(2).find(a => !a.startsWith('--'))
 const raw = local ? JSON.parse(fs.readFileSync(local, 'utf8')) : await (await fetch(SOURCE)).json()
 
 // 분류: 이름(3점)·설명(1점)에서 각 분류의 단어가 몇 번 나오는지 세어 가장 높은 분류를 고른다
@@ -79,14 +97,7 @@ const mods = raw.mods
 
 fs.writeFileSync(path.join('public', 'data', 'mods.json'), JSON.stringify(mods))
 
-// 언어별 설명: mods.json과 같은 순서의 배열 (번역이 없으면 null → 영어 원문을 쓴다)
-for (const lang of ['ko', 'ja', 'zh-CN', 'fr', 'de']) {
-  const file = path.join('scripts', 'cache', `desc-${lang}.json`)
-  const tr = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : {}
-  const out = mods.map(m => tr[m.d] ?? null)
-  fs.writeFileSync(path.join('public', 'data', `desc-${lang}.json`), JSON.stringify(out))
-  console.log(`desc-${lang}: ${out.filter(Boolean).length}/${mods.length}`)
-}
+writeDescriptions(mods)
 const byCategory = {}
 for (const m of mods) byCategory[m.c] = (byCategory[m.c] ?? 0) + 1
 const stats = { generated: raw.generated, claudeVersion: raw.claudeVersion, total: mods.length, warnings: mods.filter(m => m.w).length, repos: new Set(mods.map(m => m.r)).size, byCategory }

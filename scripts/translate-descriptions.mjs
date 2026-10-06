@@ -2,12 +2,19 @@
 // mod 설명(영어)을 사이트 언어로 옮겨 scripts/cache/desc-<lang>.json에 쌓는다 (영어 문장 → 번역).
 // 같은 문장은 한 번만 옮기고, 캐시에 있는 문장은 건너뛴다. 번역은 claude -p(Sonnet)로 묶음 단위로 한다.
 //   node scripts/translate-descriptions.mjs [ko ja zh-CN fr de]
+//   node scripts/translate-descriptions.mjs --export pending.json   번역할 문장만 내보낸다 ({ lang: [영어 문장] })
+//   node scripts/translate-descriptions.mjs --import done.json      번역 결과를 캐시에 넣는다 ({ lang: { 영어: 번역 } })
+// --export/--import는 claude -p 없이 다른 번역자(예: 클라우드 루틴의 Claude)가 옮길 때 쓴다
 import fs from 'node:fs'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
 
 const LANGS = { ko: 'Korean (해요체, 짧고 자연스러운 UI 문장)', ja: 'Japanese (です・ます調)', 'zh-CN': 'Simplified Chinese', fr: 'French', de: 'German (du-Form)' }
-const wanted = process.argv.slice(2).length ? process.argv.slice(2) : Object.keys(LANGS)
+const argv = process.argv.slice(2)
+const flag = name => (argv.includes(name) ? argv[argv.indexOf(name) + 1] : undefined)
+const exportFile = flag('--export')
+const importFile = flag('--import')
+const wanted = argv.filter(a => a in LANGS).length ? argv.filter(a => a in LANGS) : Object.keys(LANGS)
 const BATCH = 100
 const CONCURRENCY = 4
 
@@ -53,6 +60,33 @@ ${JSON.stringify(input, null, 0)}`
     }
   }
   return []
+}
+
+const cacheFile = lang => path.join('scripts', 'cache', `desc-${lang}.json`)
+const readCache = lang => (fs.existsSync(cacheFile(lang)) ? JSON.parse(fs.readFileSync(cacheFile(lang), 'utf8')) : {})
+
+if (exportFile) {
+  const pending = Object.fromEntries(wanted.map(lang => [lang, texts.filter(t => !readCache(lang)[t])]))
+  fs.writeFileSync(exportFile, JSON.stringify(pending, null, 1))
+  console.log(Object.entries(pending).map(([l, list]) => `${l}: ${list.length}`).join(', '))
+  process.exit(0)
+}
+if (importFile) {
+  const done = JSON.parse(fs.readFileSync(importFile, 'utf8'))
+  for (const [lang, map] of Object.entries(done)) {
+    if (!(lang in LANGS)) continue
+    const cache = readCache(lang)
+    let added = 0
+    for (const [en, tr] of Object.entries(map)) {
+      if (typeof tr === 'string' && tr.trim() !== '' && texts.includes(en)) {
+        cache[en] = tr.trim()
+        added++
+      }
+    }
+    fs.writeFileSync(cacheFile(lang), JSON.stringify(cache, null, 1))
+    console.log(`${lang}: +${added}`)
+  }
+  process.exit(0)
 }
 
 const jobs = []
