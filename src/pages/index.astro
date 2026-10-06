@@ -28,6 +28,7 @@ const codes = langs.map(l => l.code)
     {langs.map(l => <link rel="alternate" hreflang={l.hreflang} href={`${site}/${l.code}/`} />)}
     <link rel="alternate" hreflang="x-default" href={`${site}/`} />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {client && <meta name="google-adsense-account" content={client} />}
     {client && <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`} crossorigin="anonymous" />}
     <script is:inline define:vars={{ codes }}>
       const want = (navigator.languages || [navigator.language || 'en']).map(l => l.toLowerCase())
