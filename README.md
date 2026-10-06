@@ -26,12 +26,25 @@ npm run dev       # http://localhost:4321
 npm run build     # dist/
 ```
 
+## 데이터·그림 갱신 (로컬에서 돌리고 결과를 커밋)
+
+```bash
+curl -sL https://raw.githubusercontent.com/karanb192/awesome-claude-code-mods/main/data/mods.json -o /tmp/catalogue.json
+node scripts/fetch-mod-images.mjs /tmp/catalogue.json      # README·저장소 그림 (gh 로그인 필요, 캐시: scripts/cache/images.json)
+node scripts/build-mods-data.mjs /tmp/catalogue.json       # public/data/mods.json, desc-<lang>.json, src/data/stats.json
+node scripts/translate-descriptions.mjs                    # 새 설명만 5개 언어로 (claude -p, 캐시: scripts/cache/desc-*.json)
+node scripts/build-mods-data.mjs /tmp/catalogue.json       # 번역 반영
+CHROME=<chromium> PLAYWRIGHT=<playwright 경로> node scripts/og-images.mjs   # 바뀐 쪽만 공유 그림 다시 그림 (macOS 글꼴)
+```
+
+글을 추가하거나 제목·설명을 바꾸면 `og-images.mjs`도 다시 돌려요. 사이드바의 심층 글은 `astro.config.mjs`의 목록에 slug를 더해요(영어 파일이 있어야 실려요).
+
 ## 환경 변수
 
 | 변수 | 예 | 쓰임 |
 |---|---|---|
 | `SITE_URL` | `https://mods.guide` | canonical·sitemap·hreflang |
-| `PUBLIC_ADSENSE_CLIENT` | `ca-pub-1234567890123456` | 광고 스크립트와 `ads.txt`. 없으면 광고가 꺼져요 |
+| `PUBLIC_ADSENSE_CLIENT` | `ca-pub-1234567890123456` | 광고 스크립트·`google-adsense-account` 메타·`ads.txt`. 없으면 광고가 꺼져요 |
 | `PUBLIC_ADSENSE_SLOT_SIDEBAR` | `1234567890` | 오른쪽 사이드바 광고 단위 |
 | `PUBLIC_ADSENSE_SLOT_ARTICLE` | `1234567890` | 본문 끝 광고 단위 |
 
