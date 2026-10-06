@@ -15,10 +15,14 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
 import stats from '../../../data/stats.json'
+import HomeShowcase from '../../../components/HomeShowcase.astro'
 
 <div class="home-stats">
   通过验证的 Mod <strong>{stats.total.toLocaleString()}</strong> 个 · 仓库 <strong>{stats.repos.toLocaleString()}</strong> 个 · 基于 Claude Code {stats.claudeVersion}（{stats.generated.slice(0, 10)} 扫描）
 </div>
+
+<HomeShowcase lang="zh-cn" />
+
 
 ## Mod 能做什么
 

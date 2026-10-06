@@ -1,9 +1,10 @@
+import fs from 'node:fs'
 // @ts-check
 import { defineConfig } from 'astro/config'
 import starlight from '@astrojs/starlight'
 
 // 사이트 주소: 배포할 도메인이 정해지면 SITE_URL로 넘긴다 (sitemap·canonical·hreflang에 쓰인다)
-const site = process.env.SITE_URL ?? 'https://mods.example.com'
+const site = process.env.SITE_URL ?? 'https://mods.guide'
 
 // 사이드바 항목 이름은 6개 언어로 둔다
 const t = (en, ko, ja, zh, fr, de) => ({ label: en, translations: { ko, ja, 'zh-CN': zh, fr, de } })
@@ -31,7 +32,7 @@ export default defineConfig({
         de: { label: 'Deutsch' },
       },
       social: [{ icon: 'github', label: 'GitHub', href: 'https://github.com/jkf87/mod-guide' }],
-      customCss: ['./src/styles/custom.css'],
+      customCss: ['./src/styles/custom.css', './src/styles/mod-card.css'],
       lastUpdated: true,
       components: {
         Head: './src/components/Head.astro',
@@ -50,6 +51,24 @@ export default defineConfig({
             { slug: 'guide/api-cheatsheet' },
             { slug: 'guide/troubleshooting' },
           ],
+        },
+        {
+          ...t('In depth', '심층 글', '詳しく読む', '深入阅读', 'En profondeur', 'Vertiefung'),
+          items: [
+            'articles/state-of-mods-2026-10',
+            'articles/what-mods-touch',
+            'articles/validation-failures',
+            'articles/usage-mods-compared',
+            'articles/safety-mods-compared',
+            'articles/agent-dashboards-compared',
+            'articles/tutorial-prompt-band',
+            'articles/tutorial-bash-guard',
+            'articles/testing-and-debugging',
+            'articles/publish-your-mod',
+          ]
+            // 번역(영어 기본본)이 있는 글만 싣는다
+            .filter(slug => fs.existsSync(`./src/content/docs/en/${slug}.mdx`))
+            .map(slug => ({ slug })),
         },
         {
           ...t('Mods', 'mod 둘러보기', 'Mod を探す', '浏览 Mod', 'Explorer les mods', 'Mods entdecken'),

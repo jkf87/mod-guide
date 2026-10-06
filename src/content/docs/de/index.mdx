@@ -15,10 +15,14 @@ hero:
 
 import { Card, CardGrid, LinkCard } from '@astrojs/starlight/components'
 import stats from '../../../data/stats.json'
+import HomeShowcase from '../../../components/HomeShowcase.astro'
 
 <div class="home-stats">
   <strong>{stats.total.toLocaleString()}</strong> geprüfte Mods · <strong>{stats.repos.toLocaleString()}</strong> Repositories · Stand Claude Code {stats.claudeVersion} (Scan vom {stats.generated.slice(0, 10)})
 </div>
+
+<HomeShowcase lang="de" />
+
 
 ## Was Mods können
 

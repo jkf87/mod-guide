@@ -39,6 +39,22 @@ const clip = (s, n) => {
   return t.length > n ? `${t.slice(0, n - 1).replace(/\s+\S*$/, '')}…` : t
 }
 
+// README에서 찾은 그림 (scripts/fetch-mod-images.mjs가 만든 캐시)
+const IMAGES = path.join('scripts', 'cache', 'images.json')
+const images = fs.existsSync(IMAGES) ? JSON.parse(fs.readFileSync(IMAGES, 'utf8')) : {}
+
+// 화면 어디에 그리는지: P 옆 창, A 입력창 위 띠, M 대화 메시지, S 스피너·힌트, T 상태줄
+const drawsOf = m => {
+  const d = new Set((m.draws ?? []).flatMap(x => String(x).split('|')))
+  let f = ''
+  if (d.has('Pane')) f += 'P'
+  if (d.has('AbovePrompt')) f += 'A'
+  if (['AssistantMessage', 'UserMessage', 'ToolUse', 'ToolResult', 'ToolGroup', 'CommandOutput', 'InfoNotice'].some(x => d.has(x))) f += 'M'
+  if (['Spinner', 'PromptHint', 'SessionMode', 'TurnDuration', 'ToolProgress'].some(x => d.has(x))) f += 'S'
+  if ((m.calls ?? []).includes('$.ui.status')) f += 'T'
+  return f
+}
+
 const mods = raw.mods
   .filter(m => (m.kind === 'mod' || m.kind === 'builtin') && !m.archived && !m.duplicateOf && m.validate?.status === 'passed')
   .map(m => ({
@@ -54,6 +70,9 @@ const mods = raw.mods
     c: categoryOf(m),
     b: m.kind === 'builtin' ? 1 : 0,
     p: (m.pushedAt ?? '').slice(0, 10),
+    cr: (m.createdAt ?? '').slice(0, 10),
+    img: images[`${m.repo}:${m.path ?? ''}`] ?? null,
+    dw: drawsOf(m),
   }))
   .sort((x, y) => y.b - x.b || y.s - x.s || x.n.localeCompare(y.n))
 

@@ -1,0 +1,342 @@
+---
+// 홈 첫 화면의 프로젝트 쇼케이스: 인기 mod, 새로 올라온 mod, 분야별, 접근 범위, 심층 글.
+// 전부 빌드 때 HTML로 그린다 (검색 엔진·자바스크립트 없는 화면에도 보이게)
+import fs from 'node:fs'
+import path from 'node:path'
+import { getCollection } from 'astro:content'
+import stats from '../data/stats.json'
+import { CATEGORIES, LEVELS, langKey, cardText } from '../lib/modStrings.js'
+import { cardHtml, CAT_COLOR } from '../lib/modCard.js'
+
+interface Props {
+  lang: string
+}
+const { lang } = Astro.props
+const key = langKey(lang)
+const base = `/${lang}`
+const t = cardText(lang)
+const cdn = process.env.NETLIFY === 'true' // Netlify 빌드에서만 이미지 CDN을 쓴다
+const all: any[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/data/mods.json'), 'utf8'))
+
+const S = {
+  en: { pop: ['Popular', 'Most-starred mods', 'One mod per repository, ranked by repository stars.'], fresh: ['New', 'Just published', 'Repositories created most recently.'], cats: ['Categories', 'Browse by category', 'Grouped by what each mod is for.'], reach: ['Access', 'What mods can reach', 'Highest access level found in each mod’s source.'], deep: ['In depth', 'Analyses and tutorials', 'Our own numbers, source reviews and tested code.'], all: 'Browse all', mods: 'mods', safety: 'How to check a mod before installing' },
+  ko: { pop: ['인기', '별이 많은 mod', '저장소마다 하나씩, 저장소 별 수로 줄 세웠어요.'], fresh: ['새로 나옴', '방금 올라온 mod', '저장소가 가장 최근에 만들어진 순서예요.'], cats: ['분야', '분야별로 보기', '무엇을 하는 mod인지로 나눴어요.'], reach: ['접근 범위', 'mod는 어디까지 닿나', '소스에서 찾은 가장 높은 접근 수준이에요.'], deep: ['심층 글', '분석과 따라 하기', '직접 센 숫자, 소스 리뷰, 돌려 본 코드.'], all: '전체 보기', mods: '개', safety: '설치 전에 확인하는 법' },
+  ja: { pop: ['人気', 'スターの多い Mod', 'リポジトリごとに 1 つ、リポジトリのスター数順。'], fresh: ['新着', '公開されたばかり', 'リポジトリの作成日が新しい順。'], cats: ['分野', '分野別に見る', '何をする Mod かで分類しました。'], reach: ['アクセス範囲', 'Mod はどこまで触れるか', 'ソースから見つかった最も高いアクセスレベル。'], deep: ['詳しく読む', '分析とチュートリアル', '独自の集計、ソースレビュー、動作確認済みのコード。'], all: 'すべて見る', mods: '件', safety: 'インストール前の確認方法' },
+  'zh-CN': { pop: ['热门', '星标最多的 Mod', '每个仓库取一个，按仓库星标排序。'], fresh: ['最新', '刚刚发布', '按仓库创建时间从新到旧。'], cats: ['分类', '按分类浏览', '按 Mod 的用途分组。'], reach: ['访问范围', 'Mod 能触及哪里', '源代码中找到的最高访问级别。'], deep: ['深入阅读', '分析与教程', '我们自己统计的数据、源码评测和实测代码。'], all: '查看全部', mods: '个', safety: '安装前如何检查' },
+  fr: { pop: ['Populaires', 'Les mods les plus étoilés', 'Un mod par dépôt, classés par étoiles du dépôt.'], fresh: ['Nouveautés', 'Tout juste publiés', 'Dépôts créés le plus récemment.'], cats: ['Catégories', 'Parcourir par catégorie', 'Regroupés selon leur usage.'], reach: ['Accès', 'Jusqu’où vont les mods', 'Niveau d’accès le plus élevé trouvé dans le code source.'], deep: ['En profondeur', 'Analyses et tutoriels', 'Nos propres chiffres, revues de code et code testé.'], all: 'Tout voir', mods: 'mods', safety: 'Vérifier un mod avant de l’installer' },
+  de: { pop: ['Beliebt', 'Mods mit den meisten Sternen', 'Eine Mod pro Repository, sortiert nach Repository-Sternen.'], fresh: ['Neu', 'Gerade veröffentlicht', 'Zuletzt erstellte Repositories.'], cats: ['Kategorien', 'Nach Kategorie stöbern', 'Gruppiert nach Zweck.'], reach: ['Zugriff', 'Wie weit Mods reichen', 'Höchste Zugriffsstufe, die im Quellcode gefunden wurde.'], deep: ['Vertiefung', 'Analysen und Tutorials', 'Eigene Zahlen, Code-Reviews und getesteter Code.'], all: 'Alle ansehen', mods: 'Mods', safety: 'Eine Mod vor der Installation prüfen' },
+}[key]
+
+// 저장소마다 하나만 (한 저장소의 mod 여러 개가 같은 별 수로 줄을 다 차지하지 않게)
+const onePerRepo = (rows: any[], n: number) => {
+  const seen = new Set()
+  const out = []
+  for (const m of rows) {
+    if (m.b || seen.has(m.r)) continue
+    seen.add(m.r)
+    out.push(m)
+    if (out.length === n) break
+  }
+  return out
+}
+const popular = onePerRepo(all, 9)
+const fresh = onePerRepo([...all].filter(m => m.cr).sort((a, b) => b.cr.localeCompare(a.cr) || b.s - a.s), 6)
+
+const cats = Object.keys(CATEGORIES)
+  .map(id => ({ id, name: (CATEGORIES as any)[id][key], n: (stats.byCategory as any)[id] ?? 0, top: onePerRepo(all.filter(m => m.c === id), 3) }))
+  .sort((a, b) => (a.id === 'other' ? 1 : 0) - (b.id === 'other' ? 1 : 0) || b.n - a.n)
+const maxCat = Math.max(...cats.map(c => c.n))
+
+const levelCounts = [0, 1, 2, 3].map(lv => all.filter(m => m.lv === lv).length)
+const LV_COLOR = ['#34d399', '#60a5fa', '#fbbf24', '#f87171']
+
+const articles = (await getCollection('docs', e => e.id.startsWith(`${lang}/articles/`)))
+  .sort((a, b) => (a.data.sidebar?.order ?? 99) - (b.data.sidebar?.order ?? 99))
+
+const dir = `${base}/mods/directory/`
+const pct = (n: number) => `${((n / stats.total) * 100).toFixed(1)}%`
+---
+
+<div class="showcase not-content">
+  <section>
+    <header class="sc-head">
+      <div>
+        <p class="sc-kicker">01 / {S.pop[0]}</p>
+        <h2>{S.pop[1]}</h2>
+        <p class="sc-sub">{S.pop[2]}</p>
+      </div>
+      <a class="sc-more" href={dir}>{S.all} ↗</a>
+    </header>
+    <ul class="mod-grid" set:html={popular.map(m => cardHtml(m, t, cdn)).join('')} />
+  </section>
+
+  <section>
+    <header class="sc-head">
+      <div>
+        <p class="sc-kicker">02 / {S.fresh[0]}</p>
+        <h2>{S.fresh[1]}</h2>
+        <p class="sc-sub">{S.fresh[2]}</p>
+      </div>
+      <a class="sc-more" href={`${dir}?sort=new`}>{S.all} ↗</a>
+    </header>
+    <ul class="mod-grid" set:html={fresh.map(m => cardHtml(m, t, cdn)).join('')} />
+  </section>
+
+  <section>
+    <header class="sc-head">
+      <div>
+        <p class="sc-kicker">03 / {S.cats[0]}</p>
+        <h2>{S.cats[1]}</h2>
+        <p class="sc-sub">{S.cats[2]}</p>
+      </div>
+    </header>
+    <ul class="sc-cats">
+      {cats.map((c, i) => (
+        <li style={`--cat:${(CAT_COLOR as any)[c.id]}`}>
+          <a href={`${dir}?cat=${c.id}`}>
+            <span class="sc-cat__rank">{String(i + 1).padStart(2, '0')}</span>
+            <span class="sc-cat__name">{c.name}</span>
+            <span class="sc-cat__n">{c.n.toLocaleString('en-US')} {S.mods}</span>
+            <span class="sc-cat__bar"><span style={`width:${(c.n / maxCat) * 100}%`} /></span>
+            <span class="sc-cat__top">{c.top.map(m => m.n).join(' · ')}</span>
+          </a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section>
+    <header class="sc-head">
+      <div>
+        <p class="sc-kicker">04 / {S.reach[0]}</p>
+        <h2>{S.reach[1]}</h2>
+        <p class="sc-sub">{S.reach[2]}</p>
+      </div>
+      <a class="sc-more" href={`${base}/guide/safety-checklist/`}>{S.safety} ↗</a>
+    </header>
+    <div class="sc-reach" role="img" aria-label={levelCounts.map((n, i) => `${LEVELS[key][i]} ${n}`).join(', ')}>
+      {levelCounts.map((n, i) => <span style={`width:${pct(n)};background:${LV_COLOR[i]}`} />)}
+    </div>
+    <ul class="sc-reach__legend">
+      {levelCounts.map((n, i) => (
+        <li>
+          <a href={`${dir}?level=${i}`}><i style={`background:${LV_COLOR[i]}`} />{i} · {LEVELS[key][i]} <b>{n.toLocaleString('en-US')}</b> <span>({pct(n)})</span></a>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  {articles.length > 0 && (
+    <section>
+      <header class="sc-head">
+        <div>
+          <p class="sc-kicker">05 / {S.deep[0]}</p>
+          <h2>{S.deep[1]}</h2>
+          <p class="sc-sub">{S.deep[2]}</p>
+        </div>
+      </header>
+      <ul class="sc-articles">
+        {articles.map((a, i) => (
+          <li>
+            <a href={`/${a.id}/`}>
+              <span class="sc-art__n">{String(i + 1).padStart(2, '0')}</span>
+              <span class="sc-art__title">{a.data.title}</span>
+              <span class="sc-art__desc">{a.data.description}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+    </section>
+  )}
+</div>
+
+<style>
+  .showcase {
+    margin-top: 2rem;
+  }
+  .showcase section {
+    margin: 3.5rem 0;
+  }
+  .sc-head {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+  }
+  .sc-kicker {
+    margin: 0;
+    font-size: var(--sl-text-xs);
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--sl-color-text-accent);
+  }
+  .sc-head h2 {
+    margin: 0.2rem 0 0.25rem;
+    font-size: clamp(1.6rem, 3.5vw, 2.4rem);
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    line-height: 1.15;
+    color: var(--sl-color-white);
+  }
+  .sc-sub {
+    margin: 0;
+    color: var(--sl-color-gray-3);
+    font-size: var(--sl-text-sm);
+  }
+  .sc-more {
+    flex: none;
+    font-size: var(--sl-text-sm);
+    font-weight: 700;
+    color: var(--sl-color-white);
+    text-decoration: none;
+    border-bottom: 2px solid var(--sl-color-white);
+    white-space: nowrap;
+  }
+  .sc-cats {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(15rem, 1fr));
+    gap: 0.9rem;
+  }
+  .sc-cats a {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.15rem 0.6rem;
+    padding: 0.9rem 1rem;
+    border: 1.5px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: color-mix(in srgb, var(--cat) 12%, var(--sl-color-bg-nav));
+    box-shadow: 3px 3px 0 var(--sl-color-gray-5);
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .sc-cats a:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--cat);
+    border-color: var(--cat);
+  }
+  .sc-cat__rank {
+    grid-row: span 2;
+    font-weight: 800;
+    color: var(--cat);
+  }
+  .sc-cat__name {
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+  .sc-cat__n {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  .sc-cat__bar {
+    grid-column: 1 / -1;
+    height: 6px;
+    margin-top: 0.4rem;
+    border-radius: 999px;
+    background: var(--sl-color-gray-6);
+    overflow: hidden;
+  }
+  .sc-cat__bar span {
+    display: block;
+    height: 100%;
+    background: var(--cat);
+  }
+  .sc-cat__top {
+    grid-column: 1 / -1;
+    font-size: var(--sl-text-2xs);
+    color: var(--sl-color-gray-3);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .sc-reach {
+    display: flex;
+    height: 1.4rem;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    border: 1.5px solid var(--sl-color-gray-5);
+  }
+  .sc-reach span {
+    display: block;
+  }
+  .sc-reach__legend {
+    list-style: none;
+    padding: 0;
+    margin: 0.9rem 0 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1.5rem;
+    font-size: var(--sl-text-sm);
+  }
+  .sc-reach__legend a {
+    color: var(--sl-color-gray-2);
+    text-decoration: none;
+  }
+  .sc-reach__legend i {
+    display: inline-block;
+    width: 0.7rem;
+    height: 0.7rem;
+    border-radius: 3px;
+    margin-right: 0.4rem;
+    vertical-align: -0.05rem;
+  }
+  .sc-reach__legend b {
+    color: var(--sl-color-white);
+  }
+  .sc-reach__legend span {
+    color: var(--sl-color-gray-3);
+  }
+  .sc-articles {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(19rem, 1fr));
+    gap: 0.9rem;
+  }
+  .sc-articles a {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    gap: 0.2rem 0.75rem;
+    height: 100%;
+    padding: 1rem 1.1rem;
+    border: 1.5px solid var(--sl-color-gray-5);
+    border-radius: 0.75rem;
+    background: var(--sl-color-bg-nav);
+    box-shadow: 3px 3px 0 var(--sl-color-gray-5);
+    color: inherit;
+    text-decoration: none;
+    transition: transform 0.12s ease, box-shadow 0.12s ease;
+  }
+  .sc-articles a:hover {
+    transform: translate(-2px, -2px);
+    box-shadow: 5px 5px 0 var(--sl-color-accent);
+    border-color: var(--sl-color-accent);
+  }
+  .sc-art__n {
+    grid-row: span 2;
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--sl-color-text-accent);
+    line-height: 1.1;
+  }
+  .sc-art__title {
+    font-weight: 700;
+    color: var(--sl-color-white);
+  }
+  .sc-art__desc {
+    font-size: var(--sl-text-xs);
+    color: var(--sl-color-gray-3);
+  }
+  @media (max-width: 40rem) {
+    .sc-head {
+      flex-direction: column;
+      align-items: flex-start;
+    }
+  }
+</style>

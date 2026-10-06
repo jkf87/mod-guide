@@ -10,3 +10,12 @@
   for = "/data/*"
   [headers.values]
     Cache-Control = "public, max-age=3600"
+
+# README 그림을 이미지 CDN으로 줄여 받는다 (src/lib/modCard.js의 imgSrc)
+[images]
+  remote_images = [
+    "https://raw\\.githubusercontent\\.com/.*",
+    "https://github\\.com/.*",
+    "https://user-images\\.githubusercontent\\.com/.*",
+    "https://private-user-images\\.githubusercontent\\.com/.*",
+  ]

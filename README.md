@@ -30,7 +30,7 @@ npm run build     # dist/
 
 | 변수 | 예 | 쓰임 |
 |---|---|---|
-| `SITE_URL` | `https://mods.example.com` | canonical·sitemap·hreflang |
+| `SITE_URL` | `https://mods.guide` | canonical·sitemap·hreflang |
 | `PUBLIC_ADSENSE_CLIENT` | `ca-pub-1234567890123456` | 광고 스크립트와 `ads.txt`. 없으면 광고가 꺼져요 |
 | `PUBLIC_ADSENSE_SLOT_SIDEBAR` | `1234567890` | 오른쪽 사이드바 광고 단위 |
 | `PUBLIC_ADSENSE_SLOT_ARTICLE` | `1234567890` | 본문 끝 광고 단위 |
