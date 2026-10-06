@@ -1,5 +1,8 @@
 ---
 // 커뮤니티 카탈로그(CC0)에서 만든 mod 디렉터리. 데이터는 /data/mods.json을 브라우저가 받아 그린다.
+// 첫 화면(별 많은 순 48개)은 빌드 때 HTML로 미리 그려 둔다: 자바스크립트 없이도, 검색 엔진에도 목록이 보이게
+import fs from 'node:fs'
+import path from 'node:path'
 import stats from '../data/stats.json'
 
 interface Props {
@@ -39,6 +42,9 @@ const ui = UI[key]
 const cats = Object.entries(CATEGORIES).map(([id, names]) => ({ id, name: names[key], n: (stats.byCategory as Record<string, number>)[id] ?? 0 }))
 const config = { ui, cats: Object.fromEntries(cats.map(c => [c.id, c.name])), levels: LEVELS[key] }
 const date = stats.generated.slice(0, 10)
+type Mod = { n: string; r: string; u: string; a: string; d: string; s: number; l: string | null; lv: number; rl: string[]; c: string; b: number; p: string }
+const first: Mod[] = JSON.parse(fs.readFileSync(path.join(process.cwd(), 'public/data/mods.json'), 'utf8')).slice(0, 48)
+const catName = config.cats as Record<string, string>
 ---
 
 <div class="mod-dir not-content" data-config={JSON.stringify(config)}>
@@ -60,9 +66,25 @@ const date = stats.generated.slice(0, 10)
     <button type="button" class="mod-dir__chip is-on" data-cat="">{ui.all} · {stats.total}</button>
     {cats.map(c => <button type="button" class="mod-dir__chip" data-cat={c.id}>{c.name} · {c.n}</button>)}
   </div>
-  <p class="mod-dir__count" aria-live="polite"></p>
-  <ul class="mod-dir__list"></ul>
-  <button type="button" class="mod-dir__more" hidden>{ui.more}</button>
+  <p class="mod-dir__count" aria-live="polite">{ui.count.replace('{n}', stats.total.toLocaleString('en-US'))}</p>
+  <ul class="mod-dir__list">
+    {first.map(m => (
+      <li class="mod-card">
+        <div class="mod-card__head">
+          <a class="mod-card__name" href={m.u} rel="noopener" target="_blank">{m.n}</a>
+          {m.b ? <span class="mod-badge">{ui.builtin}</span> : null}
+          <span class="mod-card__stars" title="GitHub stars">★ {m.s.toLocaleString('en-US')}</span>
+        </div>
+        <div class="mod-card__meta">{m.a} · <a href={`https://github.com/${m.r}`} rel="noopener" target="_blank">{m.r}</a>{m.l ? ` · ${m.l}` : ''}{m.p ? ` · ${m.p}` : ''}</div>
+        <p class="mod-card__desc">{m.d}</p>
+        <div class="mod-card__tags">
+          <span class="mod-badge">{catName[m.c] ?? m.c}</span>
+          <span class={`mod-badge mod-badge--lv${m.lv}`} title={m.rl.filter(x => !x.startsWith('other:')).join(', ')}>{LEVELS[key][m.lv] ?? ''}</span>
+        </div>
+      </li>
+    ))}
+  </ul>
+  <button type="button" class="mod-dir__more" hidden={stats.total <= 48}>{ui.more}</button>
   <p class="mod-dir__source">{ui.source.replace('{date}', date).replace('{v}', stats.claudeVersion)}</p>
 </div>
 

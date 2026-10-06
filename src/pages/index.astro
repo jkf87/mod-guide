@@ -1,6 +1,20 @@
 ---
-// 첫 화면: 브라우저 언어에 맞는 언어 페이지로 보낸다 (자바스크립트가 없으면 영어 링크)
-const langs = ['ko', 'ja', 'zh-cn', 'fr', 'de', 'en']
+// 첫 화면: 브라우저 언어에 맞는 언어 페이지로 보낸다.
+// 자바스크립트 없이 읽는 크롤러(AdSense 심사 포함)에게도 내용이 보이도록 6개 언어 소개와 링크를 실제 HTML로 둔다.
+import stats from '../data/stats.json'
+
+const client = import.meta.env.PUBLIC_ADSENSE_CLIENT
+const site = Astro.site?.href.replace(/\/$/, '') ?? ''
+const total = stats.total.toLocaleString('en-US')
+const langs = [
+  { code: 'en', hreflang: 'en', name: 'English', title: 'Claude Code Mods Guide', text: `What mods are, how to install them safely, how to build your own, and a searchable directory of ${total} community mods.` },
+  { code: 'ko', hreflang: 'ko', name: '한국어', title: 'Claude Code Mods 가이드', text: `mod가 무엇인지, 안전하게 설치하는 법, 직접 만드는 법, 그리고 커뮤니티 mod ${total}개 디렉터리.` },
+  { code: 'ja', hreflang: 'ja', name: '日本語', title: 'Claude Code Mods ガイド', text: `Mod とは何か、安全なインストール方法、自作の方法、そしてコミュニティ Mod ${total} 件のディレクトリ。` },
+  { code: 'zh-cn', hreflang: 'zh-CN', name: '简体中文', title: 'Claude Code Mods 指南', text: `Mod 是什么、如何安全安装、如何自己制作，以及收录 ${total} 个社区 Mod 的目录。` },
+  { code: 'fr', hreflang: 'fr', name: 'Français', title: 'Guide des mods Claude Code', text: `Ce que sont les mods, comment les installer en sécurité, comment créer le vôtre, et un annuaire de ${total} mods de la communauté.` },
+  { code: 'de', hreflang: 'de', name: 'Deutsch', title: 'Claude Code Mods Guide', text: `Was Mods sind, wie du sie sicher installierst, wie du eigene baust, und ein Verzeichnis mit ${total} Community-Mods.` },
+]
+const codes = langs.map(l => l.code)
 ---
 
 <!doctype html>
@@ -8,21 +22,57 @@ const langs = ['ko', 'ja', 'zh-cn', 'fr', 'de', 'en']
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>Claude Code Mods Guide</title>
-    <link rel="canonical" href="/en/" />
-    {langs.map(l => <link rel="alternate" hreflang={l === 'zh-cn' ? 'zh-CN' : l} href={`/${l}/`} />)}
-    <script is:inline define:vars={{ langs }}>
+    <title>Claude Code Mods Guide — unofficial community guide in 6 languages</title>
+    <meta name="description" content={langs[0].text} />
+    <link rel="canonical" href={`${site}/`} />
+    {langs.map(l => <link rel="alternate" hreflang={l.hreflang} href={`${site}/${l.code}/`} />)}
+    <link rel="alternate" hreflang="x-default" href={`${site}/`} />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    {client && <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`} crossorigin="anonymous" />}
+    <script is:inline define:vars={{ codes }}>
       const want = (navigator.languages || [navigator.language || 'en']).map(l => l.toLowerCase())
       let hit = 'en'
       for (const l of want) {
         if (l.startsWith('zh')) { hit = 'zh-cn'; break }
         const base = l.split('-')[0]
-        if (langs.includes(base)) { hit = base; break }
+        if (codes.includes(base)) { hit = base; break }
       }
       location.replace(`/${hit}/`)
     </script>
+    <style>
+      :root { color-scheme: light dark; --bg: #fff; --fg: #1b1b1f; --muted: #5d5d66; --line: #e3e3e8; --accent: #b85a3a; }
+      @media (prefers-color-scheme: dark) { :root { --bg: #17181c; --fg: #f2f2f4; --muted: #a9a9b3; --line: #33343a; --accent: #d97757; } }
+      body { margin: 0; background: var(--bg); color: var(--fg); font: 16px/1.6 system-ui, -apple-system, 'Segoe UI', sans-serif; }
+      main { max-width: 56rem; margin: 0 auto; padding: 3rem 1rem; }
+      h1 { font-size: 2rem; margin: 0 0 0.5rem; }
+      .lead { color: var(--muted); margin: 0 0 2rem; }
+      ul { list-style: none; padding: 0; display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr)); }
+      a.lang { display: block; padding: 1rem 1.25rem; border: 1px solid var(--line); border-radius: 0.75rem; color: inherit; text-decoration: none; }
+      a.lang:hover { border-color: var(--accent); }
+      .name { color: var(--accent); font-size: 0.85rem; }
+      .title { font-weight: 600; display: block; margin: 0.15rem 0 0.35rem; }
+      .text { color: var(--muted); font-size: 0.9rem; }
+      footer { margin-top: 2.5rem; color: var(--muted); font-size: 0.8rem; }
+      footer a { color: var(--accent); }
+      [lang='ko'] { word-break: keep-all; }
+    </style>
   </head>
   <body>
-    <p><a href="/en/">Claude Code Mods Guide →</a></p>
+    <main>
+      <h1>Claude Code Mods Guide</h1>
+      <p class="lead">An unofficial community guide to Claude Code mods (function hooks plugins). Choose your language.</p>
+      <ul>
+        {langs.map(l => (
+          <li>
+            <a class="lang" href={`/${l.code}/`} hreflang={l.hreflang} lang={l.hreflang}>
+              <span class="name">{l.name}</span>
+              <span class="title">{l.title}</span>
+              <span class="text">{l.text}</span>
+            </a>
+          </li>
+        ))}
+      </ul>
+      <footer>Unofficial community guide. Not affiliated with or endorsed by Anthropic. Claude and Claude Code are trademarks of Anthropic. · <a href="/en/privacy/">Privacy</a> · <a href="https://github.com/jkf87/mod-guide">GitHub</a></footer>
+    </main>
   </body>
 </html>
