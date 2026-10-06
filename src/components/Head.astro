@@ -1,8 +1,72 @@
 ---
+// 기본 Head + AdSense + 공유 미리보기 그림(og:image) + 구조화 데이터(JSON-LD)
+import fs from 'node:fs'
+import path from 'node:path'
 import Default from '@astrojs/starlight/components/Head.astro'
+
 const client = import.meta.env.PUBLIC_ADSENSE_CLIENT
+const route = Astro.locals.starlightRoute
+const site = Astro.site ?? new URL('https://mods.guide/')
+const { id, lang, entry } = route
+const locale = id.split('/')[0]
+
+// 쪽 그림은 scripts/og-images.mjs가 public/og/<id>.jpg로 만든다. 없으면 그 언어 홈 그림
+const ogRel = fs.existsSync(path.join('public', 'og', `${id}.jpg`)) ? `og/${id}.jpg` : `og/${locale}.jpg`
+const ogImage = new URL(ogRel, site).href
+const pageUrl = new URL(Astro.url.pathname, site).href
+const title = entry.data.title
+const description = entry.data.description ?? ''
+
+const publisher = { '@type': 'Organization', name: 'Claude Code Mods Guide', url: site.href }
+const website = { '@type': 'WebSite', name: route.siteTitle, url: new URL(`${locale}/`, site).href, inLanguage: lang, publisher }
+const graph: Record<string, unknown>[] = [website]
+
+// 가이드·심층 글은 기술 문서로 알린다
+const section = id.split('/')[1]
+if (section === 'guide' || section === 'articles') {
+  graph.push({
+    '@type': 'TechArticle',
+    headline: title,
+    description,
+    inLanguage: lang,
+    url: pageUrl,
+    image: ogImage,
+    datePublished: '2026-10-06',
+    ...(route.lastUpdated ? { dateModified: route.lastUpdated.toISOString() } : {}),
+    author: { '@type': 'Person', name: 'jkf87', url: 'https://github.com/jkf87' },
+    publisher,
+    isPartOf: { '@type': 'WebSite', url: website.url },
+    mainEntityOfPage: pageUrl,
+  })
+}
+
+// FAQ 쪽은 "## 질문" 아래 문단을 답으로 묶어 FAQPage로 알린다
+if (id.endsWith('/faq') && typeof entry.body === 'string') {
+  const plain = (s: string) =>
+    s
+      .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1')
+      .replace(/[`*_]/g, '')
+      .replace(/\s+/g, ' ')
+      .trim()
+  const blocks = entry.body.split(/^## /m).slice(1)
+  graph.push({
+    '@type': 'FAQPage',
+    inLanguage: lang,
+    mainEntity: blocks.map(b => {
+      const [q, ...rest] = b.split('\n')
+      return { '@type': 'Question', name: plain(q), acceptedAnswer: { '@type': 'Answer', text: plain(rest.join(' ')) } }
+    }),
+  })
+}
+const jsonLd = JSON.stringify({ '@context': 'https://schema.org', '@graph': graph }).replace(/</g, '\\u003c')
 ---
 
 <Default />
+<meta property="og:image" content={ogImage} />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta property="og:image:alt" content={title} />
+<meta name="twitter:image" content={ogImage} />
+<script type="application/ld+json" set:html={jsonLd} />
 {client && <meta name="google-adsense-account" content={client} />}
 {client && <script async src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${client}`} crossorigin="anonymous" />}
