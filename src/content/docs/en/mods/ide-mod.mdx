@@ -51,7 +51,7 @@ The UI text in this mockup is Korean, as it appears in the real mod. Roughly: "A
 
 ## Access scope
 
-This mod reads files (explorer and viewers), and it runs Node.js and an image conversion program to draw documents. The board's one-line summary makes a short haiku call, and you can turn it off with `s`. It sends no data over the network. The source is a single file, `hooks/register.tsx`, so you can read all of it before installing.
+This mod reads files (explorer and viewers), and it runs Node.js and an image conversion program to draw documents. Every 20 seconds the board's one-line summary sends recent agent activity to haiku to summarise it. It is on by default and `s` turns it off. Apart from that model call (Anthropic's API, on your account), it sends no data over the network. The source is a single file, `hooks/register.tsx`, so you can read all of it before installing.
 
 <Aside>
 Function hooks are an early access API. This mod was built and tested on 2.1.290. Its UI text is in Korean.

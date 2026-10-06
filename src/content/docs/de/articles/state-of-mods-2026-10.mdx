@@ -1,0 +1,145 @@
+---
+title: "Stand des Mod-Ökosystems (Oktober 2026)"
+description: "Wir haben die 1.919 Einträge des Community-Katalogs neu gezählt. Tabellen zeigen, an welchen Tagen die Mods eingetroffen sind, wie sie sich auf Repositories verteilen, Sterne und Lizenzen, wo sie zeichnen und welche Events sie am häufigsten einhängen."
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Stand: Scan des Community-Katalogs vom 04.10.2026, Claude Code 2.1.289
+
+Die Zahlen in diesem Artikel stammen aus `data/mods.json` (CC0) des Katalogs [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods), neu gezählt mit Python. Der Katalog sucht auf GitHub nach Mods, führt in jedem Repository `claude plugin validate` aus und entnimmt der Ausgabe die Hooks und `$`-Aufrufe. Die Datei wurde am 04.10.2026 um 08:26 Uhr (UTC) erzeugt. Mods, die danach entstanden sind, fehlen.
+
+## Was wir gezählt haben
+
+Der Katalog enthält 1.919 Einträge aus 1.171 Repositories. Nicht alle sind Mods zum Installieren.
+
+| Art | Einträge | Bedeutung |
+| --- | ---: | --- |
+| `mod` | 1.752 | normale Mods |
+| `fixture` | 93 | Testbeispiele in Ordnern wie `tests/` oder `examples/` |
+| `catalog` | 39 | Einträge aus Repositories, die fremde Mods neu bündeln |
+| `duplicate` | 28 | derselbe Mod wie ein anderer Eintrag |
+| `builtin` | 4 | eingebaute Mods im Repository `anthropics/claude-code` |
+| `mirror` | 3 | Kopien eingebauter Mods |
+
+Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite führt nur Einträge der Arten `mod` und `builtin` auf, die nicht archiviert und keine Duplikate sind und die Validierung ohne Warnung bestanden haben. Übrig bleiben **1.488 Mods, 777 Repositories und 690 Autorinnen und Autoren**. Alle Zahlen unten beziehen sich auf diese 1.488 Mods, sofern nichts anderes dabeisteht.
+
+## In drei Tagen kam die Flut
+
+`createdAt` im Katalog ist der Zeitpunkt, an dem das Repository angelegt wurde. Das ist nicht immer der Tag, an dem der Mod hochgeladen wurde. So haben zum Beispiel die 102 Repositories aus der Zeit vor September 2026 später Mods dazubekommen.
+
+| Erstellungsdatum des Repositorys (UTC) | Repositories | Mods in diesen Repositories |
+| --- | ---: | ---: |
+| vor September 2026 | 102 | 154 |
+| September 2026 | 108 | 190 |
+| 1. Oktober | 36 | 52 |
+| 2. Oktober | 258 | 453 |
+| 3. Oktober | 228 | 568 |
+| 4. Oktober (bis 08:26 Uhr) | 42 | 68 |
+| 5. Oktober | 3 | 3 |
+
+Die 486 Repositories, die am 2. und 3. Oktober entstanden sind, machen 63 % der 777 aus. In der hohen Zahl für den 3. Oktober stecken auch 117 Mods aus einem einzigen Repository, das an diesem Tag angelegt wurde: [mako-code/gobworks](https://github.com/mako-code/gobworks). Auch [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods), angelegt am 18. September, hat an einem Tag 53 Mods ergänzt.
+
+Claude Code 2.1.287 erschien am 01.10.2026 um 16:59 Uhr (UTC) in der npm-Registry. Wie in den [FAQ](/de/faq/) beschrieben, ist das die Version, in der function hooks standardmäßig aktiviert sind. Von den 36 Repositories vom 1. Oktober sind 29 nach 17 Uhr entstanden. Seit diesem Zeitpunkt wurden 560 der 777 Repositories (72 %) angelegt, und sie enthalten 1.137 der 1.488 Mods (76 %). Die Zeitpunkte fallen zusammen. Der Katalog hält aber nicht fest, warum ein Repository angelegt wurde, deshalb lässt sich über die Ursache nichts sagen.
+
+## Ein Repository, ein Mod ist der Normalfall
+
+| Mods pro Repository | Repositories | Mods | Anteil an den Mods |
+| --- | ---: | ---: | ---: |
+| 1 | 626 | 626 | 42,1 % |
+| 2–9 | 133 | 429 | 28,8 % |
+| 10–17 | 15 | 193 | 13,0 % |
+| 50 oder mehr | 3 | 240 | 16,1 % |
+
+81 % der Repositories enthalten nur einen Mod. Gleichzeitig bündeln die drei größten Repositories 240 Mods.
+
+| Repository | Mods | Charakter |
+| --- | ---: | --- |
+| [mako-code/gobworks](https://github.com/mako-code/gobworks) | 117 | Sammlung unter `mods/`, in Gruppen wie `jev`, `abilities`, `ambient` und `autopilot` unterteilt |
+| [whyashthakker/awesome-claude-code-mods](https://github.com/whyashthakker/awesome-claude-code-mods) | 70 | Sammlung kleiner Werkzeuge, ein Mod pro Ordner |
+| [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) | 53 | Sammlung mit `gemini-*`-Anbindungen und gemeinsamen Bausteinen wie `sidebar` |
+
+In großen Sammlungen teilen sich Mods mitunter Bausteine. 36 Mods im Repository KilimcininKorOglu rufen `$.sidebar` auf, das der Mod `sidebar` desselben Repositorys zu `$` hinzufügt. Wenn du nur einen davon installierst, kann dieser Baustein fehlen. Lies deshalb zuerst die Abhängigkeiten in der README.
+
+## Sterne gelten pro Repository
+
+`stars` im Katalog sind die Sterne des Repositorys. Ein Repository mit 117 Mods vergibt an alle 117 Mods dieselbe Zahl. Deshalb haben wir nach den 777 Repositories gezählt.
+
+| Sterne des Repositorys | Repositories | Anteil |
+| --- | ---: | ---: |
+| 0 | 538 | 69,2 % |
+| 1–9 | 188 | 24,2 % |
+| 10–99 | 36 | 4,6 % |
+| 100–999 | 9 | 1,2 % |
+| 1.000 oder mehr | 6 | 0,8 % |
+
+Fünf der sechs Repositories mit 1.000 oder mehr Sternen sind große Projekte, die weit mehr tun, als Mods zu liefern: `anthropics/claude-code` (149.303), `ruvnet/RuView` (96.198), `ruvnet/ruflo` (73.820), `anthropics/claude-plugins-official` (37.363) und `kunchenguid/firstmate` (7.488). Wo ein einzelner Mod die Hauptsache des Repositorys ist, steht [zenbu-labs/terminal-browser](https://github.com/zenbu-labs/terminal-browser) (3.626) an der Spitze. Umgekehrt hatte gobworks, das Repository mit den meisten Mods, zum Zeitpunkt des Scans 0 Sterne. Die meisten Repositories sind innerhalb von drei Tagen entstanden, da blieb keine Zeit, Sterne zu sammeln. Sterne sagen nichts über die Qualität eines Mods.
+
+## Jedes fünfte Repository hat keine Lizenz
+
+Der Katalog hält die von GitHub erkannte Lizenz (SPDX-ID) fest.
+
+| Lizenz | Repositories | Anteil |
+| --- | ---: | ---: |
+| MIT | 555 | 71,4 % |
+| keine | 164 | 21,1 % |
+| Apache-2.0 | 25 | 3,2 % |
+| NOASSERTION | 24 | 3,1 % |
+| AGPL-3.0 | 3 | 0,4 % |
+| GPL-3.0 · Unlicense | je 2 | 0,3 % |
+| GPL-2.0 · MIT-0 | je 1 | 0,1 % |
+
+Zählt man pro Mod, haben 324 Mods (21,8 %) keine Lizenz. Für ein Repository ohne Lizenzdatei gilt das Urheberrecht in seiner Grundeinstellung: Solange die Urheberin oder der Urheber es nicht erlaubt, hast du kein Recht, den Code zu kopieren oder geändert weiterzuverbreiten. Nach den GitHub-Nutzungsbedingungen darfst du ein öffentliches Repository ansehen und forken. Den Code in deinen eigenen Mod zu kopieren oder eine geänderte Fassung zu verteilen, ist trotzdem nicht erlaubt. Bitte die Autorin oder den Autor bei Bedarf per Issue, eine Lizenz hinzuzufügen. `NOASSERTION` bedeutet, dass eine Lizenzdatei existiert, GitHub aber ihre Art nicht erkannt hat. Öffne die Datei dann selbst und lies nach.
+
+## Wo wird gezeichnet?
+
+1.129 Mods (75,9 %) hängen `ui.render` ein. Die übrigen 359 nutzen nur Toasts, Statuszeilen und Logzeilen oder zeigen gar nichts auf dem Bildschirm.
+
+| Zeichenfläche | Mods | Was |
+| --- | ---: | --- |
+| `Pane` | 673 | Fenster, das seitlich oder unten aufgeht |
+| `AbovePrompt` | 600 | Band über dem Eingabefeld |
+| `Spinner` | 76 | Anzeige, während gearbeitet wird |
+| `PromptHint` | 75 | Hinweiszeile unter dem Eingabefeld |
+| `SessionMode` | 65 | Modusanzeige unten |
+| Zeilen im Gesprächsverlauf | 153 | `AssistantMessage` 67, `ToolUse` 59, `UserMessage` 50, `ToolResult` 40, `ToolGroup` 37, `CommandOutput` 33, `TurnDuration` 32, `InfoNotice` 7 |
+| `AskUserQuestion` | 11 | Dialog für Rückfragen |
+| `ToolProgress` | 7 | Fortschrittsanzeige von Tools |
+
+363 Mods zeichnen nur `Pane`, 274 nur `AbovePrompt` und 266 beides. Üblich ist, ein Fenster für die Details zu öffnen und im Band eine einzeilige Zusammenfassung zu lassen. Die 153 Mods, die Zeilen im Gesprächsverlauf neu zeichnen, ändern, wie Claudes Antworten oder Tool-Ergebnisse auf dem Bildschirm aussehen. Der Berechtigungsdialog steht nicht in der Liste. Auch in der Typdatei steht, dass dieser Dialog nur von der Engine gezeichnet wird.
+
+## Häufig eingehängte Events
+
+Im Katalog kommen 114 Events vor. Ein Mod hängt im Median 5 Events ein und ruft im Median 11 `$`-Methoden auf.
+
+| Event | Mods | Anteil | Wofür meist |
+| --- | ---: | ---: | --- |
+| `session.start` | 1.284 | 86,3 % | Befehle und Tools registrieren, Timer starten |
+| `ui.render` | 1.129 | 75,9 % | Bildschirm zeichnen |
+| `command.run` | 1.078 | 72,4 % | Slash-Befehle verarbeiten |
+| `tool.call` | 786 | 52,8 % | Tool-Aufrufe ansehen, blockieren, ändern |
+| `turn.complete` | 738 | 49,6 % | Auswertung und Benachrichtigung nach einem Turn |
+| `prompt.submit` | 474 | 31,9 % | gesendete Prompts ansehen oder ändern |
+| `turn.start` | 367 | 24,7 % | Anzeige zu Beginn eines Turns |
+| `session.end` | 279 | 18,8 % | Aufräumen und Speichern |
+| `turn.step` | 204 | 13,7 % | Stream der Modellanfrage |
+| `ui.close` | 182 | 12,2 % | Schließen von Fenstern behandeln |
+| `session.measure` | 180 | 12,1 % | Nutzungs- und Limitwerte empfangen, wenn sie sich ändern |
+| `session.compact` | 144 | 9,7 % | Zeitpunkt und Art der Komprimierung |
+| `agent.spawn` | 109 | 7,3 % | Modell von Subagents wählen oder blockieren |
+| `classic.SessionStart` | 103 | 6,9 % | Hook-Events aus den Einstellungen als Funktion empfangen |
+
+196 Mods hängen mindestens ein `classic.*`-Event ein. Function hooks erhalten dabei unverändert die Eingabe, die auch die Hooks aus der Einstellungsdatei (etwa `Stop` oder `PermissionRequest`) bekommen.
+
+<Aside>
+  Die Katalogzahlen stammen aus dem gelesenen Quellcode. Es sind keine Ergebnisse von ausgeführten Mods. Wie oft ein Hook tatsächlich läuft oder ob der Bildschirm korrekt gezeichnet wird, lässt sich aus diesen Zahlen nicht ablesen.
+</Aside>
+
+## So nutzt du die Zahlen bei der Auswahl
+
+- Die Sterne gehören zum Namen des Repositorys. Prüfe bei einem einzelnen Mod den letzten Commit und den Quellcode in seinem Ordner.
+- Prüfe bei Mods aus großen Sammlungen, ob sie auf andere Mods desselben Repositorys angewiesen sind.
+- Einen Mod ohne Lizenz darfst du installieren und ausprobieren, aber seinen Code nicht übernehmen.
+- Den Zugriffsumfang behandelt [Worauf greifen Mods tatsächlich zu](/de/articles/what-mods-touch/), die Ursachen von Validierungsfehlern [Mods, die die Validierung nicht bestehen](/de/articles/validation-failures/).

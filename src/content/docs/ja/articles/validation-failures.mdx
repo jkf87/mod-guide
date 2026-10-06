@@ -1,0 +1,180 @@
+---
+title: 検証に落ちるMod
+description: カタログ1,919項目の検証結果から失敗47件を原因別に分け、警告252件と制御文字の警告184件の実際の文言を読みました。作者が避けるためのチェックリストも付けています。
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+基準: コミュニティカタログの2026-10-04スキャン、Claude Code 2.1.289
+
+[awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) カタログは、見つけたModごとに `claude plugin validate` を実行して結果を保存しています。この記事では、その結果1,919件をすべて読みました。ディレクトリに載らなかった項目がなぜ落ちたのかを示す資料なので、Modを作る人の役に立ちます。
+
+## 検証結果の概要
+
+| 種類 | 合格 | 警告 | 失敗 | 不明 |
+| --- | ---: | ---: | ---: | ---: |
+| `mod` | 1,485 | 224 | 31 | 12 |
+| `fixture`（テスト用サンプル） | 62 | 16 | 12 | 3 |
+| `catalog` | 38 | 1 | 0 | 0 |
+| `duplicate` | 15 | 11 | 2 | 0 |
+| `builtin` | 3 | 0 | 1 | 0 |
+| `mirror` | 2 | 0 | 1 | 0 |
+| 合計 | 1,605 | 252 | 47 | 15 |
+
+「不明」の15件は、検証に落ちたわけではありません。11件はリポジトリを読み取れず前回の結果を表示している場合、4件は今回のスキャンで見つからなかった場合です。
+
+このサイトの[Modディレクトリ](/ja/mods/directory/)には「合格」だけを載せています。そのため、一般的なModのうち警告224個と失敗31個が漏れます。以下で見るとおり、警告の大半は直しやすいものです。
+
+## 失敗47件を原因別に
+
+エラー文言の最初の原因で分けました。
+
+| 原因 | 件数 | うち一般的なMod | 例 |
+| --- | ---: | ---: | --- |
+| 予約された名前（`claude-` で始まる） | 19 | 15 | [claude-council](https://github.com/hex/claude-council), [claude-stats](https://github.com/estruyf/claude-stats-mod) |
+| `hooks.json` が指すモジュールファイルがない | 6 | 5 | [self-improvement-loop](https://github.com/kolezka/self-improvement-loop) |
+| インポートするファイルがない・フォルダの外 | 5 | 3 | [jev-context](https://github.com/HyunjunJeon/jev-context), [persona-panel](https://github.com/minipai/claudecafe/tree/main/packages/persona-panel) |
+| 状態コントラクトにないキー | 3 | 3 | [wavy-usage](https://github.com/BatuhanCakmakk/wavy-usage), [terminal-gym](https://github.com/DrumAndCode/terminal-gym) |
+| `anthropic` テレメトリストリーム | 3 | 0 | 組み込みの `telemetry` とそのコピー |
+| 構文エラー | 3 | 1 | [agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) |
+| `on()` の戻り値を変数に代入 | 2 | 2 | [shunt](https://github.com/pleaseai/shunt/tree/main/plugins/shunt) |
+| 存在しないイベント名 | 2 | 0 | テスト用サンプル |
+| `$.env.get` に変数を渡している | 1 | 1 | `fast-jev-compaction` のコピーの1つ |
+| マニフェストなし | 1 | 1 | [pilot-guard](https://github.com/home-dev-lab/workflow-toolbox/tree/main/plugin/hooks-modules/pilot-guard) |
+| `modules` に2つ | 1 | 0 | テスト用サンプル |
+| `userConfig` のフィールド不足 | 1 | 0 | テスト用サンプル |
+
+テスト用サンプル12件は、わざと間違えて作られたものが多くあります。一般的なMod 31件だけで見ると、予約された名前が15件で、半数近くを占めます。
+
+### 予約された名前
+
+19件が同じエラーを受けました。検証器の文言そのままです。
+
+```text
+Plugin name "claude-council" is reserved: it passes as one of Anthropic's own.
+A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-",
+or "cc-plugin-", be "claude", "anthropic", "anthropics", "claude-code", or
+"claude-mods", or put "official" beside "claude" or "anthropic". Name it for what
+it does.
+```
+
+`claude-cat`、`claude-queue`、`claude-mermaid`、`claude-games`、`claude-link`、`claude-who`、`claude-slots` も同じ理由で落ちました。19件のうち17件は、このエラー1つだけを受けました。名前の途中に `claude` が入っている場合は、失敗せずに警告を受けることもあります。2.1.291で再実行したところ、`mindful-claude` は "reads as one of Anthropic's own" という警告を受けました。
+
+### ファイルがない
+
+`hooks/hooks.json` の `modules` が指すファイルがリポジトリになくて落ちたものが6件です。2件は `dist/` の下のビルド成果物を指していました（`dist/hook-module.js`、`dist/integrations/claude.js`）。ビルド成果物をコミットしないと、インストールした人の手元にもファイルがありません。モジュールは、`.ts` や `.tsx` のソースをそのまま指せば大丈夫です。エンジンが直接読み込みます。
+
+`import` に失敗した5件のうち2件は、ファイルはあるもののModのフォルダの外にありました。
+
+```text
+cannot import "../../../character-core/src/index.ts" (from hooks/function/register.js):
+it is outside the plugin's folder (packages/persona-panel)
+```
+
+モノレポで共通パッケージを相対パスで読み込むと、こうなります。検証器は、Modのフォルダの外にあるファイルをインポートできないようにしています。共通コードは、Modのフォルダの中にコピーしておいてください。
+
+### 状態コントラクトにないキー
+
+`plugin.json` に `"types"` で状態コントラクトのファイルを指定しているModは、`$.state` で使うキーをすべて、そのファイルの `PluginState` に書く必要があります。[terminal-gym](https://github.com/DrumAndCode/terminal-gym) はキー8個を書き漏らして、エラー8行を受けました。
+
+```text
+terminal-gym.history is not declared: the manifest's types contract must name it
+in interface PluginState { terminal-gym: { history: ... } }
+```
+
+### 組み込みModも落ちます
+
+`anthropics/claude-code` リポジトリの組み込み `telemetry` Modも、失敗として表示されます。
+
+```text
+its hooks stand on the telemetry stream "anthropic" (a matcher names it, or a
+telemetry hook names no "to" and so stands on every stream), which is for the
+plugins built into the CLI; name the collector on each telemetry hook:
+on("telemetry.log", { to: "collector" }, hook)
+```
+
+フォルダを指定して検証すると、検証器はこれを外部のModとして扱います。`anthropic` ストリームはCLIに組み込まれたプラグインのためのものなので、拒否します。自分のModでテレメトリフックを使う場合は、必ず `{ to: "collector" }` を書いてください。`to` を省くと、すべてのストリームにかかっているものとして扱われます。
+
+### コードの形のルール
+
+検証器は、ソースを決まった形で読みます。その形から外れると、実行前に落ちます。
+
+| ルール | 落ちたコード | 直した形 |
+| --- | --- | --- |
+| `on()` の戻り値は、その場で `.catch` だけを受け取れます | `const registration = on("command.run", ...)` | `on(...).catch(handler)` |
+| `$.env.get` は文字列リテラルだけを受け取ります | `$.env.get(name)` | `$.env.get("TYPESAFE_API_KEY")` |
+| イベント名は正確でなければなりません | `on("classic.SessionStartt", ...)` | `on("classic.SessionStart", ...)` |
+| `turn.step` フックはasync generatorでなければなりません | `async ($, e, next) => ...` | `async function* ($, e, next) { ... }` |
+| `modules` にはモジュールを1つだけ置きます | 2つ目の項目 | エントリーモジュール1つから残りを `import` |
+
+`turn.step` のルールは、`claude-slots` が名前のエラーとあわせて受けた2つ目のエラーです。[agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) は、`hooks/discover/scan.ts` の89行目の正規表現リテラルをパーサーが読めず、落ちました。
+
+## 警告252件
+
+警告で終わった項目は252件で、一般的なModが224件です。カタログは警告の文言を保存していません。そこで、警告状態のMod 43個（リポジトリ12件）を浅くクローンし、Claude Code 2.1.291の `claude plugin validate` で読み直しました。検証器はソースを読むだけで、Modは実行しません。43個すべてで、再び「passed with warnings」になりました。1つのModが複数の警告を受けることもあります。
+
+| 警告 | 43個のうち |
+| --- | ---: |
+| `author: No author information provided. Consider adding author details for plugin attribution` | 40 |
+| `root: CLAUDE.md at the plugin root is not loaded as project context.` | 2 |
+| 名前がAnthropicのものに見える | 1 |
+| コマンドフックの `${CLAUDE_PLUGIN_ROOT}` に引用符がない | 1（14行） |
+| シンボリックリンクをたどらずに読んだ | 1 |
+
+カタログ全体で見ても同じ傾向です。警告252件のうち169件は、作者欄が空です。合格した1,605件の中では、1件だけです。`plugin.json` に `author` の1行がないせいでディレクトリに載らなかったModが多いということです。
+
+検証の出力には、`gating hook without .catch:` という行もよく出ます。これは警告ではありません。拒否できる位置（`tool.call`、`prompt.submit` など）にかけたフックに `.catch` がない、という事実を知らせるだけです。そうしたフックは、エラーが起きるとスキップされ、リクエストがそのまま通ります。ブロックが目的のフックなら、`.catch` を付けてください。
+
+## 制御文字の警告184件
+
+カタログは、検証器とは別に、独自のチェックをもう1つ行います。`ui-control-characters` 警告です。全部で184件あり、ディレクトリに載っているModのうち152個が受けました。
+
+```text
+UI hook source contains control-character strings. Review any values passed to
+next() as rewritten props.text; the scanner does not trace whether these strings
+reach that call.
+```
+
+カタログのスキャナーのソース（`tools/compatibility.mjs`）を読むと、ルールは単純です。`ui.render` をフックするModのフックモジュールと、そのモジュールが相対パスでインポートするファイルについて、文字列リテラルにU+0000–0008、U+000B–001F、U+007F–009Fの文字があれば表示します。タブと改行は除きます。その文字列が画面まで届くかどうかは見ていません。
+
+そのため、実際には画面と関係ないコードも引っかかります。直接開いて確認した例です。
+
+| Mod | 引っかかった文字列 | 用途 |
+| --- | --- | --- |
+| [diff-viewer](https://github.com/tylergraydev/cc-mods/tree/main/diff-viewer) | `'\u0000'` | バイナリファイルの判別 |
+| [gb-pane](https://github.com/tylergraydev/cc-mods/tree/main/gb-pane) | `'\u0001F '` | 内部メッセージの区切り表示 |
+| [data-peek](https://github.com/mako-code/gobworks/tree/main/mods/abilities/data-peek) | `'\r'` | CSVの行末の処理 |
+| 組み込みの [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | `git/parse/` の下の複数行 | gitの出力のパース |
+
+この警告が本当に問題になるのは、ANSIカラーコード（`\x1b[31m`）のような文字列をエンジンに渡す場合です。型ファイルは、`Code` の `source` と `Markdown` の `text` では制御文字としてタブと改行だけを許可し、ウィンドウの `title` の制御文字は拒否する、と書いています。色は、`Text` の `color`、`bold` などのプロパティで指定します。ターミナルの出力をそのまま見せる必要があるなら、制御文字を取り除いてから渡してください。
+
+<Aside>
+  制御文字の警告は、カタログの判断です。Claude Codeの検証器はこの警告を出しませんし、この警告を受けたModもディレクトリに載ります。
+</Aside>
+
+## 作者向けチェックリスト
+
+| チェック | 避けられる失敗 |
+| --- | --- |
+| 名前が `claude-`、`anthropic-`、`cc-plugin-` で始まらず、やることを表している | 予約された名前 |
+| `plugin.json` に `author` がある | 警告（ディレクトリから漏れる） |
+| `hooks.json` の `modules` が、コミット済みのソースファイル1つを指している | モジュールファイルなし |
+| `import` するファイルがすべてModのフォルダの中にある | フォルダ外のインポート |
+| `$.state` のキーをすべて、コントラクトファイルの `PluginState` に書いた | 状態コントラクト |
+| `$.env.get("名前")` のようにリテラルで書く | 変数を渡す |
+| `on(...)` に `.catch` をすぐ続けて付ける | 戻り値の保持 |
+| `turn.step` フックが `async function*` である | generatorのルール |
+| テレメトリフックに `{ to: "collector" }` がある | `anthropic` ストリーム |
+| コマンドフックの `${CLAUDE_PLUGIN_ROOT}` を引用符で囲んだ | 警告 |
+| 画面に渡す文字列からANSIコードを取り除いた | 制御文字 |
+
+公開する前に、2つのコマンドを実行してください。
+
+```bash
+claude plugin validate ./my-mod
+claude plugin test ./my-mod
+```
+
+`validate` は、マニフェスト、マーケットプレイスファイル、フックモジュールを一度に読み、拒否すべきものをすべて知らせてくれます。警告まで0になれば、ディレクトリに載るための検証条件も満たします。公開の手順は[自分のModを公開する](/ja/articles/publish-your-mod/)に、ロードできないときの確認先は[トラブルシューティング](/ja/guide/troubleshooting/)にあります。

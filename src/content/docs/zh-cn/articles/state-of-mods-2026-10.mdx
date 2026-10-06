@@ -1,0 +1,145 @@
+---
+title: Mod 生态现状（2026 年 10 月）
+description: 重新统计了社区目录中的 1,919 个条目。用表格看 Mod 集中涌现的日期、仓库集中度、star 与许可证、绘制位置，以及常挂的事件。
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289
+
+本文的数字，是用 Python 重新统计 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 目录的 `data/mods.json`（CC0）得到的。该目录在 GitHub 上查找 Mod，对每个仓库运行 `claude plugin validate`，并从输出中提取钩子和 `$` 调用。文件生成于 2026-10-04 08:26（UTC），之后出现的 Mod 不在其中。
+
+## 统计了什么
+
+目录里有从 1,171 个仓库中找到的 1,919 个条目。并非全都是用来安装的 Mod。
+
+| 类型 | 条目 | 含义 |
+| --- | ---: | --- |
+| `mod` | 1,752 | 普通 Mod |
+| `fixture` | 93 | `tests/`、`examples/` 这类文件夹里的测试用示例 |
+| `catalog` | 39 | 重新打包他人 Mod 的仓库中的条目 |
+| `duplicate` | 28 | 与其他条目相同的 Mod |
+| `builtin` | 4 | `anthropics/claude-code` 仓库的内置 Mod |
+| `mirror` | 3 | 内置 Mod 的副本 |
+
+本站的 [Mod 目录](/zh-cn/mods/directory/)只收录 `mod` 和 `builtin` 中未归档、不重复、且验证无警告通过的条目。这样剩下的是 **1,488 个 Mod、777 个仓库、690 位作者**。下文的数字如无特别说明，都以这 1,488 个为准。
+
+## 三天内集中涌现
+
+目录的 `createdAt` 是仓库的创建时间，不一定等于 Mod 的上传日期。例如 2026 年 9 月之前创建的 102 个仓库，就是后来才加入 Mod 的。
+
+| 仓库创建日（UTC） | 仓库 | 这些仓库的 Mod |
+| --- | ---: | ---: |
+| 2026 年 9 月之前 | 102 | 154 |
+| 2026 年 9 月 | 108 | 190 |
+| 10 月 1 日 | 36 | 52 |
+| 10 月 2 日 | 258 | 453 |
+| 10 月 3 日 | 228 | 568 |
+| 10 月 4 日（截至 08:26） | 42 | 68 |
+| 10 月 5 日 | 3 | 3 |
+
+10 月 2 日和 3 日两天创建的仓库有 486 个，占全部 777 个的 63%。10 月 3 日的数字偏大，其中也包含当天创建的单个仓库 [mako-code/gobworks](https://github.com/mako-code/gobworks) 的 117 个 Mod。9 月 18 日创建的 [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) 也在一天内新增了 53 个 Mod。
+
+Claude Code 2.1.287 发布到 npm 注册表的时间是 2026-10-01 16:59（UTC）。如 [FAQ](/zh-cn/faq/) 所述，这个版本默认启用了 function hooks。10 月 1 日创建的 36 个仓库中，有 29 个是在 17 点之后创建的。在该时间点之后创建的仓库有 560 个（占 777 个的 72%），其中包含的 Mod 有 1,137 个（占 1,488 个的 76%）。时间上有重叠，但目录里没有记录创建仓库的原因，所以无法断言因果关系。
+
+## 通常是一个仓库一个 Mod
+
+| 每个仓库的 Mod 数 | 仓库 | Mod | Mod 占比 |
+| --- | ---: | ---: | ---: |
+| 1 个 | 626 | 626 | 42.1% |
+| 2~9 个 | 133 | 429 | 28.8% |
+| 10~17 个 | 15 | 193 | 13.0% |
+| 50 个以上 | 3 | 240 | 16.1% |
+
+81% 的仓库只有一个 Mod。另一方面，前 3 个仓库集中了 240 个 Mod。
+
+| 仓库 | Mod | 特点 |
+| --- | ---: | --- |
+| [mako-code/gobworks](https://github.com/mako-code/gobworks) | 117 | 在 `mods/` 下按 `jev`、`abilities`、`ambient`、`autopilot` 等分组的合集 |
+| [whyashthakker/awesome-claude-code-mods](https://github.com/whyashthakker/awesome-claude-code-mods) | 70 | 一个文件夹放一个 Mod 的小工具合集 |
+| [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) | 53 | 拆分出 `gemini-*` 联动和 `sidebar` 等公共部件的合集 |
+
+大型合集仓库里的 Mod 有时会共用部件。KilimcininKorOglu 仓库中有 36 个 Mod 会调用同一仓库的 `sidebar` Mod 加到 `$` 上的 `$.sidebar`。如果只挑其中一个安装，可能缺少这个部件，所以请先看 README 里的依赖关系。
+
+## star 以仓库为单位
+
+目录里的 `stars` 是仓库的 star 数。包含 117 个 Mod 的仓库，这 117 个 Mod 拿到的都是同一个数字。所以这里按 777 个仓库来统计。
+
+| 仓库 star | 仓库 | 占比 |
+| --- | ---: | ---: |
+| 0 | 538 | 69.2% |
+| 1~9 | 188 | 24.2% |
+| 10~99 | 36 | 4.6% |
+| 100~999 | 9 | 1.2% |
+| 1,000 以上 | 6 | 0.8% |
+
+star 在 1,000 以上的 6 个仓库中，有 5 个是除了 Mod 之外还做很多事情的大型项目：`anthropics/claude-code`（149,303）、`ruvnet/RuView`（96,198）、`ruvnet/ruflo`（73,820）、`anthropics/claude-plugins-official`（37,363）、`kunchenguid/firstmate`（7,488）。以单个 Mod 作为仓库主角的情况里，[zenbu-labs/terminal-browser](https://github.com/zenbu-labs/terminal-browser)（3,626）最大。相反，Mod 最多的 gobworks 在扫描时 star 为 0。这些仓库大多是三天内才创建的，star 还来不及积累。star 并不能说明 Mod 的质量。
+
+## 五分之一的仓库没有许可证
+
+目录记录的是 GitHub 识别出的许可证（SPDX ID）。
+
+| 许可证 | 仓库 | 占比 |
+| --- | ---: | ---: |
+| MIT | 555 | 71.4% |
+| 无 | 164 | 21.1% |
+| Apache-2.0 | 25 | 3.2% |
+| NOASSERTION | 24 | 3.1% |
+| AGPL-3.0 | 3 | 0.4% |
+| GPL-3.0 · Unlicense | 各 2 | 0.3% |
+| GPL-2.0 · MIT-0 | 各 1 | 0.1% |
+
+按 Mod 统计，没有许可证的 Mod 有 324 个（21.8%）。没有许可证文件的仓库适用著作权法的默认规则：除非著作权人许可，别人没有复制、修改后再分发代码的权利。按 GitHub 服务条款，查看公开仓库并 fork 是允许的。但把那些代码复制粘贴进你的 Mod，或分发修改后的版本，是不行的。需要的话，可以通过 issue 请作者添加许可证。`NOASSERTION` 表示有许可证文件，但 GitHub 无法识别其类型。请自己打开那个文件确认。
+
+## 绘制在哪里
+
+挂了 `ui.render` 的 Mod 有 1,129 个（75.9%）。其余 359 个只使用 toast、状态行、日志行，或者不在屏幕上显示任何东西。
+
+| 绘制位置 | Mod | 是什么 |
+| --- | ---: | --- |
+| `Pane` | 673 | 在侧边或下方打开的窗格 |
+| `AbovePrompt` | 600 | 输入框上方的横条 |
+| `Spinner` | 76 | 工作中指示 |
+| `PromptHint` | 75 | 输入框下方的提示行 |
+| `SessionMode` | 65 | 底部的模式显示 |
+| 对话记录行 | 153 | `AssistantMessage` 67、`ToolUse` 59、`UserMessage` 50、`ToolResult` 40、`ToolGroup` 37、`CommandOutput` 33、`TurnDuration` 32、`InfoNotice` 7 |
+| `AskUserQuestion` | 11 | 提问对话框 |
+| `ToolProgress` | 7 | 工具进度显示 |
+
+只绘制 `Pane` 的 Mod 有 363 个，只绘制 `AbovePrompt` 的有 274 个，两者都绘制的有 266 个。常见的搭配是：打开窗格详细展示，在横条上放一行摘要。重绘对话记录行的 153 个 Mod，会改变 Claude 写的回答或工具结果在屏幕上的样子。权限确认窗不在列表中。类型文件里也写着，那个窗口只由引擎绘制。
+
+## 常挂的事件
+
+目录中出现的事件共 114 种。每个 Mod 挂的事件中位数为 5 种，调用的 `$` 方法中位数为 11 个。
+
+| 事件 | Mod | 占比 | 主要用途 |
+| --- | ---: | ---: | --- |
+| `session.start` | 1,284 | 86.3% | 注册命令和工具、启动计时器 |
+| `ui.render` | 1,129 | 75.9% | 绘制画面 |
+| `command.run` | 1,078 | 72.4% | 处理斜杠命令 |
+| `tool.call` | 786 | 52.8% | 查看、拦截、修改工具调用 |
+| `turn.complete` | 738 | 49.6% | 回合结束后汇总、通知 |
+| `prompt.submit` | 474 | 31.9% | 查看、修改已发送的提示词 |
+| `turn.start` | 367 | 24.7% | 显示回合开始 |
+| `session.end` | 279 | 18.8% | 清理、保存 |
+| `turn.step` | 204 | 13.7% | 模型请求流 |
+| `ui.close` | 182 | 12.2% | 处理窗口关闭 |
+| `session.measure` | 180 | 12.1% | 在用量、额度数值变化时接收 |
+| `session.compact` | 144 | 9.7% | 压缩的时机和方式 |
+| `agent.spawn` | 109 | 7.3% | 选择、拦截子智能体的模型 |
+| `classic.SessionStart` | 103 | 6.9% | 用函数接收设置钩子事件 |
+
+至少挂了一个 `classic.*` 事件的 Mod 有 196 个。设置文件中的钩子（如 `Stop`、`PermissionRequest`）所接收的输入，函数钩子也能原样接收。
+
+<Aside>
+  目录的数字是通过阅读源码得到的，不是运行 Mod 的结果。钩子实际多久触发一次、画面是否正确绘制，从这些数字中看不出来。
+</Aside>
+
+## 挑选时怎么用
+
+- star 数反映的是仓库的名气。挑选单个 Mod 时，请看该 Mod 文件夹的最近一次提交和源码。
+- 大型合集仓库里的 Mod，要确认它是否依赖同一仓库的其他 Mod。
+- 没有许可证的 Mod，可以安装试用，但不能拿它的代码来用。
+- 访问范围请看 [Mod 实际会碰什么](/zh-cn/articles/what-mods-touch/)，验证失败的原因请看 [验证不通过的 Mod](/zh-cn/articles/validation-failures/)。

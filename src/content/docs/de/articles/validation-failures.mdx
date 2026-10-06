@@ -1,0 +1,180 @@
+---
+title: Mods, die die Validierung nicht bestehen
+description: "Aus den Validierungsergebnissen der 1.919 Katalogeinträge haben wir die 47 Fehlschläge nach Ursache sortiert und den tatsächlichen Wortlaut der 252 Warnungen und 184 Steuerzeichen-Warnungen gelesen. Dazu gibt es eine Checkliste, mit der Autorinnen und Autoren das vermeiden."
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Stand: Scan des Community-Katalogs vom 04.10.2026, Claude Code 2.1.289
+
+Der Katalog [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) führt für jeden gefundenen Mod `claude plugin validate` aus und speichert das Ergebnis. Für diesen Artikel haben wir alle 1.919 Ergebnisse gelesen. Er zeigt, warum Einträge es nicht ins Verzeichnis geschafft haben, und ist deshalb nützlich, wenn du selbst Mods baust.
+
+## Die Validierungsergebnisse auf einen Blick
+
+| Art | Bestanden | Warnung | Fehlgeschlagen | Unbekannt |
+| --- | ---: | ---: | ---: | ---: |
+| `mod` | 1.485 | 224 | 31 | 12 |
+| `fixture` (Testbeispiele) | 62 | 16 | 12 | 3 |
+| `catalog` | 38 | 1 | 0 | 0 |
+| `duplicate` | 15 | 11 | 2 | 0 |
+| `builtin` | 3 | 0 | 1 | 0 |
+| `mirror` | 2 | 0 | 1 | 0 |
+| Summe | 1.605 | 252 | 47 | 15 |
+
+Die 15 Einträge mit „Unbekannt“ sind nicht durchgefallen. Bei 11 konnte das Repository nicht gelesen werden, deshalb wird das Ergebnis des letzten Laufs gezeigt, und 4 wurden im aktuellen Scan nicht gefunden.
+
+Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite führt nur „Bestanden“ auf. Deshalb fehlen unter den normalen Mods die 224 mit Warnung und die 31 fehlgeschlagenen. Wie unten zu sehen, lassen sich die meisten Warnungen leicht beheben.
+
+## 47 Fehlschläge nach Ursache
+
+Wir haben nach der ersten Ursache in der Fehlermeldung sortiert.
+
+| Ursache | Anzahl | davon normale Mods | Beispiele |
+| --- | ---: | ---: | --- |
+| Reservierter Name (beginnt mit `claude-`) | 19 | 15 | [claude-council](https://github.com/hex/claude-council), [claude-stats](https://github.com/estruyf/claude-stats-mod) |
+| Von `hooks.json` referenzierte Moduldatei fehlt | 6 | 5 | [self-improvement-loop](https://github.com/kolezka/self-improvement-loop) |
+| Importierte Datei fehlt oder liegt außerhalb des Ordners | 5 | 3 | [jev-context](https://github.com/HyunjunJeon/jev-context), [persona-panel](https://github.com/minipai/claudecafe/tree/main/packages/persona-panel) |
+| Schlüssel fehlt im Zustandsvertrag | 3 | 3 | [wavy-usage](https://github.com/BatuhanCakmakk/wavy-usage), [terminal-gym](https://github.com/DrumAndCode/terminal-gym) |
+| Telemetrie-Stream `anthropic` | 3 | 0 | der eingebaute `telemetry` und seine Kopie |
+| Syntaxfehler | 3 | 1 | [agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) |
+| Rückgabewert von `on()` in einer Variable abgelegt | 2 | 2 | [shunt](https://github.com/pleaseai/shunt/tree/main/plugins/shunt) |
+| Nicht existierender Event-Name | 2 | 0 | Testbeispiele |
+| Variable an `$.env.get` übergeben | 1 | 1 | eine Kopie von `fast-jev-compaction` |
+| Manifest fehlt | 1 | 1 | [pilot-guard](https://github.com/home-dev-lab/workflow-toolbox/tree/main/plugin/hooks-modules/pilot-guard) |
+| Zwei Einträge in `modules` | 1 | 0 | Testbeispiel |
+| Feld in `userConfig` fehlt | 1 | 0 | Testbeispiel |
+
+Viele der 12 Testbeispiele sind absichtlich fehlerhaft gebaut. Betrachtet man nur die 31 normalen Mods, machen reservierte Namen mit 15 Fällen fast die Hälfte aus.
+
+### Reservierte Namen
+
+19 Einträge bekamen denselben Fehler. Hier der Wortlaut des Validators.
+
+```text
+Plugin name "claude-council" is reserved: it passes as one of Anthropic's own.
+A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-",
+or "cc-plugin-", be "claude", "anthropic", "anthropics", "claude-code", or
+"claude-mods", or put "official" beside "claude" or "anthropic". Name it for what
+it does.
+```
+
+`claude-cat`, `claude-queue`, `claude-mermaid`, `claude-games`, `claude-link`, `claude-who` und `claude-slots` sind aus demselben Grund durchgefallen. 17 der 19 Einträge bekamen nur diesen einen Fehler. Steht `claude` mitten im Namen, schlägt die Validierung nicht fehl, es gibt mitunter aber eine Warnung. Bei einem erneuten Lauf mit 2.1.291 bekam `mindful-claude` die Warnung „reads as one of Anthropic's own“.
+
+### Dateien fehlen
+
+6 Einträge sind durchgefallen, weil eine Datei, auf die `modules` in `hooks/hooks.json` zeigt, im Repository fehlt. Zwei davon zeigten auf Build-Ergebnisse unter `dist/` (`dist/hook-module.js`, `dist/integrations/claude.js`). Wenn du Build-Ergebnisse nicht committest, fehlt die Datei auch bei allen, die den Mod installieren. Lass das Modul direkt auf die `.ts`- oder `.tsx`-Quelle zeigen. Die Engine liest sie unmittelbar.
+
+Bei den 5 fehlgeschlagenen `import`s existierte die Datei in 2 Fällen, lag aber außerhalb des Mod-Ordners.
+
+```text
+cannot import "../../../character-core/src/index.ts" (from hooks/function/register.js):
+it is outside the plugin's folder (packages/persona-panel)
+```
+
+So geht es, wenn du in einem Monorepo ein gemeinsames Paket über einen relativen Pfad einbindest. Der Validator verhindert, dass Dateien außerhalb des Mod-Ordners importiert werden. Kopiere gemeinsamen Code in den Mod-Ordner.
+
+### Schlüssel fehlt im Zustandsvertrag
+
+Ein Mod, der in `plugin.json` über `"types"` eine Datei für den Zustandsvertrag angibt, muss alle Schlüssel, die er mit `$.state` verwendet, in `PluginState` dieser Datei aufführen. [terminal-gym](https://github.com/DrumAndCode/terminal-gym) hat 8 Schlüssel vergessen und bekam 8 Fehlerzeilen.
+
+```text
+terminal-gym.history is not declared: the manifest's types contract must name it
+in interface PluginState { terminal-gym: { history: ... } }
+```
+
+### Auch eingebaute Mods fallen durch
+
+Auch der eingebaute Mod `telemetry` im Repository `anthropics/claude-code` erscheint als fehlgeschlagen.
+
+```text
+its hooks stand on the telemetry stream "anthropic" (a matcher names it, or a
+telemetry hook names no "to" and so stands on every stream), which is for the
+plugins built into the CLI; name the collector on each telemetry hook:
+on("telemetry.log", { to: "collector" }, hook)
+```
+
+Validierst du den Ordner, behandelt der Validator ihn als externen Mod. Der Stream `anthropic` gehört den in die CLI eingebauten Plugins, deshalb lehnt der Validator ihn ab. Wenn dein Mod Telemetrie-Hooks einhängt, schreibe unbedingt `{ to: "collector" }` dazu. Ohne `to` gilt der Hook als an alle Streams gehängt.
+
+### Regeln zur Code-Form
+
+Der Validator liest den Quellcode in einer festgelegten Form. Wer davon abweicht, fällt schon vor der Ausführung durch.
+
+| Regel | Fehlerhafter Code | Korrigierte Form |
+| --- | --- | --- |
+| Der Rückgabewert von `on()` nimmt an Ort und Stelle nur `.catch` an | `const registration = on("command.run", ...)` | `on(...).catch(handler)` |
+| `$.env.get` nimmt nur String-Literale an | `$.env.get(name)` | `$.env.get("TYPESAFE_API_KEY")` |
+| Event-Namen müssen exakt stimmen | `on("classic.SessionStartt", ...)` | `on("classic.SessionStart", ...)` |
+| Ein `turn.step`-Hook muss ein async generator sein | `async ($, e, next) => ...` | `async function* ($, e, next) { ... }` |
+| `modules` enthält nur ein Modul | ein zweiter Eintrag | ein Einstiegsmodul, das den Rest per `import` einbindet |
+
+Die `turn.step`-Regel ist der zweite Fehler, den `claude-slots` zusammen mit dem Namensfehler bekam. [agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) ist durchgefallen, weil der Parser das Regex-Literal in Zeile 89 von `hooks/discover/scan.ts` nicht lesen konnte.
+
+## 252 Warnungen
+
+252 Einträge endeten mit einer Warnung, davon 224 normale Mods. Der Katalog speichert den Wortlaut der Warnungen nicht. Deshalb haben wir die 43 Mods mit Warnstatus (aus 12 Repositories) flach heruntergeladen und mit `claude plugin validate` aus Claude Code 2.1.291 erneut lesen lassen. Der Validator liest nur den Quellcode und führt den Mod nicht aus. Alle 43 Mods ergaben wieder „passed with warnings“. Ein Mod kann auch mehrere Warnungen bekommen.
+
+| Warnung | von 43 |
+| --- | ---: |
+| `author: No author information provided. Consider adding author details for plugin attribution` | 40 |
+| `root: CLAUDE.md at the plugin root is not loaded as project context.` | 2 |
+| Name wirkt wie ein Anthropic-Name | 1 |
+| Keine Anführungszeichen um `${CLAUDE_PLUGIN_ROOT}` in einem Befehls-Hook | 1 (14 Zeilen) |
+| Symbolischer Link wird ohne Verfolgung gelesen | 1 |
+
+Im gesamten Katalog ergibt sich dasselbe Bild. Bei 169 der 252 Warnungen ist das Autorenfeld leer. Unter den 1.605 bestandenen Einträgen trifft das nur auf 1 zu. Viele Mods haben es also nur deshalb nicht ins Verzeichnis geschafft, weil in `plugin.json` die eine Zeile `author` fehlt.
+
+In der Validierungsausgabe taucht oft auch die Zeile `gating hook without .catch:` auf. Das ist keine Warnung. Sie teilt nur mit, dass ein Hook an einer Stelle, an der abgelehnt werden kann (etwa `tool.call` oder `prompt.submit`), kein `.catch` hat. Ein solcher Hook wird bei einem Fehler übersprungen, und die Anfrage geht unverändert durch. Wenn der Hook blockieren soll, hänge ein `.catch` an.
+
+## 184 Steuerzeichen-Warnungen
+
+Der Katalog führt neben dem Validator eine eigene Prüfung durch: die Warnung `ui-control-characters`. Sie gab es 184-mal, und 152 der im Verzeichnis geführten Mods haben sie erhalten.
+
+```text
+UI hook source contains control-character strings. Review any values passed to
+next() as rewritten props.text; the scanner does not trace whether these strings
+reach that call.
+```
+
+Im Quellcode des Katalog-Scanners (`tools/compatibility.mjs`) ist die Regel einfach. Enthält ein String-Literal im Hook-Modul eines Mods, der `ui.render` einhängt, oder in einer Datei, die dieses Modul per relativem Pfad importiert, Zeichen aus U+0000–0008, U+000B–001F oder U+007F–009F, wird es markiert. Tabulator und Zeilenumbruch sind ausgenommen. Ob der String den Bildschirm erreicht, wird nicht geprüft.
+
+Deshalb wird auch Code markiert, der mit dem Bildschirm nichts zu tun hat. Hier sind Fälle, die wir direkt geöffnet haben.
+
+| Mod | Markierter String | Verwendung |
+| --- | --- | --- |
+| [diff-viewer](https://github.com/tylergraydev/cc-mods/tree/main/diff-viewer) | `'\u0000'` | Binärdateien erkennen |
+| [gb-pane](https://github.com/tylergraydev/cc-mods/tree/main/gb-pane) | `'\u0001F '` | Trennzeichen für interne Nachrichten |
+| [data-peek](https://github.com/mako-code/gobworks/tree/main/mods/abilities/data-peek) | `'\r'` | Zeilenenden in CSV behandeln |
+| eingebauter [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | mehrere Zeilen unter `git/parse/` | git-Ausgabe parsen |
+
+Wirklich problematisch wird diese Warnung, wenn du Strings mit ANSI-Farbcodes (`\x1b[31m`) an die Engine übergibst. Laut Typdatei erlauben `source` von `Code` und `text` von `Markdown` als Steuerzeichen nur Tabulator und Zeilenumbruch, und Steuerzeichen in einem Fenster-`title` werden abgelehnt. Farben gibst du über Eigenschaften wie `color` und `bold` von `Text` an. Musst du Terminalausgabe unverändert anzeigen, entferne die Steuerzeichen, bevor du sie übergibst.
+
+<Aside>
+  Die Steuerzeichen-Warnung ist eine Einschätzung des Katalogs. Der Claude-Code-Validator gibt sie nicht aus, und Mods mit dieser Warnung stehen trotzdem im Verzeichnis.
+</Aside>
+
+## Checkliste für Autorinnen und Autoren
+
+| Prüfpunkt | Vermeidet |
+| --- | --- |
+| Der Name beginnt nicht mit `claude-`, `anthropic-` oder `cc-plugin-` und sagt, was der Mod tut | reservierter Name |
+| `plugin.json` enthält `author` | Warnung (fehlt im Verzeichnis) |
+| `modules` in `hooks.json` zeigt auf genau eine committete Quelldatei | fehlende Moduldatei |
+| Alle per `import` eingebundenen Dateien liegen im Mod-Ordner | Import von außerhalb des Ordners |
+| Alle `$.state`-Schlüssel stehen in `PluginState` der Vertragsdatei | Zustandsvertrag |
+| Du schreibst es als Literal, etwa `$.env.get("NAME")` | übergebene Variable |
+| Du hängst `.catch` direkt an `on(...)` an | abgelegter Rückgabewert |
+| Der `turn.step`-Hook ist eine `async function*` | Generator-Regel |
+| Der Telemetrie-Hook hat `{ to: "collector" }` | Stream `anthropic` |
+| `${CLAUDE_PLUGIN_ROOT}` im Befehls-Hook steht in Anführungszeichen | Warnung |
+| ANSI-Codes sind aus Text entfernt, der an den Bildschirm geht | Steuerzeichen |
+
+Führe vor dem Hochladen diese zwei Befehle aus.
+
+```bash
+claude plugin validate ./my-mod
+claude plugin test ./my-mod
+```
+
+`validate` liest Manifest, Marketplace-Datei und Hook-Module in einem Durchgang und meldet alles, was abgelehnt wird. Bei null Warnungen erfüllst du auch die Validierungsbedingung für das Verzeichnis. Das Veröffentlichen beschreibt [Deinen Mod veröffentlichen](/de/articles/publish-your-mod/), wo du nachsiehst, wenn ein Mod nicht lädt, steht in der [Fehlerbehebung](/de/guide/troubleshooting/).

@@ -1,0 +1,231 @@
+---
+title: 发布你的 Mod
+description: 用一个 marketplace.json 做出一行安装命令，理顺保留名称、版本和许可证，再提交到社区目录的流程。数字来自实际发布的 ide-mod 和目录中的 1,919 条数据。
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+这篇讲的是如何让在你电脑上跑得好好的 Mod，变成别人一行命令就能安装的样子。需要的文件只多一个，但名字起错一个，安装和目录收录都会被卡住，这种情况相当常见。示例来自本站运营者亲自发布的 [ide-mod](https://github.com/jkf87/ide-mod)（MIT）和社区目录的数据。
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289。验证器输出是在 Claude Code 2.1.290、2.1.291 上亲自运行的结果。
+
+## 发布前检查清单
+
+- [ ] `plugin.json` 的 `name` 没有触犯保留词规则
+- [ ] 存在 `.claude-plugin/marketplace.json`，条目名称与 `plugin.json` 的 `name` 相同
+- [ ] `plugin.json` 里有 `version` 和 `license`
+- [ ] `claude plugin validate .` 无警告，以 `✔ Validation passed` 结束
+- [ ] `claude plugin test .` 通过（[测试与调试](/zh-cn/articles/testing-and-debugging/)）
+- [ ] 仓库已公开，并且有 `LICENSE` 文件
+- [ ] README 里写了一行安装命令和访问范围
+
+## 仓库结构
+
+### 只含一个 Mod 的仓库
+
+Mod 文件夹就是仓库根目录。ide-mod 提交到 git 的文件如下（`vendor/pdfjs/cmaps` 字体表已省略）。
+
+```text title="jkf87/ide-mod"
+.claude-plugin/marketplace.json
+.claude-plugin/plugin.json
+.gitignore
+LICENSE
+README.md
+bin/grid.mjs            # Node로 돌리는 보조 스크립트
+bin/pdf-view.mjs
+bin/rhwp-view.mjs
+hooks/hooks.json
+hooks/register.tsx
+tests/ide.test.tsx
+types/index.d.ts        # 이 mod가 선언한 상태의 타입
+vendor/pdfjs/LICENSE    # 함께 싣는 라이브러리의 라이선스
+vendor/rhwp/LICENSE
+```
+
+（注释的意思：用 Node 运行的辅助脚本、这个 Mod 所声明状态的类型、一并附带的库的许可证。）
+
+`.gitignore` 里有 `.claude-plugin/types/` 和 `tsconfig.json`。这两个都是 Claude Code 加载文件夹时自动放进去的文件，没有必要放进仓库。引擎版本变化时它们还可能被重写。
+
+### 包含多个 Mod 的仓库
+
+像 [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods) 这样，在 `mods/<名称>/` 下各放一个 Mod，根目录的市场文件指向各个文件夹。
+
+```json title=".claude-plugin/marketplace.json (hamzafer/claude-code-mods, 앞 2개)"
+{
+  "name": "claude-code-mods",
+  "owner": { "name": "hamzafer" },
+  "plugins": [
+    { "name": "agent-radar", "version": "0.1.2", "source": "./mods/agent-radar" },
+    { "name": "blast-radius", "version": "0.2.2", "source": "./mods/blast-radius" }
+  ]
+}
+```
+
+（标题里的 `앞 2개` 即“前 2 个”。）
+
+目录里的 777 个仓库中，626 个只含一个 Mod，151 个含多个 Mod。多 Mod 仓库里的 Mod 有 862 个，超过全部 1,488 个的一半。
+
+## 编写 marketplace.json
+
+只有一个 Mod 的话，把 `source` 设为 `"./"` 就行了。下面是 ide-mod 的完整文件。
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "ide-mod",
+  "owner": { "name": "jkf87" },
+  "plugins": [{ "name": "ide-mod", "source": "./" }],
+  "description": "Claude Code 안의 IDE 창 모드: 에이전트 보드 + 파일 트리 + 탭 에디터"
+}
+```
+
+（`description` 的意思是：Claude Code 内的 IDE 窗口 Mod，包含代理看板、文件树和标签页编辑器。）
+
+去掉 `description` 也能工作，只是验证器会给出 `No marketplace description provided` 警告。`plugin.json` 里没有 `author` 时，同样会有警告。
+
+如果在条目里写了 `version`，就必须与 `plugin.json` 一致。我故意写成不同的值，验证器是这样提示的。
+
+```text
+❯ plugins[0].version: Entry declares version "0.2.0" but .claude-plugin/plugin.json says "0.1.0".
+  At install time, plugin.json wins (calculatePluginVersion precedence) — the entry version is silently ignored.
+```
+
+版本只写在 `plugin.json` 一处，出错的机会更少。
+
+## 试一试安装命令
+
+要给别人的安装命令就是这一行。`<mod>` 是 `plugin.json` 的 `name`，后面是 GitHub 的 `owner/repo`。
+
+```text
+/plugin install ide-mod --marketplace jkf87/ide-mod
+```
+
+<Steps>
+
+1. 推送仓库，然后在终端的 Claude Code 会话里输入上面这一行。
+
+2. 对 `Add marketplace?` 输入 `y`，在范围选择处按 Enter。如果有 `userConfig`，还会多出一个选项界面。
+
+3. 出现 `Installed <mod>. Plugin is now active.` 就成功了。只含 hooks 模块的 Mod，无需重新加载，在那个会话里就能直接运行。
+
+</Steps>
+
+失败消息有两种。仓库里没有市场文件时，提问界面会显示 `Marketplace file not found at` 和路径。名称写错时，会出现 `Plugin "<mod>" not found in marketplace "<marketplace>"`。这个命令仅限终端。在桌面应用的 Code 标签页里使用时，它会回答说不能用。
+
+目录里的 1,488 个 Mod 中，有 277 个（180 个仓库）在仓库的任何位置都没有市场文件。这样的 Mod 需要使用者自己下载源码，再用 `--plugin-dir` 启动。很难指望一行安装。
+
+## 命名规则：以 `claude-` 开头会被拦
+
+把 `plugin.json` 的名称写成 `claude-tally` 然后验证，会这样失败。
+
+```text
+✘ name: Plugin name "claude-tally" is reserved: it passes as one of Anthropic's own.
+  A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-", or "cc-plugin-",
+  be "claude", "anthropic", "anthropics", "claude-code", or "claude-mods",
+  or put "official" beside "claude" or "anthropic". Name it for what it does.
+```
+
+目录里触犯这条规则的例子也不少。
+
+| 项目 | 数量 |
+| --- | --- |
+| 因名称保留词而验证失败的 Mod | 19 个（真实 Mod 15 个，重复、测试用 4 个） |
+| 验证失败的 marketplace.json | 716 个中的 15 个 |
+| 这 15 个文件上出现的错误 | 25 条，全部是保留词错误 |
+
+例如 `claude-stats`、`claude-queue`、`claude-games`、`anthropic-pr-review` 这样的名称。规则只针对插件名称。仓库名叫 `claude-stats-mod` 没有问题，像 `claudesama` 这样不加连字符连在一起的名字也通过了。在 2.1.291 上把市场的 `name` 改成 `claude-tally-market` 试了一下，同样没有错误。
+
+如果已经发布的名称被卡住了，要同时改三处：`plugin.json` 的 `name`、市场条目的 `name`、README 里的安装行。目录的贡献文档也建议按这个顺序做。
+
+## 版本与许可证
+
+`version` 写成 `0.4.2` 这样的三段，每次发布递增。ide-mod 每提交 10 次修改 `plugin.json` 的提交就升一次版本，从 `0.1.0` 走到了 `0.4.2`，GitHub 发布了 `v0.4.0` 和 `v0.4.2` 两个 release。使用 `claude plugin tag` 的话，它会先确认 `plugin.json` 与市场条目的版本一致，再帮你创建标签。
+
+```bash
+claude plugin tag --dry-run .
+# Tag:     ide-mod--v0.4.2
+# ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
+```
+
+没有许可证的 Mod 比想象中多。目录的 1,488 个中有 324 个（777 个仓库中的 164 个）许可证信息为空，44 个是 `NOASSERTION`（有文件，但无法识别类型）。正如 [choosealicense.com](https://choosealicense.com/no-permission/) 所说，没有许可证，著作权就由作者独占。即使是公开仓库，别人也不会因此获得复制、修改、分发的权利。想在公司里使用的人，会在法务审查时直接被卡住。
+
+如果附带了别人的代码，也要把对方的许可证带上。ide-mod 把 rhwp（MIT）和 pdf.js（Apache-2.0）放在 `vendor/` 之下，各自附带 `LICENSE` 文件，并在 README 的 License 一节里写明了这两个库和它们的许可证。
+
+## 选项用 userConfig
+
+每个安装者可能要改的值，在 `plugin.json` 的 `userConfig` 中声明。安装时会弹出选项界面，非机密字段还会作为一行出现在 `/config` 菜单中。
+
+```json title=".claude-plugin/plugin.json (일부)"
+"userConfig": {
+  "style": { "title": "표시 방식", "type": "string", "options": ["short", "full"], "default": "short" },
+  "apiKey": { "title": "API 키", "type": "string", "sensitive": true, "required": false }
+}
+```
+
+（标题里的 `일부` 是“节选”；`표시 방식` 是“显示方式”，`API 키` 是“API 密钥”。）
+
+指定了 `options` 的字符串字段，会变成只能选这些值的选择框。`sensitive` 字段会存进安全存储，而不是 settings.json。如果有值为空的 `required` 字段，模块不会加载。验证器会在 `default` 不在 `options` 中时报 `default must be one of the options`，在放进未知键时，于 `--strict` 下报 `Unrecognized key`。
+
+## 如何被收录进社区目录
+
+以下内容是读过 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 的 `contributing.md` 和扫描器代码（`tools/`）后确认的。
+
+| 途径 | 条件 | 周期 |
+| --- | --- | --- |
+| 代码搜索 | 仓库中有 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` 字符串，或 `hooks/hooks.json` 里有 `modules` 键 | 每天 |
+| 近期仓库搜索 | 主题（topic）为 `claude-code-mod`、`claude-code-mods`、`claude-mods`、`function-hooks`、`claude-code-plugin`，或名称、描述里有 “claude mod(s)” | 每 3 小时 |
+| PR | 在 `data/seeds.txt` 中加一行 `owner/repo` | 合并后自动发布 |
+
+最快的路是给仓库加上 `claude-code-mod` 主题。贡献文档写道，有这个主题的话，通常在下一次 push 之后几个小时内就会被抓到。ide-mod 也加了 `claude-code`、`claude-code-mod`、`hwp` 这几个主题。它是 10 月 6 日公开的，所以 10 月 4 日的扫描里还没有。
+
+自动发布中会被排除的情况也有明确规定：克隆失败、验证失败、市场失败、UI 兼容性警告，以及看起来是已有 Mod 的副本。保留词名称会在插件验证和市场验证中被拦两次。
+
+即使登记了，也有一些分类不计入目录数字。
+
+| kind | 数量 | 判定标准 |
+| --- | --- | --- |
+| `fixture` | 93 | 路径里有 `test`、`fixtures`、`examples`、`templates`、`docs`、`bench`、`probe` 之类的文件夹，或描述里有 “test fixture” 等 |
+| `catalog` | 39 | 把别人的 Mod 收集后重新打包的仓库（`data/catalogs.txt`） |
+| `duplicate` | 28 | 已确认的副本或改了名字的仓库 |
+| `mirror` | 3 | 复制 Anthropic 内置 Mod（`diff`、`sec-default`、`telemetry`）的仓库 |
+
+把真正的 Mod 放在 `examples/` 下，会被归为测试用。请移动文件夹，或提交一个把 id 加进 `data/fixture-exceptions.txt` 的 PR。
+
+<Aside type="note">
+  本站的 [Mod 目录](/zh-cn/mods/directory/)只展示验证结果为 `passed` 的 Mod。扫描器会把 `✔ Validation passed with warnings` 单独记为 `warnings`。如果因为缺少 `author` 或市场 `description` 而带有警告，即使登记进了目录，也不会出现在这里的目录里。这样的 Mod 有 252 个。
+</Aside>
+
+## 发布与更新
+
+<Steps>
+
+1. 提升 `plugin.json` 的 `version`。如果市场条目里也写了版本，就一起提升。
+
+2. 重新运行 `claude plugin validate .` 和 `claude plugin test .`。
+
+3. 提交并 push。需要的话，用 `claude plugin tag --push .` 打标签并创建 GitHub release。
+
+</Steps>
+
+已安装的人要先重新获取市场，再更新插件。
+
+```bash
+claude plugin marketplace update ide-mod
+claude plugin update ide-mod@ide-mod
+```
+
+`claude plugin update --help` 提示需要重启才会生效。从仓库安装的 Mod 运行的是安装时生成的副本，所以作者所做的修改，只能通过新版本或新提交传达。详细的管理命令见[安装与管理](/zh-cn/guide/install-and-manage/#更新)。
+
+## README 里一定要写的内容
+
+- **一行安装命令**，放在代码块里。后面再说明要按 `y` 并选择范围。
+- **制作和测试所用的 Claude Code 版本。** 函数钩子是 early access API，各版本之间可能会有变化。ide-mod 写的是“在 2.1.290 上制作并测试”。
+- **访问范围。** 读什么、执行什么、往哪里发送。把 `claude plugin validate .` 的 `calls:` 一行原样搬过来，就不会遗漏。ide-mod 用 `$.fs.read` 读文件，用 `$.process.run` 执行 `node bin/*.mjs` 和 macOS 的 `open`，用 `$.model.complete` 调用模型。
+- **验证器看不到的部分。** `calls:` 一行只显示钩子模块通过 `$` 调用的内容。被执行的程序所做的事，要另外写明。ide-mod 的辅助脚本又会调用 `pdftoppm`、`rsvg-convert`、`resvg`、`qlmanage` 中存在的那个。钩子模块和辅助脚本里都没有网络调用。
+- **限制。** 不支持的终端、文件大小限制、界面语言之类。
+- **一并附带的代码的许可证。**
+
+安装的一方要确认什么，见[安装前安全检查](/zh-cn/guide/safety-checklist/)。事先把那份清单答好，试用的人就不用翻源码了。目录还会为每个 Mod 生成访问范围徽章和验证徽章。把贡献文档里 `badges/` 路径的徽章贴到 README 里即可。
+
+验证中常见的其他失败原因，汇总在[验证失败的 Mod](/zh-cn/articles/validation-failures/)里。

@@ -1,0 +1,126 @@
+---
+title: 安全Modの比較
+description: 危険なBashコマンドを止め、秘密を隠すMod 6個と、Anthropic組み込みのsec-defaultのソースを読みました。何をブロックするか、Mod自身が失敗したときに開くか閉じるか、モデルが実際に何を見るかを比較しました。
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+安全Modを選ぶときは、2つのことを確認します。何を止めるのか、そしてMod自身が失敗したらどうなるのか。危険コマンド2個、秘密の秘匿3個、同時編集1個、それにAnthropicがClaude Codeに組み込んでいるsec-defaultを読みました。リポジトリを取得してフックモジュールを読んだだけで、インストールも実行もしていません。
+
+基準: コミュニティカタログ 2026-10-04 スキャン、Claude Code 2.1.289。ソースは2026-10-06に読み、APIの動作はClaude Code 2.1.290の型ファイルとリファレンスドキュメントで確認しました。スター数はリポジトリ単位です。
+
+候補だったhonmoon-redactは表から外しました。判定を別のRustエンジン(`honmoon` バイナリ)やユーザーが指定したHTTPアドレスに任せているため、Modのソースだけでは何を隠すのか分かりません。デフォルトが失敗時クローズなので、バイナリなしで有効にするとRead・Bash・Grep・WebFetchの結果とプロンプトがすべてブロックされます。
+
+## 失敗したときのオープンとクローズ
+
+エンジンの規則は次のとおりです。フックが例外を投げるか時間予算を超えると、そのフックだけをスキップしてチェーンは続行します。登録に `.catch` を付けておくと、そのハンドラが代わりに応答します。そのため、ブロックするModに `.catch` がなければ、Modが壊れた瞬間にコマンドがそのまま実行されます。
+
+```tsx title="launch-codes/hooks/register.tsx (抜粋)"
+on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  // ...
+})
+  // A hook that fails must not let the command through.
+  .catch(($, e) => {
+    const danger = classify(e.command)
+    return danger ? deny(e.command, danger.reason, 'the launch check failed') : { deny: '...' }
+  })
+```
+
+7個のうち、このようにクローズ側で作られているのはlaunch-codes、secrets-veil、sec-defaultの3つです。
+
+## 隠す層とモデルが見るもの
+
+秘密を扱う3つのModは、手を入れる層が異なります。
+
+- **secret-redactor** は、プロンプト、ツール結果、最初のメッセージに付くCLAUDE.mdなどのコンテキストを書き換えます。モデルにはプレースホルダが見え、ツールが実行されるときには元の値が戻ります。
+- **secrets-veil** は、ツール結果だけを書き換えます。元に戻す経路はありません。
+- **recording-mode** は、画面に描画する文字だけを書き換えます。リファレンスドキュメントのとおり、行の `text` を書き換えてもモデルが読んだ内容は変わりません。モデルは本物のキーを見ます。
+
+## 一覧
+
+| Mod | リポジトリ (スター) | フックするイベント | 止めるもの | 描画する場所 |
+| --- | --- | --- | --- | --- |
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | hamzafer/claude-code-mods (54) | `tool.call` (Bash)、`ui.render` | 再帰 `rm`、強制 `git push`、DBマイグレーション | パネル、狭いときはバンド |
+| [launch-codes](https://github.com/OneWave-AI/claude-code-mods/tree/main/launch-codes) | OneWave-AI/claude-code-mods (1) | `tool.call` (Bash)、`command.run`、`ui.render` | `rm -rf`、強制push、`reset --hard`、SQL `DROP`、`vercel --prod`、`chmod -R 777`、`curl \| sh` など | パネル、質問ダイアログ、サイレン音 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | ray-amjad/awesome-claude-code-function-hooks (3) | `prompt.submit`、`tool.call`、`prompt.context` | ベンダーキー、高エントロピートークン、メールアドレス、グローバルIP | ツール行の通知、トースト |
+| [secrets-veil](https://github.com/yonatangross/orchestkit/tree/main/mods/secrets-veil) | yonatangross/orchestkit (286) | `session.start`、`tool.call` | 環境変数21個の値、キーの形、高エントロピートークン | トースト、ステータスライン |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | nateherkai/claude-code-mods (7) | `prompt.submit`、`tool.call`、`ui.render` 7コンポーネント | 画面上のキー・個人情報・金額、非公開ファイルを開くこと | バンドの ● REC |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | nateherkai/claude-code-mods (7) | `tool.call` (Edit・Write・NotebookEdit)、`prompt.submit`、`session.*` | 別のチャットが30分以内に編集したファイルの編集 | 質問ダイアログ |
+| [sec-default](https://github.com/anthropics/claude-code/tree/main/mods/sec-default) | anthropics/claude-code (組み込み) | `classic.*`、`prompt.*`、`tool.check`、`plugin.register` など15個 | ユーザーModが組織ポリシーを迂回すること | 1行の通知、デバッグログ |
+
+| Mod | ブロック・変更 | 失敗したら | 画面のない実行 | プロセス・ファイル | 残すもの | テスト | ライセンス | 読んだコミット |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| blast-radius | 拒否 | オープン | すぐ拒否 | `bash -c` で `du`・`find`、`git log` | なし | あり | MIT | `3719682` (10-05) |
+| launch-codes | 拒否 | クローズ | 質問が失敗して拒否 | なし | なし | あり | MIT | `e6da26c` (10-03) |
+| secret-redactor | プロンプト・結果・コンテキストを書き換え、ツール入力を復元 | オープン | そのまま動作 | なし | メモリ上の金庫 | あり | MIT | `12b5fea` (09-11) |
+| secrets-veil | ツール結果を書き換え | クローズ (結果を保留) | そのまま動作 | なし | なし | あり | MIT | `b13b64a` (10-05) |
+| recording-mode | 画面の文字を書き換え、非公開ファイルを拒否、プロンプトにメモ | オープン | 拒否は動作 | ファイルの読み書き | フラグ・設定ファイル | なし | MIT | `33a936f` (10-02) |
+| collision-guard | 編集を拒否 | オープン | 尋ねずに通す | ファイルの読み書き、`git ls-files` | チャットごとの台帳ファイル、`$.store` | なし | MIT | `33a936f` (10-02) |
+| sec-default | ユーザー段階のスキップ、ユーザーModの拒否 | クローズ | 同じ | なし | なし | あり | Anthropic商用規約 | `8e60c4c` (10-06) |
+
+## Mod別メモ
+
+### blast-radius
+
+- `rm` に再帰オプションがあるとき、強制push(`-f`、`--force*`、`+` refspec)、prisma・supabase・drizzleなどのマイグレーションコマンドを止めます。`rm` はコマンドの先頭の単語であるか、`sudo` の直後にあるときだけ見ます。コード上、`xargs rm -rf` や `find -delete` は通過します。
+- 止めたら実際の影響を測ります。削除対象を `bash -c` の引数に渡してglobだけを展開し、`du`・`find` でファイル数とサイズを数えます(最大5,000個)。シェル変数を含むパスは展開せず、直接確認するよう書き添えます。強制pushは `git log HEAD..@{u}` で失われるコミットを示します(最後のfetch基準)。
+- 60秒以内に誰も押さなければキャンセルします。オプションで0にすると、無限に待ちます。待つ間、0.25秒ごとに `sleep` プロセスを1つずつ起動します。
+
+### launch-codes
+
+- 引用符とバックスラッシュを処理するトークナイザがあり、`sudo`・`env`・`xargs`・`npx` などのラッパーコマンドを飛ばして実際のプログラムを探します。そのため、blast-radiusより止める範囲が広くなっています。
+- `rm` は `-r` と `-f` が両方ある場合だけ検知します。`node_modules`、`dist`、`/tmp/` 以下は安全とみなして通します。
+- パネルに表示された4文字のコードを、質問ダイアログのOther欄に30秒以内に入力し、さらにLAUNCHを押さないと実行されません。待つ間、サイレンを繰り返し再生します。
+
+### secret-redactor
+
+- 値はモジュールメモリ上の金庫に置き、`[REDACTED-SECRET-1a2b3c4d]` のようなプレースホルダに置き換えます。同じ値は常に同じプレースホルダになります。ディスクには書きません。
+- ツールが実行されるときに、プレースホルダを元の値に戻します(デフォルトはオン)。キーを使うコマンドは動作し続けます。その代わり、モデルがプレースホルダを入れたリクエストを外部へ送ると、本物のキーが載って出ていきます。
+- 金庫はモジュールが再ロードされると空になります。それ以前に作ったプレースホルダは、元の値には戻りません。
+- カタログの段階は0です。段階は `$` の呼び出しだけを数えますが、このModは `next()` で内容を書き換えるだけで、`$` でファイルやネットワークを呼びません。プロンプトとツール結果をすべて見るModでも、0段階になることがあります。
+
+### secrets-veil
+
+- `ANTHROPIC_API_KEY`、`GITHUB_TOKEN`、`AWS_SECRET_ACCESS_KEY` など21個の名前を1つずつ文字列そのままで読み、その値をマスク表に載せます。社内で使っている別名の変数は読みません。値の形とエントロピー検査が残りを担当します。
+- 結果が800万文字を超えるか、隠すのに4秒を超えると、結果をまるごと保留します。トーストには個数だけを書き、バイト数はデバッグログにだけ残します。秘密の長さも手がかりになるという理由です。
+- `SECRETS_VEIL_OFFER_COPY=1` を有効にすると、隠した値をクリップボードにだけコピーするか尋ねます。
+
+### recording-mode
+
+- `/rec` と入力すると、`~/.claude/mods-data/recording.json` というフラグファイルを書きます。このコンピュータのすべてのセッションが3秒ごとにこのファイルを確認して、一緒にオンになります。
+- オンの間は、`.env`、認証情報、Claudeのメモリ、財務文書、設定ファイルに書かれたパスを開くツール呼び出しと、財務ツールを拒否します。プロンプトごとに、名前・金額を書かないようにというメモをモデルのコンテキストに付けます。
+- 作業フォルダと、上に3階層のフォルダにある `.env`、`.env.local` の値をメモリに読み込んで、画面上で隠します。
+- 電話番号・住民登録番号のパターンは米国形式(3-3-4の番号、SSN、州の略称と郵便番号)が基準です。`010-1234-5678` のような3-4-4の番号や、韓国の住民登録番号の形は、デフォルトのパターンにありません。韓国語の画面を録画するなら、設定ファイルの `names`、`privatePaths` を埋めてください。
+
+### collision-guard
+
+- 編集の直前に、他に開いているチャットが30分以内に同じファイルを編集したかを確認します。編集していた場合は、続行、ワークツリーへ移す(gitが追跡しているファイルのときだけ)、キャンセルのいずれかを尋ねます。
+- チャットごとに `~/.claude/mods-data/collision-guard/<セッションid>.json` に、編集したファイルのパスと最初のプロンプトの先頭80文字を平文で書きます。別のチャットの質問ダイアログに名前で表示するためです。
+- 画面のない実行では、尋ねずに編集を通します。無人の作業を止めないための設計です。
+- プロンプトには何も付けないので、トークンは消費しません。
+
+### sec-default
+
+- 人がインストールするModではありません。READMEによると、管理設定のあるコンピュータやTeam・Enterprise組織で、CLIがprepend段階の先頭に配置します。
+- 独自のポリシーはありません。組織のclassicフック、管理CLAUDE.md、設定、MCP許可リストのイベントで `next.to(e, "append")` を使い、ユーザー段階をスキップします。ユーザーがインストールしたModは、これらのイベントを変更できません。
+- `tool.check` でユーザーModがdenyルールを解除した場合は、ユーザー段階を除いてもう一度実行します。その結果がルールによる拒否なら、その拒否を応答として使います。
+- 管理者が `allowManagedModsOnly` を有効にすると、組織が配布したModと組み込みModだけがロードされます。
+- これが配置されたセッションでは、すべてのツール呼び出しが `tool.check` チェーンを通ります。READMEがコストとして明記している部分です。
+
+<Aside type="caution">
+ここに挙げたModはすべて、コマンド文字列や値の形を見て判断します。形を変えたコマンドや、リストにない秘密は通過します。権限確認ダイアログやsettingsのdenyルールの代わりにはなりません。
+</Aside>
+
+## どれを選ぶか
+
+- 削除する前に、何個のファイルが消えるかを数字で見たいなら **blast-radius**。範囲は狭く、壊れるとコマンドが通ります。
+- 危険なコマンドを習慣的に承認してしまうのが心配なら **launch-codes**。範囲が広く、失敗したらブロックします。音が鳴るので、会議中は分かった上でオンにしてください。
+- キーをモデルに見せないまま、キーを使う作業は続けたいなら **secret-redactor**。ツール入力に元の値が戻る点を受け入れられるときに使います。
+- キーがモデルに渡ること自体を防ぎたいなら **secrets-veil**。元に戻せず、失敗すると結果を保留します。
+- 画面を録画したり、講義でデモをしたりするなら **recording-mode**。画面だけを隠す点を覚えておいてください。
+- 同じリポジトリでチャットウィンドウを複数開くなら **collision-guard**。
+- 会社でユーザーModを統制する必要があるなら、管理設定の **sec-default** のオプションを確認してください。個人がインストールする対象ではありません。
+
+インストール前の共通チェックは[インストール前の安全チェック](/ja/guide/safety-checklist/)に、自分で作る手順は[危険なBashコマンドを止める](/ja/articles/tutorial-bash-guard/)にあります。

@@ -1,0 +1,382 @@
+---
+title: "チュートリアル：入力欄の上に帯を1本描く"
+description: ターン数、今のターンの経過時間、直近のツールを入力欄の上に1行で表示するModを、5つのファイルで作ります。検証・テストを実際に通過したコードそのままです。
+sidebar:
+  order: 7
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+入力欄のすぐ上に1行の帯(`AbovePrompt`)を描くModを、ゼロから作ります。完成するとこのように表示されます。
+
+```text
+턴 3 · 진행 12초 · 마지막 도구 Bash
+```
+
+この表示は「ターン 3 · 進行 12秒 · 直近のツール Bash」という意味です。ターンが動いている間は経過時間が1秒ごとに増え、ターンが終わると `지난 턴 34초`(前のターン 34秒)で止まります。`/turn-meter` と入力すると、帯を隠したり再表示したりできます。ほかのModが同じ場所に帯を描いていても、その帯は消しません。
+
+動作確認の基準：Claude Code 2.1.291で `claude plugin validate` と `claude plugin test` を通過したコードです。APIの説明は2.1.290の型宣言(`claude-code.d.ts`)と照合しました。以下のコードブロックは、通過したファイルをそのまま写したものです。
+
+## フォルダ構成
+
+```text title="turn-meter/"
+.claude-plugin/plugin.json   # 매니페스트
+hooks/hooks.json             # 훅 모듈 위치
+hooks/register.tsx           # 훅 모듈
+types/index.d.ts             # 상태 계약
+tests/band.test.tsx          # 테스트
+```
+
+上から順に、マニフェスト、フックモジュールの場所、フックモジュール、状態の契約、テストです。
+
+[最初のModを作る](/ja/guide/build-your-first-mod/)のペイン(Pane)の例と違い、今回のModはモジュール変数ではなく `$.state` に値を置きます。ホットリロードが起きるとモジュール変数は消えますが、`$.state` の値はセッションが終わるまで残ります。
+
+## 作る
+
+<Steps>
+
+1. **マニフェストを書きます。** `types` は、このModが状態の契約をどこに書いたかを示します。
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "turn-meter",
+     "version": "0.1.0",
+     "description": "입력창 위에 턴 수, 지금 턴의 경과 시간, 마지막 도구를 한 줄로 보여 준다",
+     "author": {
+       "name": "mods.guide"
+     },
+     "types": "./types/index.d.ts"
+   }
+   ```
+
+   `description` は「入力欄の上に、ターン数、今のターンの経過時間、直近のツールを1行で表示する」という意味です。
+
+2. **フックモジュールの場所を書きます。** パスは `hooks.json` を基準にします。
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.tsx"] }
+   ```
+
+3. **状態の契約を書きます。** `$.state` に置く値の名前と型を `PluginState` に宣言します。型宣言ファイルが「empty by default」と書いているインターフェースに、自分のModの分を足す方式です。
+
+   ```ts title="types/index.d.ts"
+   export type TurnMeterTurn = { startedAt: number; endedAt: number | null }
+
+   declare module 'claude-code' {
+     interface PluginState {
+       'turn-meter': {
+         count: number
+         turn: TurnMeterTurn | null
+         now: number
+         lastTool: string | null
+         isHidden: boolean
+       }
+     }
+   }
+   ```
+
+   検証器はこのファイルを読み、`declares state: turn-meter.count, …` と5つのキーをそのまま示します。`$` オブジェクトに新しい機能を足していないので `declares on $: nothing` も一緒に出ますが、エラーではありません。
+
+4. **フックモジュールを書きます。** まず全体のコードを見てから、部分ごとに解説します。
+
+   ```tsx title="hooks/register.tsx"
+   import { atom, read, update } from 'claude-code'
+   import type { Register, Timer } from 'claude-code'
+
+   import type { TurnMeterTurn } from '../types'
+
+   const count = atom({ plugin: 'turn-meter', key: 'count' } as const, 0)
+   const turn = atom({ plugin: 'turn-meter', key: 'turn' } as const, null)
+   const now = atom({ plugin: 'turn-meter', key: 'now' } as const, 0)
+   const lastTool = atom({ plugin: 'turn-meter', key: 'lastTool' } as const, null)
+   const isHidden = atom({ plugin: 'turn-meter', key: 'isHidden' } as const, false)
+
+   export function formatSeconds(ms: number): string {
+     const s = Math.max(0, Math.floor(ms / 1000))
+     return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`
+   }
+
+   export const register: Register = on => {
+     let tick: Timer | undefined
+
+     on('session.start', async ($, e, next) => {
+       await $.command.register({
+         name: 'turn-meter',
+         description: '입력창 위 턴 정보 띠를 켜고 끈다',
+       })
+       return next(e)
+     })
+
+     on('command.run', { command: 'turn-meter' }, async $ => {
+       const hidden = await update($, isHidden, v => !v)
+       return { text: hidden ? 'turn-meter 띠를 숨겼어요.' : 'turn-meter 띠를 다시 보여요.' }
+     })
+
+     on('turn.start', async ($, e, next) => {
+       const startedAt = await $.clock.now()
+       await update($, count, n => n + 1)
+       await update($, turn, () => ({ startedAt, endedAt: null }))
+       await update($, now, () => startedAt)
+       tick?.cancel()
+       tick = $.clock.every(1000, () => {
+         void $.clock.now().then(t => update($, now, () => t))
+       })
+       return next(e)
+     })
+
+     on('tool.call', async ($, e, next) => {
+       if (e.agentId === undefined) await update($, lastTool, () => String(e.tool))
+       return next(e)
+     }).catch(($, e, next) => next(e))
+
+     on('turn.complete', async ($, e, next) => {
+       if (e.agentId === undefined) {
+         tick?.cancel()
+         tick = undefined
+         const endedAt = await $.clock.now()
+         await update($, turn, t => (t === null ? null : { ...t, endedAt }))
+       }
+       return next(e)
+     })
+
+     on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+       const t: TurnMeterTurn | null = await read($, turn)
+       if (e.props.hasSurvey || t === null || (await read($, isHidden))) return next(e)
+
+       const below = await next(e)
+       const { Box, Text } = $.ui.resolve(e)
+       const n = await read($, count)
+       const tool = await read($, lastTool)
+       const time =
+         t.endedAt === null
+           ? `진행 ${formatSeconds((await read($, now)) - t.startedAt)}`
+           : `지난 턴 ${formatSeconds(t.endedAt - t.startedAt)}`
+
+       return (
+         <Box flexDirection="column" width={e.props.bodyColumns}>
+           <Box key="meter">
+             <Text dimColor wrap="truncate-end">
+               턴 {n} · {time} · 마지막 도구 {tool ?? '없음'}
+             </Text>
+           </Box>
+           {below}
+         </Box>
+       )
+     })
+   }
+   ```
+
+   コード内の韓国語は、`입력창 위 턴 정보 띠를 켜고 끈다` が「入力欄の上のターン情報の帯をオン・オフする」、`숨겼어요`/`다시 보여요` が「隠しました」/「再表示します」、`진행`・`지난 턴` が「進行」・「前のターン」、`마지막 도구 … 없음` が「直近のツール … なし」を表します。
+
+</Steps>
+
+## 部分ごとの解説
+
+**5つの状態。** `atom(ref, initial)` は、初期値を持つ名前付きの値です。`plugin` と `key` はソースにリテラルで書く必要があります。検証器がソースを読んで `state writes:`、`state reads:` の一覧を作るためです。値は `read($, atom)` で読み、`update($, atom, fn)` で変えます。`update` はバージョンを確認しながら書き込み、その間に誰かが先に書いていたらやり直します。
+
+**`/turn-meter` コマンド。** `session.start` で `$.command.register` を使ってコマンドを登録し、`command.run` フックが `{ command: 'turn-meter' }` のマッチャーで受けます。`update` は変更後の値を返すので、その値で案内文を選びます。`next` を呼ばずに `{ text }` を返すと、その文章がコマンドの出力として表示されます。
+
+**ターン開始と1秒タイマー。** `turn.start` で時刻を `$.clock.now()` で取ります。Mod内には `setTimeout` がないので、1秒間隔の更新も `$.clock.every` で設定します。タイマーが変えるのは `now` の値だけです。帯は描画時に `now` を読んでいるため、値が変わるとエンジンが帯を描き直します。このとき `$.ui.invalidate` を呼ぶ必要はありません。`$.state` の読み取りが描画を購読するからです。
+
+**直近のツール。** `tool.call` フックはツール名を記録して `next(e)` に渡すだけです。`e.agentId` があればサブエージェントの呼び出しなので飛ばします。後ろに付けた `.catch(($, e, next) => next(e))` は、記録に失敗してもツールはそのまま動かすための仕組みです。検証器は `tool.call` を何かを拒否できる場所とみなし、`gating hook with .catch: tool.call` と書きます。観察するだけのフックなので、失敗したら通す側に倒すのが正しい選択です。
+
+**ターン終了。** `turn.complete` はサブエージェントのターンでも届きます。メインのターン(`agentId` なし)のときだけ、タイマーを止めて終了時刻を記録します。
+
+**帯の描画。** 要点は3つです。
+
+- `e.props.hasSurvey` が真なら、アンケートが帯を使っているので `next(e)` で道を譲ります。
+- 描くものがあるときは、まず `const below = await next(e)` で下側の結果を受け取ります。ほかのModが描いた帯、または誰も描いていないときのエンジンの結果です。
+- 自分の行の下に `{below}` を付けて返します。`next` を呼ばず自分のツリーだけを返すと、自分より下にいるModの帯は描かれません。`AbovePrompt` はインスタンスが1つしかない場所だからです。
+
+幅は `e.props.bodyColumns` に合わせます。エンジンの `[-]` 折りたたみ表示が占める5桁を除いた幅です。
+
+<Aside>
+  自分の行は `key="meter"` を付けた `Box` で包みました。最初は `Text` に `key` を付けたのですが、2.1.291のテストキットの `ui.drawn()` の結果では `Text` の `key` が抜けていて、`find({ key })` でも見つかりませんでした。型宣言を見ると、`key` を受け取る要素は `Box`、`Button`、`Input`、`Select`、`Code`、`Image`、`Markdown` などで、`TextProps` には `key` がありません。テストで探したいテキスト行は、キーを付けた `Box` で包んでください。
+</Aside>
+
+## テストを書く
+
+```tsx title="tests/band.test.tsx"
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { formatSeconds } from '../hooks/register'
+
+const BAND = { plugin: 'turn-meter', component: 'AbovePrompt' } as const
+const props = {
+  hasSurvey: false,
+  isWorking: true,
+  maxRows: 10,
+  bodyColumns: 80,
+  scroll: { offset: 0, bodyRows: 9 },
+  view: {},
+}
+const SURFACES = ['terminal', 'desktop'] as const
+
+// 엔진 자리: 다른 mod의 띠 하나, 그리고 도구·턴·명령의 바닥 응답
+function engine(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>다른 mod의 띠</Text>
+  })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+}
+
+const toggle = {
+  command: 'turn-meter',
+  args: '',
+  origin: { kind: 'composer' as const },
+  presentation: { isFullscreen: true, columns: 120 },
+}
+
+describe('formatSeconds', () => {
+  test('초와 분으로 적는다', () => {
+    expect(formatSeconds(0)).toBe('0초')
+    expect(formatSeconds(12_400)).toBe('12초')
+    expect(formatSeconds(75_000)).toBe('1분 15초')
+  })
+})
+
+describe('띠', () => {
+  test('첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다', async ($, on) => {
+    engine(on)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect(await ui.find({ key: 'meter' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 1_000_000 })
+    await $.turn.start({ text: '테스트 고쳐 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+    await clock.advance(12_000)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 진행 12초 · 마지막 도구 Bash')
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('턴이 끝나면 걸린 시간을 고정한다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 0 })
+    await $.turn.start({ text: '첫 번째', turnId: 't1' })
+    await clock.advance(5_000)
+    await $.turn.complete({ answer: '끝', durationMs: 5_000, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+    await clock.advance(30_000)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 지난 턴 5초 · 마지막 도구 없음')
+  })
+
+  test('서브에이전트의 도구 호출은 마지막 도구로 치지 않는다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '조사해 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/a.txt' })
+    await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'sub-1' } as never)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toMatch(/마지막 도구 Read$/)
+  })
+
+  test('/turn-meter로 숨기고 다시 켠다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '아무거나', turnId: 't1' })
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 숨겼어요.')
+    const hidden = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await hidden.find({ key: 'meter' })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+    await hidden.unmount()
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 다시 보여요.')
+    const shown = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await shown.find({ key: 'meter' })).toBeDefined()
+  })
+})
+```
+
+テストの文字列にある `다른 mod의 띠` は「ほかのModの帯」を指します。テスト名は順に「秒と分で表記する」「最初のターンの前は描かず、下の帯をそのまま残す」「進行中のターンの経過時間と直近のツールを表示する」「ターンが終わると所要時間を固定する」「サブエージェントのツール呼び出しは直近のツールに数えない」「/turn-meterで隠して再表示する」です。
+
+テストの `on` で登録したフックは、すべてのプラグインの下、エンジンの位置に立ちます。そのため `engine()` 関数の役割は2つあります。
+
+- **ほかのModの帯を真似ます。** 一番下の `AbovePrompt` フックが `다른 mod의 띠` を描きます。自分の帯がその行を消さないかを確認する仕掛けです。
+- **土台を埋めます。** テストエンジンは、下で答えるフックがないとエラーを出します。`turn.start` を土台なしで呼ぶと、実際にこのように失敗します。
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+大事なのは2行目です。時計も土台がないと、自分の `turn.start` フックがスキップされます。そのため、ターンを扱うテストごとに `mock.clock(on, …)` を敷きます。この時計は、テストが `clock.advance(12_000)` で動かしたときだけ進みます。12秒進めると1秒タイマーが12回動いて `진행 12초`(進行 12秒)になります。実際に12秒待つわけではありません。
+
+画面のテストは `$.ui.mount({ plugin, surface, component, props })` で帯を1回描き、`find` で要素を探します。`surface` にはデフォルト値がないので必ず指定します。同じ本体を `terminal` と `desktop` で動かせば、片方の画面にしかない要素を使っていないかも一緒に確認できます。
+
+## 実行してみる
+
+```bash
+claude plugin validate ./turn-meter
+```
+
+```text
+Validating plugin manifest: …/turn-meter/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: turn-meter.count, turn-meter.turn, turn-meter.now, turn-meter.lastTool, turn-meter.isHidden
+
+Validating hooks: …/turn-meter/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, command.run{command=turn-meter}, turn.start, tool.call, turn.complete, ui.render{component=AbovePrompt}
+  ❯ ./register.tsx gating hook with .catch: tool.call
+  ❯ ./register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.state.get, $.state.set, $.ui.resolve
+  ❯ ./register.tsx state writes: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+  ❯ ./register.tsx state reads: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+
+✔ Validation passed
+```
+
+パスの前半だけ省略しました。初回の実行では `author` がないという警告が1件出ましたが、マニフェストに `author` を入れると消えました。`calls:` の行を見ると、このModはファイル・ネットワーク・プロセスに触れていません。[安全チェック](/ja/guide/safety-checklist/)で言う「画面・記憶のみ」の段階です。
+
+```bash
+claude plugin test ./turn-meter
+```
+
+```text
+tests/band.test.tsx:
+(pass) formatSeconds > 초와 분으로 적는다 [1.14ms]
+(pass) 띠 > 첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다 [28.03ms]
+(pass) 띠 > 진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다 [25.08ms]
+(pass) 띠 > 턴이 끝나면 걸린 시간을 고정한다 [14.53ms]
+(pass) 띠 > 서브에이전트의 도구 호출은 마지막 도구로 치지 않는다 [11.61ms]
+(pass) 띠 > /turn-meter로 숨기고 다시 켠다 [13.68ms]
+
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [0.25s]
+```
+
+## セッションで有効にしてみる
+
+インストールせず、今回のセッションだけで読み込めます。
+
+```bash
+claude --plugin-dir ./turn-meter
+```
+
+この方法で起動したセッションはフォルダを監視していて、ファイルを保存するとフックモジュールを読み直します。帯が表示されないときは、[テストとデバッグ](/ja/articles/testing-and-debugging/)のデバッグログの読み方を見てください。
+
+## 知っておきたい制限
+
+- `AbovePrompt` はターミナルとデスクトップの画面でのみ描画されます。VS Codeとモバイルにはこの帯はありません。
+- 1秒タイマーはモジュール変数に持たせています。ターンの途中でホットリロードが起きると、以前の環境のタイマーは破棄されます。次のターンが始まるまで、経過時間が止まって見えます。
+- 帯を再描画する速度はエンジンが決めます。型宣言によると、再描画は1秒に最大10回、ターミナルの展開した帯は30回までです。1秒間隔はその範囲内です。
+- ターン数はメインループの `turn.start` を数えます。人がプロンプトを送っていない継続ターンも1つと数えます。

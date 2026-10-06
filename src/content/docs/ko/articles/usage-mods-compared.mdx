@@ -1,0 +1,107 @@
+---
+title: 사용량·컨텍스트 mod 비교
+description: 5시간·주간 한도와 컨텍스트를 띄우는 mod 7개의 소스를 직접 읽었어요. 숫자 출처, 다시 읽는 주기, 모델 호출, 막는 동작을 표로 놓고 고르는 기준을 정리했어요.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+입력창 위에 사용량을 띄우는 mod는 카탈로그에서 가장 흔한 종류예요. 설명에 5시간·주간 한도, rate limit, quota가 들어간 mod만 105개예요. 그중 7개를 골라 저장소를 받고 훅 모듈을 끝까지 읽었어요. 설치하거나 실행하지는 않았어요.
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289. 소스는 2026-10-06에 읽었고 API 설명은 Claude Code 2.1.290 타입 파일로 확인했어요. 별 수는 저장소 단위라 같은 저장소의 mod는 같은 숫자를 받아요.
+
+## 숫자의 출처
+
+엔진은 상태 줄과 같은 숫자를 `$.session.usage()`로 줘요. 컨텍스트 창 채움, 5시간·7일 한도(`rateLimits`), 세션 비용이 들어 있어요. 타입 파일 설명으로는 인자 없이 부르면 비용이 들지 않아요. `session.measure` 이벤트는 메인 스레드 턴이 끝날 때와 한도가 1%p 움직일 때 같은 숫자를 밀어 줘요. API 키로 쓰는 세션은 `rateLimits`가 비어 있어요. 한도 숫자는 구독 세션에서만 나와요.
+
+카탈로그의 사용량 mod 105개 중 100개가 `$.session.usage`를 부르고 88개가 `session.measure`를 걸어요. 13개는 `$.http.fetch`를 불러요. 그 13개 중 9개를 열어 보니 9개 모두 `https://api.anthropic.com/api/oauth/usage`를 불렀어요. 자격 증명은 `$.session.authorize()`가 주는 핸들로 실어서 mod가 토큰 값을 보지는 않아요. 이 주소는 2.1.290 타입 파일에 나오지 않아요. 예고 없이 바뀔 수 있다고 보고 쓰세요. `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`를 켜면 이 핸들을 실은 요청은 엔진이 거절해요.
+
+아래 7개는 이 주소를 부르지 않아요. `$.http.fetch`를 부르는 mod가 하나도 없고, 모델을 부르는 것은 hud 하나예요.
+
+## 한눈에 보기
+
+| mod | 저장소 (별) | 그리는 곳 | 숫자 출처 | 다시 읽는 주기 |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | 입력창 위 띠 | `$.session.usage`, 비면 데스크톱 앱의 `plan-usage-history.json` | 턴·도구 호출 뒤, 15초마다 변경 확인 |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | 띠 | `session.measure`, `$.session.usage` | 엔진이 밀어 줄 때, 카운트다운 60초 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | 상태 줄, `/quota` 패널 | `$.session.usage` | 턴 끝, 60초마다 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | 띠 | `$.session.usage`, 대화 기록 파일 끝부분 | 턴 끝, 캐시 카운트다운 1~30초 |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | 띠, `/burn` 패널 | `$.session.usage` | 1초마다, 불꽃 그림 80ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | 상태 줄, 토스트 | `$.session.usage` | 도구 호출·프롬프트마다 |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | 띠나 입력창 아래, 상세 패널 | `$.session.usage`, git, 대화 기록 파일, `~/.claude/sessions/*.json` | 15초마다, 원격 제어 확인 3초 |
+
+| mod | 막기·바꾸기 | 모델 호출 | 프로세스·파일 | 남기는 것 | 단계 | 테스트 | 라이선스 | 읽은 커밋 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | 없음 (Compact 버튼은 사람이 누름) | 없음 | 앱 파일 읽기 | `$.store`: 마지막 한도, 알림 기록 | 2 | 있음 | MIT | `dfc3df5` (10-03) |
+| usage-meter | 없음 | 없음 | 없음 | 세션 상태만 | 1 | 있음 | MIT | `3719682` (10-05) |
+| quota-meter | 없음 | 없음 | 없음 | `$.store`: 한도 표본 | 0 | 없음 | plugin.json에 MIT, LICENSE 파일 없음 | `d4fffd7` (09-15) |
+| token-weather | 없음 | 없음 | 대화 기록 읽기, `tail` 실행 | `$.store`: 캐시 수명 | 2 | 있음 | MIT | `3719682` (10-05) |
+| burn-meter | 없음 | 없음 | 없음 | `$.store`: 누적 비용, 세션마다 키 하나 | 1 | 있음 | MIT | `e6da26c` (10-03) |
+| budget-guard | 도구 호출 거절, 턴 중단, 프롬프트 전 확인 | 없음 | 없음 | 자기 설정 줄이나 `$.store` | 2 | 없음 | plugin.json에 MIT, LICENSE 파일 없음 | `d4fffd7` (09-15) |
+| hud | 없음 | `$.model.fork` (기본 5턴마다) | git 실행, 파일 읽기·쓰기 | 파일: 일별 비용 장부, `$.store` | 2 | 있음 | MIT | `8fb6f67` (10-04) |
+
+단계는 카탈로그의 접근 범위예요. 0은 화면·기억만, 1은 읽기, 2는 쓰기·실행, 3은 네트워크예요. 소스를 정적으로 훑어 매긴 값이라 실제 실행과 다를 수 있어요. 읽은 커밋은 우리가 받은 저장소의 HEAD예요.
+
+## mod별 메모
+
+### usage-band
+
+- `rateLimits`가 비면 Claude 데스크톱 앱이 남기는 `plan-usage-history.json`을 읽어요. 코드 주석은 데스크톱 세션에서 한도 숫자가 자주 비기 때문이라고 설명해요. 이 파일의 표본으로 5시간 창 시작과 주간 리셋 시각을 추정하고, 추정값에는 `~`를 붙여요.
+- 앱 내부 파일이라 형식이 문서화돼 있지 않아요. 앱이 바뀌면 추정이 멈출 수 있어요.
+- 80%·95%를 넘으면 토스트를 띄우고, 같은 창에서 두 번 울리지 않게 `$.store`에 기록해요. 열린 채팅 여러 개가 이 기록을 같이 써요.
+- 컨텍스트가 70%를 넘으면 Compact 버튼이 생겨요. 카탈로그가 2단계로 매긴 이유가 이 `$.session.compact()` 호출이에요.
+
+### usage-meter
+
+- 훅은 `session.start`, `session.measure`, `ui.render` 세 개뿐이에요. 204줄이에요.
+- 한도가 90%를 넘으면 창마다 한 번 토스트를 띄워요.
+- 띠를 그릴 때 `next(e)` 결과를 아래에 그대로 둬요. 다른 mod가 그린 띠와 겹치지 않고 쌓여요.
+
+### quota-meter
+
+- `/quota` 패널에 창마다 막대, 리셋 시각, 소진 속도, 이 속도로 갔을 때의 예상을 보여 줘요. 표본을 `$.store`에 둬서 재시작해도 소진 속도가 이어져요.
+- API 키 세션에서는 한도가 오지 않는다고 패널에 적어 줘요.
+- 같은 저장소의 context-lens는 컨텍스트를 `/context`처럼 분류해 보여 줘요. 턴마다 `breakdown: "summary"`로 로컬 추정만 하고, `/context-lens refresh`를 칠 때만 토큰 세기 API를 불러요.
+
+### token-weather
+
+- 프롬프트 캐시가 식기까지 남은 시간을 세요. 메인 스레드 요청이 끝날 때마다 시계를 다시 시작해요.
+- 캐시 수명이 5분인지 1시간인지 알려고 대화 기록 JSONL의 마지막 응답에서 `cache_creation` 필드를 읽어요. 경로는 `~/.claude/projects/<경로>/<세션 id>.jsonl`을 직접 조립해요. 파일이 1MB를 넘으면 `tail -c`를 실행해요.
+- 이 경로 규칙은 문서화된 API가 아니에요. 어긋나면 판별을 멈추고 마지막 값을 쓴다고 주석에 적혀 있어요. 옵션에서 `5m`이나 `1h`로 고정하면 파일을 읽지 않아요.
+
+### burn-meter
+
+- 1초마다 `$.session.usage()`와 `$.store`를 읽고 써요. 띠가 떠 있는 동안 80ms마다 불꽃 래스터를, 50ms마다 금액 숫자를 다시 그려요. 7개 중 타이머가 가장 바빠요.
+- 비용을 부리토와 맥더블 개수로 바꿔 보여 줘요.
+- 누적 비용 계산용으로 `last:<세션 id>` 키를 세션마다 하나씩 남겨요. 지우는 코드는 찾지 못했어요.
+
+### budget-guard
+
+- 세션 비용, 5시간 창, 7일 창 세 한도를 지켜요. 기본값은 5시간 90%, 7일 95%, 비용 한도 꺼짐, 모드 `block`이에요.
+- 한도를 넘으면 `tool.call`에서 `{ deny }`로 거절하고 250ms 뒤 `$.turn.abort`로 턴을 끝내요. 주석의 이유는 모델이 거절당하면 다른 도구로 다시 시도하면서 비용을 쓰기 때문이에요.
+- 프롬프트를 보낼 때는 `$.ui.ask`로 그래도 보낼지 물어요. 슬래시 명령은 그냥 통과시켜서 `/guard override`를 칠 수 있게 해 뒀어요.
+- 막는 훅에 `.catch`가 없어요. 훅이 예외로 끝나면 엔진은 그 훅을 건너뛰고 호출을 진행해요. 한도를 넘었는데 통과되는 경우가 생길 수 있어요.
+
+### hud
+
+- 상태 줄 도구 claude-hud 0.10.0을 mod로 옮긴 것이에요. Node의 `fs`·`child_process` 대신 `$.fs`·`$.process.run` 위에 흉내 모듈을 얹었어요.
+- 시작할 때 `/usr/bin/env -0`을 실행해서 프로세스 환경 변수 전체를 흉내 모듈의 `process.env`에 채워요. 그 값을 바깥으로 보내는 코드는 찾지 못했어요.
+- 기본값으로 첫 턴 뒤와 5턴마다 `$.model.fork`로 작업을 한 줄 요약해요. 프롬프트 캐시로 대화를 읽지만 사용량에는 잡혀요. `summaryEveryTurns`를 0으로 하면 꺼져요.
+- 일별 비용 장부를 `~/.claude/plugins/claude-hud-mod/` 아래 파일로 써요. 계정 표시는 기본값이 꺼짐이에요.
+- 사용자가 지정하는 셸 명령(`extraCmd`)은 `CLAUDE_HUD_ALLOW_EXTRA_CMD` 환경 변수를 켜야만 실행돼요.
+
+<Aside>
+같은 이름이 여러 저장소에 있어요. 카탈로그에 `usage-band`만 22개, `token-weather`가 8개예요. 설치 줄의 `--marketplace` 뒤 저장소가 이 표의 저장소와 같은지 확인하세요.
+</Aside>
+
+## 어떤 걸 고를까
+
+- 한도 두 개와 리셋 시각만 조용히 보고 싶으면 **usage-meter**. 설치 전에 다 읽을 수 있는 길이이고 파일·프로세스를 건드리지 않아요.
+- 데스크톱 앱 Code 탭에서 한도 칸이 비면 **usage-band**. 앱 파일에서 추정한 값에는 `~`가 붙어요.
+- 이 속도면 언제 바닥나는지 알고 싶으면 **quota-meter**의 `/quota` 패널.
+- 컨텍스트가 턴마다 얼마나 늘고 캐시가 언제 식는지 보려면 **token-weather**. 분류별 내역까지 보려면 Arunjay4213 저장소의 context-lens를 함께 봐요.
+- 한도에 닿으면 실제로 멈춰야 하면 **budget-guard**. 훅이 실패하면 통과된다는 점은 감안하세요.
+- claude-hud를 상태 줄로 쓰던 사람은 **hud**. 요약용 모델 호출이 싫으면 `summaryEveryTurns`를 0으로 바꿔요.
+- API 키로 쓰면 한도 숫자가 오지 않아요. 비용과 컨텍스트 중심인 **burn-meter**나 **token-weather**가 맞아요.
+- 비밀이 있는 저장소나 네트워크 정책이 엄격한 곳에서는 `$.http.fetch`를 부르는 사용량 mod를 피하세요. [mod 디렉터리](/ko/mods/directory/)에서 접근 범위를 먼저 보고, 설치 전에는 [안전 점검](/ko/guide/safety-checklist/)을 거쳐요.

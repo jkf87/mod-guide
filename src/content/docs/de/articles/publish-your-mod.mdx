@@ -1,0 +1,231 @@
+---
+title: Deine Mod veröffentlichen
+description: Wie du mit einer einzigen marketplace.json eine Ein-Zeilen-Installation baust, reservierte Namen, Version und Lizenz in Ordnung bringst und die Mod im Community-Katalog einträgst. Mit Zahlen aus der tatsächlich veröffentlichten ide-mod und aus 1.919 Katalogeinträgen.
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Hier geht es darum, eine Mod, die auf deinem Rechner läuft, so zu veröffentlichen, dass andere sie mit einer Zeile installieren können. Es kommt nur eine Datei hinzu, aber ein einziger falsch gewählter Name blockiert häufig sowohl die Installation als auch den Katalogeintrag. Als Beispiele dienen [ide-mod](https://github.com/jkf87/ide-mod) (MIT), die der Betreiber dieser Seite selbst veröffentlicht hat, und die Daten des Community-Katalogs.
+
+Stand: Scan des Community-Katalogs vom 2026-10-04, Claude Code 2.1.289. Die Validator-Ausgaben stammen aus eigenen Läufen mit Claude Code 2.1.290 und 2.1.291.
+
+## Checkliste vor der Veröffentlichung
+
+- [ ] Der `name` in `plugin.json` verstößt nicht gegen die Regeln für reservierte Wörter
+- [ ] `.claude-plugin/marketplace.json` existiert, und der Eintragsname ist derselbe wie der `name` in `plugin.json`
+- [ ] `version` und `license` stehen in `plugin.json`
+- [ ] `claude plugin validate .` endet ohne Warnung mit `✔ Validation passed`
+- [ ] `claude plugin test .` besteht ([Testen und Debuggen](/de/articles/testing-and-debugging/))
+- [ ] Das Repository ist öffentlich und enthält eine `LICENSE`-Datei
+- [ ] Die README nennt die Installationszeile und den Zugriffsumfang
+
+## Repository-Struktur
+
+### Repository mit einer einzigen Mod
+
+Der Mod-Ordner ist zugleich die Wurzel des Repositorys. Diese Dateien hat ide-mod in Git (die Schriftentabelle unter `vendor/pdfjs/cmaps` ist weggelassen).
+
+```text title="jkf87/ide-mod"
+.claude-plugin/marketplace.json
+.claude-plugin/plugin.json
+.gitignore
+LICENSE
+README.md
+bin/grid.mjs            # Node로 돌리는 보조 스크립트
+bin/pdf-view.mjs
+bin/rhwp-view.mjs
+hooks/hooks.json
+hooks/register.tsx
+tests/ide.test.tsx
+types/index.d.ts        # 이 mod가 선언한 상태의 타입
+vendor/pdfjs/LICENSE    # 함께 싣는 라이브러리의 라이선스
+vendor/rhwp/LICENSE
+```
+
+(Die Kommentare bedeuten: Hilfsskripte, die mit Node laufen; Typen des Zustands, den diese Mod deklariert; Lizenz der mitgelieferten Bibliothek.)
+
+In der `.gitignore` stehen `.claude-plugin/types/` und `tsconfig.json`. Beide legt Claude Code beim Laden des Ordners an, es gibt also keinen Grund, sie ins Repository zu legen. Ändert sich die Engine-Version, werden sie teils neu geschrieben.
+
+### Repository mit mehreren Mods
+
+Wie bei [hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods) liegt unter `mods/<Name>/` je eine Mod, und die Marketplace-Datei in der Wurzel verweist auf jeden Ordner.
+
+```json title=".claude-plugin/marketplace.json (hamzafer/claude-code-mods, 앞 2개)"
+{
+  "name": "claude-code-mods",
+  "owner": { "name": "hamzafer" },
+  "plugins": [
+    { "name": "agent-radar", "version": "0.1.2", "source": "./mods/agent-radar" },
+    { "name": "blast-radius", "version": "0.2.2", "source": "./mods/blast-radius" }
+  ]
+}
+```
+
+(Der Titel „앞 2개“ bedeutet: die ersten zwei Einträge.)
+
+Von den 777 Repositories im Katalogverzeichnis haben 626 eine einzelne Mod und 151 mehrere Mods. Die 862 Mods in Mehr-Mod-Repositories machen mehr als die Hälfte der insgesamt 1.488 aus.
+
+## marketplace.json schreiben
+
+Bei einer einzelnen Mod setzt du `source` auf `"./"`, und fertig. Das ist die komplette Datei von ide-mod.
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "ide-mod",
+  "owner": { "name": "jkf87" },
+  "plugins": [{ "name": "ide-mod", "source": "./" }],
+  "description": "Claude Code 안의 IDE 창 모드: 에이전트 보드 + 파일 트리 + 탭 에디터"
+}
+```
+
+Die `description` lautet auf Deutsch: „IDE-Fenster-Mod in Claude Code: Agenten-Board + Dateibaum + Tab-Editor“.
+
+Auch ohne `description` funktioniert es. Dafür gibt der Validator die Warnung `No marketplace description provided` aus. Eine Warnung erscheint auch, wenn in `plugin.json` das Feld `author` fehlt.
+
+Hast du im Eintrag eine `version` angegeben, muss sie mit der in `plugin.json` übereinstimmen. Als ich sie abweichend eingetragen habe, meldete der Validator:
+
+```text
+❯ plugins[0].version: Entry declares version "0.2.0" but .claude-plugin/plugin.json says "0.1.0".
+  At install time, plugin.json wins (calculatePluginVersion precedence) — the entry version is silently ignored.
+```
+
+Es geht mit weniger Fehlern, wenn du die Version nur an einer Stelle, in `plugin.json`, einträgst.
+
+## Die Ein-Zeilen-Installation testen
+
+Dieser Installationsbefehl ist die eine Zeile, die du anderen gibst. `<mod>` ist der `name` aus `plugin.json`, dahinter steht `owner/repo` auf GitHub.
+
+```text
+/plugin install ide-mod --marketplace jkf87/ide-mod
+```
+
+<Steps>
+
+1. Pushe das Repository und gib die obige Zeile in einer Claude-Code-Sitzung im Terminal ein.
+
+2. Antworte bei `Add marketplace?` mit `y` und drücke bei der Auswahl des Geltungsbereichs Enter. Gibt es `userConfig`, erscheint noch ein Optionsbildschirm.
+
+3. Erscheint `Installed <mod>. Plugin is now active.`, hat es geklappt. Eine Mod, die nur ein Hooks-Modul hat, läuft in dieser Sitzung sofort, ohne dass du neu laden musst.
+
+</Steps>
+
+Es gibt zwei Fehlermeldungen. Fehlt im Repository die Marketplace-Datei, steht auf dem Frage-Bildschirm `Marketplace file not found at` mit dem Pfad. Ist der Name falsch, kommt `Plugin "<mod>" not found in marketplace "<marketplace>"`. Dieser Befehl funktioniert nur im Terminal. Im Code-Tab der Desktop-App antwortet er, dass er dort nicht benutzt werden kann.
+
+Von den 1.488 Mods im Katalogverzeichnis hatten 277 (aus 180 Repositories) nirgends im Repository eine Marketplace-Datei. Wer solche Mods benutzt, muss den Quelltext herunterladen und mit `--plugin-dir` starten. Eine Ein-Zeilen-Installation kannst du dort nicht erwarten.
+
+## Namensregel: Mit `claude-` beginnende Namen werden blockiert
+
+Trägst du in `plugin.json` den Namen `claude-tally` ein und validierst, fällt das so durch:
+
+```text
+✘ name: Plugin name "claude-tally" is reserved: it passes as one of Anthropic's own.
+  A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-", or "cc-plugin-",
+  be "claude", "anthropic", "anthropics", "claude-code", or "claude-mods",
+  or put "official" beside "claude" or "anthropic". Name it for what it does.
+```
+
+Auch im Katalog sind nicht wenige Fälle an dieser Regel hängen geblieben.
+
+| Eintrag | Anzahl |
+| --- | --- |
+| Mods, die wegen reservierter Namen die Validierung nicht bestanden | 19 (15 echte Mods, 4 Duplikate bzw. Testmods) |
+| marketplace.json-Dateien, die die Validierung nicht bestanden | 15 von 716 |
+| Fehler in diesen 15 Dateien | 25, alle Fehler wegen reservierter Wörter |
+
+Beispiele für solche Namen sind `claude-stats`, `claude-queue`, `claude-games` und `anthropic-pr-review`. Die Regel gilt nur für den Plugin-Namen. Ein Repository-Name wie `claude-stats-mod` ist unproblematisch, und auch ein Name ohne Bindestrich wie `claudesama` ging durch. Als ich in 2.1.291 den `name` des Marketplace in `claude-tally-market` geändert habe, gab es ebenfalls keinen Fehler.
+
+Hat es einen schon veröffentlichten Namen getroffen, änderst du drei Stellen gemeinsam: den `name` in `plugin.json`, den `name` im Marketplace-Eintrag und die Installationszeile in der README. Das Beitragsdokument des Katalogs empfiehlt dieselbe Reihenfolge.
+
+## Version und Lizenz
+
+Schreibe `version` dreistellig wie `0.4.2` und erhöhe sie bei jedem Release. Bei ide-mod habe ich die Version alle 10 Commits erhöht, die `plugin.json` geändert haben, von `0.1.0` bis `0.4.2`, und es gibt zwei GitHub-Releases, `v0.4.0` und `v0.4.2`. Mit `claude plugin tag` prüfst du, ob die Version in `plugin.json` und im Marketplace-Eintrag übereinstimmt, und legst dann das Tag an.
+
+```bash
+claude plugin tag --dry-run .
+# Tag:     ide-mod--v0.4.2
+# ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
+```
+
+Es gibt mehr Mods ohne Lizenz, als man denkt. Von den 1.488 im Verzeichnis hatten 324 (164 von 777 Repositories) keine Lizenzangabe, und 44 hatten `NOASSERTION` (eine Datei ist vorhanden, aber ihre Art wurde nicht erkannt). Wie [choosealicense.com](https://choosealicense.com/no-permission/) erklärt, behält ohne Lizenz der Urheber alle Rechte allein. Auch bei einem öffentlichen Repository erwirbt niemand das Recht, den Code zu kopieren, zu ändern oder weiterzugeben. Wer die Mod in einer Firma einsetzen will, scheitert sofort an der Rechtsprüfung.
+
+Lieferst du den Code anderer mit, kümmere dich auch um dessen Lizenz. ide-mod legt rhwp (MIT) und pdf.js (Apache-2.0) unter `vendor/` jeweils mit eigener `LICENSE`-Datei ab und nennt beide Bibliotheken samt Lizenz im Abschnitt License der README.
+
+## Optionen über userConfig
+
+Werte, die jeder Installierende ändern kann, deklarierst du in `plugin.json` unter `userConfig`. Bei der Installation erscheint ein Optionsbildschirm, und Felder, die kein Geheimnis sind, tauchen auch als Zeile im `/config`-Menü auf.
+
+```json title=".claude-plugin/plugin.json (일부)"
+"userConfig": {
+  "style": { "title": "표시 방식", "type": "string", "options": ["short", "full"], "default": "short" },
+  "apiKey": { "title": "API 키", "type": "string", "sensitive": true, "required": false }
+}
+```
+
+(Die Titel bedeuten „Anzeigeart“ und „API-Schlüssel“; „(일부)“ im Titel heißt „Auszug“.)
+
+Ein String-Feld mit `options` wird zu einem Auswahlfenster, in dem nur diese Werte wählbar sind. Felder mit `sensitive` landen im sicheren Speicher statt in settings.json. Gibt es ein `required`-Feld ohne Wert, wird das Modul nicht geladen. Der Validator hat `default must be one of the options` gemeldet, wenn `default` nicht in `options` stand, und unbekannte Schlüssel bei `--strict` als `Unrecognized key` abgefangen.
+
+## So kommst du in den Community-Katalog
+
+Das habe ich aus `contributing.md` und dem Scanner-Code (`tools/`) von [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) gelesen und bestätigt.
+
+| Weg | Bedingung | Rhythmus |
+| --- | --- | --- |
+| Code-Suche | Im Repository steht der String `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS`, oder `hooks/hooks.json` hat den Schlüssel `modules` | täglich |
+| Suche nach neuen Repositories | Topic `claude-code-mod`, `claude-code-mods`, `claude-mods`, `function-hooks` oder `claude-code-plugin`, oder „claude mod(s)“ in Name oder Beschreibung | alle 3 Stunden |
+| PR | Eine Zeile `owner/repo` in `data/seeds.txt` ergänzen | wird nach dem Merge automatisch veröffentlicht |
+
+Am schnellsten geht es, wenn du dem Repository das Topic `claude-code-mod` gibst. Laut Beitragsdokument wird ein Repository mit diesem Topic meist innerhalb weniger Stunden nach dem nächsten Push erfasst. Auch ide-mod hat die Topics `claude-code`, `claude-code-mod` und `hwp` gesetzt. Sie wurde am 6. Oktober veröffentlicht und war im Scan vom 4. Oktober deshalb noch nicht dabei.
+
+Es ist auch festgelegt, was von der automatischen Veröffentlichung ausgenommen wird: ein fehlgeschlagener Klon, eine fehlgeschlagene Validierung, ein fehlgeschlagener Marketplace, eine UI-Kompatibilitätswarnung und der Fall, dass es wie eine Kopie einer bereits vorhandenen Mod aussieht. Reservierte Namen scheitern doppelt, an der Plugin-Validierung und an der Marketplace-Validierung.
+
+Auch eingetragene Mods können in Kategorien fallen, die nicht in die Zahlen des Verzeichnisses einfließen.
+
+| kind | Anzahl | Beurteilungskriterium |
+| --- | --- | --- |
+| `fixture` | 93 | Im Pfad liegen Ordner wie `test`, `fixtures`, `examples`, `templates`, `docs`, `bench` oder `probe`, oder die Beschreibung enthält „test fixture“ o. Ä. |
+| `catalog` | 39 | Repositories, die Mods anderer sammeln und neu bündeln (`data/catalogs.txt`) |
+| `duplicate` | 28 | Bestätigte Kopien oder umbenannte Repositories |
+| `mirror` | 3 | Kopien der in Anthropic eingebauten Mods (`diff`, `sec-default`, `telemetry`) |
+
+Legst du eine echte Mod unter `examples/` ab, wird sie als Testmod eingeordnet. Verschiebe den Ordner, oder schicke einen PR, der die ID in `data/fixture-exceptions.txt` einträgt.
+
+<Aside type="note">
+  Das [Mod-Verzeichnis](/de/mods/directory/) dieser Seite zeigt nur Mods, deren Validierungsergebnis `passed` ist. Der Scanner erfasst `✔ Validation passed with warnings` getrennt als `warnings`. Fehlen `author` oder die Marketplace-`description` und es gibt deshalb eine Warnung, kommt die Mod zwar in den Katalog, fehlt aber hier im Verzeichnis. Das waren 252 Mods.
+</Aside>
+
+## Release und Update
+
+<Steps>
+
+1. Erhöhe die `version` in `plugin.json`. Hast du im Marketplace-Eintrag auch eine Version angegeben, erhöhe sie mit.
+
+2. Führe `claude plugin validate .` und `claude plugin test .` noch einmal aus.
+
+3. Committe und pushe. Falls nötig, setze mit `claude plugin tag --push .` ein Tag und lege ein GitHub-Release an.
+
+</Steps>
+
+Wer die Mod installiert hat, holt sich den Marketplace neu und aktualisiert dann das Plugin.
+
+```bash
+claude plugin marketplace update ide-mod
+claude plugin update ide-mod@ide-mod
+```
+
+`claude plugin update --help` weist darauf hin, dass du neu starten musst, damit es wirkt. Eine aus einem Repository installierte Mod läuft aus der Kopie, die bei der Installation erstellt wurde. Änderungen des Autors kommen also nur mit einer neuen Version oder einem neuen Commit an. Die ausführlichen Verwaltungsbefehle stehen unter [Installieren und verwalten](/de/guide/install-and-manage/#aktualisieren).
+
+## Das gehört in die README
+
+- **Die Installationszeile** als Codeblock. Danach die Erklärung, dass man `y` drückt und den Geltungsbereich wählt.
+- **Die Claude-Code-Version, mit der du gebaut und getestet hast.** Funktions-Hooks sind eine Early-Access-API und können sich von Version zu Version ändern. ide-mod schreibt: „Mit 2.1.290 gebaut und getestet“.
+- **Der Zugriffsumfang.** Was gelesen wird, was ausgeführt wird und wohin etwas gesendet wird. Übernimmst du die Zeile `calls:` aus `claude plugin validate .` unverändert, vergisst du nichts. ide-mod liest Dateien mit `$.fs.read`, führt mit `$.process.run` `node bin/*.mjs` und macOS-`open` aus und ruft mit `$.model.complete` das Modell auf.
+- **Was der Validator nicht sieht.** Die Zeile `calls:` zeigt nur, was das Hook-Modul über `$` aufruft. Was ein gestartetes Programm tut, musst du getrennt beschreiben. Die Hilfsskripte von ide-mod rufen ihrerseits `pdftoppm`, `rsvg-convert`, `resvg` oder `qlmanage` auf, je nachdem, was vorhanden ist. Weder im Hook-Modul noch in den Hilfsskripten gibt es einen Netzwerkaufruf.
+- **Einschränkungen.** Nicht unterstützte Terminals, Dateigrößenlimits, Anzeigesprache und Ähnliches.
+- **Die Lizenz des mitgelieferten Codes.**
+
+Was die Installierenden prüfen, steht in der [Sicherheitsprüfung vor der Installation](/de/guide/safety-checklist/). Beantwortest du diese Liste schon vorab, müssen Leute, die deine Mod ausprobieren, weniger im Quelltext wühlen. Der Katalog erzeugt für jede Mod auch ein Badge für den Zugriffsumfang und eines für die Validierung. Du musst nur den Pfad `badges/` aus dem Beitragsdokument in die README einbinden.
+
+Weitere häufige Gründe, an denen die Validierung scheitert, habe ich unter [Mods, die die Validierung nicht bestehen](/de/articles/validation-failures/) gesammelt.

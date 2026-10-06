@@ -1,0 +1,145 @@
+---
+title: "État de l'écosystème des mods (octobre 2026)"
+description: "Nous avons recompté les 1 919 entrées du catalogue communautaire : dates de l'afflux, concentration par dépôt, étoiles et licences, zones d'affichage et événements les plus utilisés, en tableaux."
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Référence : scan du catalogue communautaire du 2026-10-04, Claude Code 2.1.289
+
+Les chiffres de cet article viennent d'un nouveau comptage, en Python, du fichier `data/mods.json` (CC0) du catalogue [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods). Le catalogue cherche des mods sur GitHub, exécute `claude plugin validate` sur chaque dépôt, puis en extrait les hooks et les appels `$` à partir de la sortie. Le fichier a été généré le 2026-10-04 à 08:26 (UTC). Les mods apparus après cette heure n'y figurent pas.
+
+## Ce que nous avons compté
+
+Le catalogue contient 1 919 entrées trouvées dans 1 171 dépôts. Toutes ne sont pas des mods à installer.
+
+| Type | Entrées | Signification |
+| --- | ---: | --- |
+| `mod` | 1 752 | Mod ordinaire |
+| `fixture` | 93 | Exemple de test dans un dossier comme `tests/` ou `examples/` |
+| `catalog` | 39 | Entrée d'un dépôt qui regroupe les mods d'autres personnes |
+| `duplicate` | 28 | Même mod qu'une autre entrée |
+| `builtin` | 4 | Mods intégrés du dépôt `anthropics/claude-code` |
+| `mirror` | 3 | Copies de mods intégrés |
+
+Le [répertoire des mods](/fr/mods/directory/) de ce site ne retient, parmi les `mod` et `builtin`, que ceux qui ne sont pas archivés, ne sont pas des doublons et passent la validation sans avertissement. Il reste ainsi **1 488 mods, 777 dépôts et 690 auteurs**. Sauf mention contraire, les chiffres ci-dessous portent sur ces 1 488 mods.
+
+## Un afflux en trois jours
+
+Le champ `createdAt` du catalogue est l'heure de création du dépôt. Elle ne coïncide pas toujours avec le jour où le mod a été publié : les 102 dépôts créés avant septembre 2026, par exemple, ont reçu leurs mods plus tard.
+
+| Date de création du dépôt (UTC) | Dépôts | Mods de ces dépôts |
+| --- | ---: | ---: |
+| Avant septembre 2026 | 102 | 154 |
+| Septembre 2026 | 108 | 190 |
+| 1er octobre | 36 | 52 |
+| 2 octobre | 258 | 453 |
+| 3 octobre | 228 | 568 |
+| 4 octobre (jusqu'à 08:26) | 42 | 68 |
+| 5 octobre | 3 | 3 |
+
+Les 2 et 3 octobre, 486 dépôts ont été créés, soit 63 % des 777. Le chiffre du 3 octobre inclut les 117 mods d'un seul dépôt créé ce jour-là, [mako-code/gobworks](https://github.com/mako-code/gobworks). [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods), créé le 18 septembre, a lui aussi ajouté 53 mods en une journée.
+
+Claude Code 2.1.287 est apparu sur le registre npm le 2026-10-01 à 16:59 (UTC). C'est la version où les function hooks sont activés par défaut, comme l'indique la [FAQ](/fr/faq/). Parmi les 36 dépôts créés le 1er octobre, 29 l'ont été après 17 h. Depuis cette heure, 560 dépôts sur 777 (72 %) ont été créés, et ils contiennent 1 137 mods sur 1 488 (76 %). Les dates coïncident, mais le catalogue n'indique pas pourquoi un dépôt a été créé : nous ne pouvons donc pas parler de cause.
+
+## Un mod par dépôt, en général
+
+| Mods par dépôt | Dépôts | Mods | Part des mods |
+| --- | ---: | ---: | ---: |
+| 1 | 626 | 626 | 42,1 % |
+| 2 à 9 | 133 | 429 | 28,8 % |
+| 10 à 17 | 15 | 193 | 13,0 % |
+| 50 ou plus | 3 | 240 | 16,1 % |
+
+81 % des dépôts ne contiennent qu'un seul mod. À l'inverse, les 3 premiers dépôts concentrent 240 mods.
+
+| Dépôt | Mods | Nature |
+| --- | ---: | --- |
+| [mako-code/gobworks](https://github.com/mako-code/gobworks) | 117 | Collection répartie sous `mods/` en groupes tels que `jev`, `abilities`, `ambient`, `autopilot` |
+| [whyashthakker/awesome-claude-code-mods](https://github.com/whyashthakker/awesome-claude-code-mods) | 70 | Collection de petits outils, un mod par dossier |
+| [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) | 53 | Collection qui sépare les intégrations `gemini-*` et des composants communs comme `sidebar` |
+
+Dans les grands dépôts de collection, les mods partagent parfois des composants. 36 mods du dépôt KilimcininKorOglu appellent `$.sidebar`, ajouté à `$` par le mod `sidebar` du même dépôt. Si vous n'installez qu'un seul mod, ce composant peut manquer : consultez d'abord les dépendances dans le README.
+
+## Les étoiles se comptent par dépôt
+
+Le champ `stars` du catalogue est le nombre d'étoiles du dépôt. Un dépôt contenant 117 mods attribue le même nombre à ses 117 mods. Nous avons donc compté sur les 777 dépôts.
+
+| Étoiles du dépôt | Dépôts | Part |
+| --- | ---: | ---: |
+| 0 | 538 | 69,2 % |
+| 1 à 9 | 188 | 24,2 % |
+| 10 à 99 | 36 | 4,6 % |
+| 100 à 999 | 9 | 1,2 % |
+| 1 000 ou plus | 6 | 0,8 % |
+
+Parmi les 6 dépôts à 1 000 étoiles ou plus, 5 sont de grands projets qui font bien d'autres choses que des mods : `anthropics/claude-code` (149 303), `ruvnet/RuView` (96 198), `ruvnet/ruflo` (73 820), `anthropics/claude-plugins-official` (37 363) et `kunchenguid/firstmate` (7 488). Quand un mod est la vedette de son dépôt, [zenbu-labs/terminal-browser](https://github.com/zenbu-labs/terminal-browser) (3 626) est le plus gros. À l'inverse, gobworks, qui compte le plus de mods, avait 0 étoile au moment du scan. La plupart des dépôts ont moins de trois jours, et les étoiles n'ont pas eu le temps de s'accumuler. Les étoiles ne disent rien de la qualité d'un mod.
+
+## Un dépôt sur cinq n'a pas de licence
+
+Le catalogue enregistre la licence reconnue par GitHub (identifiant SPDX).
+
+| Licence | Dépôts | Part |
+| --- | ---: | ---: |
+| MIT | 555 | 71,4 % |
+| Aucune | 164 | 21,1 % |
+| Apache-2.0 | 25 | 3,2 % |
+| NOASSERTION | 24 | 3,1 % |
+| AGPL-3.0 | 3 | 0,4 % |
+| GPL-3.0 · Unlicense | 2 chacune | 0,3 % |
+| GPL-2.0 · MIT-0 | 1 chacune | 0,1 % |
+
+Par mod, 324 mods (21,8 %) n'ont pas de licence. Un dépôt sans fichier de licence relève du droit d'auteur par défaut : sans autorisation de l'auteur, personne n'a le droit de copier le code, de le modifier ni de le redistribuer. Les conditions d'utilisation de GitHub permettent de consulter et de forker un dépôt public. En revanche, vous ne devez pas copier ce code dans votre propre mod ni diffuser une version modifiée. Si nécessaire, demandez à l'auteur d'ajouter une licence en ouvrant une issue. `NOASSERTION` signifie qu'il existe un fichier de licence que GitHub n'a pas pu identifier : ouvrez ce fichier vous-même pour vérifier.
+
+## Où dessinent-ils ?
+
+1 129 mods (75,9 %) accrochent `ui.render`. Les 359 autres n'utilisent que des toasts, une ligne d'état ou une ligne de journal, ou n'affichent rien à l'écran.
+
+| Zone de dessin | Mods | Quoi |
+| --- | ---: | --- |
+| `Pane` | 673 | Panneau ouvert sur le côté ou en bas |
+| `AbovePrompt` | 600 | Bandeau au-dessus de la zone de saisie |
+| `Spinner` | 76 | Indicateur de travail en cours |
+| `PromptHint` | 75 | Ligne d'indice sous la zone de saisie |
+| `SessionMode` | 65 | Indicateur de mode en bas |
+| Lignes de l'historique | 153 | `AssistantMessage` 67, `ToolUse` 59, `UserMessage` 50, `ToolResult` 40, `ToolGroup` 37, `CommandOutput` 33, `TurnDuration` 32, `InfoNotice` 7 |
+| `AskUserQuestion` | 11 | Boîte de dialogue de question |
+| `ToolProgress` | 7 | Indicateur de progression d'un outil |
+
+363 mods ne dessinent que `Pane`, 274 que `AbovePrompt`, et 266 dessinent les deux. Le schéma courant consiste à ouvrir un panneau pour le détail et à laisser un résumé d'une ligne dans le bandeau. Les 153 mods qui redessinent des lignes de l'historique changent l'aspect, à l'écran, des réponses de Claude ou des résultats d'outils. La boîte de confirmation des permissions ne figure pas dans la liste, et le fichier de types précise que seul le moteur la dessine.
+
+## Les événements les plus utilisés
+
+Le catalogue recense 114 événements. Un mod accroche en médiane 5 événements et appelle en médiane 11 méthodes `$`.
+
+| Événement | Mods | Part | Usage principal |
+| --- | ---: | ---: | --- |
+| `session.start` | 1 284 | 86,3 % | Enregistrer commandes et outils, démarrer des minuteurs |
+| `ui.render` | 1 129 | 75,9 % | Dessiner à l'écran |
+| `command.run` | 1 078 | 72,4 % | Traiter les commandes slash |
+| `tool.call` | 786 | 52,8 % | Observer, bloquer ou modifier les appels d'outils |
+| `turn.complete` | 738 | 49,6 % | Agrégats et notifications à la fin d'un tour |
+| `prompt.submit` | 474 | 31,9 % | Observer ou modifier le prompt envoyé |
+| `turn.start` | 367 | 24,7 % | Affichage du début de tour |
+| `session.end` | 279 | 18,8 % | Nettoyage et sauvegarde |
+| `turn.step` | 204 | 13,7 % | Flux de requêtes au modèle |
+| `ui.close` | 182 | 12,2 % | Gestion de la fermeture d'un panneau |
+| `session.measure` | 180 | 12,1 % | Recevoir les changements d'usage et de limites |
+| `session.compact` | 144 | 9,7 % | Moment et mode de la compaction |
+| `agent.spawn` | 109 | 7,3 % | Choisir ou bloquer le modèle d'un sous-agent |
+| `classic.SessionStart` | 103 | 6,9 % | Recevoir sous forme de fonction un événement de hook de configuration |
+
+196 mods accrochent au moins un événement `classic.*`. Un function hook reçoit tel quel l'entrée que reçoivent les hooks du fichier de configuration (`Stop`, `PermissionRequest`, etc.).
+
+<Aside>
+  Les chiffres du catalogue proviennent de la lecture du code source, pas de l'exécution des mods. Ils ne disent ni la fréquence réelle d'exécution des hooks, ni si l'affichage fonctionne correctement.
+</Aside>
+
+## Comment s'en servir pour choisir
+
+- Le nombre d'étoiles est celui du nom du dépôt. Pour choisir un mod, regardez le dernier commit du dossier de ce mod et son code source.
+- Pour un mod issu d'un grand dépôt de collection, vérifiez s'il dépend d'autres mods du même dépôt.
+- Un mod sans licence peut être installé et essayé, mais vous ne devez pas en reprendre le code.
+- Pour l'étendue des accès, voir [Ce que les mods touchent réellement](/fr/articles/what-mods-touch/) ; pour les causes d'échec de validation, voir [Les mods qui échouent à la validation](/fr/articles/validation-failures/).

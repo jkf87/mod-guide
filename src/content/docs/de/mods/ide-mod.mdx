@@ -51,7 +51,7 @@ Die Oberfläche der Mod ist auf Koreanisch, deshalb zeigt der Ausschnitt oben ko
 
 ## Zugriffsumfang
 
-Die Mod liest Dateien (Explorer und Viewer) und startet zum Zeichnen von Dokumenten Node.js und ein Bildkonvertierungsprogramm. Für die einzeilige Zusammenfassung im Board ruft sie kurz haiku auf, das du mit `s` ausschalten kannst. Sie sendet keine Daten über das Netzwerk. Der Quellcode besteht aus einer einzigen Datei, `hooks/register.tsx`, du kannst ihn also vor der Installation komplett lesen.
+Die Mod liest Dateien (Explorer und Viewer) und startet zum Zeichnen von Dokumenten Node.js und ein Bildkonvertierungsprogramm. Für die einzeilige Zusammenfassung im Board schickt sie alle 20 Sekunden die jüngste Agentenaktivität an haiku. Das ist standardmäßig an, mit `s` schaltest du es aus. Abgesehen von diesem Modellaufruf (Anthropic-API, über dein Konto) sendet sie keine Daten über das Netzwerk. Der Quellcode besteht aus einer einzigen Datei, `hooks/register.tsx`, du kannst ihn also vor der Installation komplett lesen.
 
 <Aside>
 Function hooks sind eine Early-Access-API. Die Mod wurde mit 2.1.290 gebaut und getestet. Die Texte der Oberfläche sind auf Koreanisch.

@@ -1,0 +1,180 @@
+---
+title: 验证不通过的 Mod
+description: 从目录 1,919 个条目的验证结果中，按原因拆分 47 个失败，并阅读了 252 条警告和 184 条控制字符警告的实际文案。还附上了作者可对照避坑的检查表。
+sidebar:
+  order: 3
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289
+
+[awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 目录会对找到的每个 Mod 运行 `claude plugin validate` 并保存结果。本文读完了这 1,919 条结果。它展示了未能进入目录的条目为什么被淘汰，所以对制作 Mod 的人有用。
+
+## 验证结果一览
+
+| 类型 | 通过 | 警告 | 失败 | 未知 |
+| --- | ---: | ---: | ---: | ---: |
+| `mod` | 1,485 | 224 | 31 | 12 |
+| `fixture`（测试用示例） | 62 | 16 | 12 | 3 |
+| `catalog` | 38 | 1 | 0 | 0 |
+| `duplicate` | 15 | 11 | 2 | 0 |
+| `builtin` | 3 | 0 | 1 | 0 |
+| `mirror` | 2 | 0 | 1 | 0 |
+| 合计 | 1,605 | 252 | 47 | 15 |
+
+"未知"的 15 条不是验证没通过。其中 11 条是读不到仓库而显示上次的结果，4 条是这次扫描没有找到。
+
+本站的 [Mod 目录](/zh-cn/mods/directory/)只收录"通过"的条目。所以普通 Mod 中有 224 个警告和 31 个失败不在其中。如下文所见，警告大多很容易修复。
+
+## 47 个失败，按原因
+
+按错误文案中的第一个原因来分。
+
+| 原因 | 数量 | 其中普通 Mod | 示例 |
+| --- | ---: | ---: | --- |
+| 保留名称（以 `claude-` 开头） | 19 | 15 | [claude-council](https://github.com/hex/claude-council)、[claude-stats](https://github.com/estruyf/claude-stats-mod) |
+| `hooks.json` 指向的模块文件不存在 | 6 | 5 | [self-improvement-loop](https://github.com/kolezka/self-improvement-loop) |
+| 导入的文件不存在，或在文件夹之外 | 5 | 3 | [jev-context](https://github.com/HyunjunJeon/jev-context)、[persona-panel](https://github.com/minipai/claudecafe/tree/main/packages/persona-panel) |
+| 状态契约中没有的键 | 3 | 3 | [wavy-usage](https://github.com/BatuhanCakmakk/wavy-usage)、[terminal-gym](https://github.com/DrumAndCode/terminal-gym) |
+| `anthropic` 遥测流 | 3 | 0 | 内置 `telemetry` 及其副本 |
+| 语法错误 | 3 | 1 | [agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) |
+| 把 `on()` 的返回值存进变量 | 2 | 2 | [shunt](https://github.com/pleaseai/shunt/tree/main/plugins/shunt) |
+| 不存在的事件名 | 2 | 0 | 测试用示例 |
+| 向 `$.env.get` 传入变量 | 1 | 1 | `fast-jev-compaction` 的一个副本 |
+| 没有清单 | 1 | 1 | [pilot-guard](https://github.com/home-dev-lab/workflow-toolbox/tree/main/plugin/hooks-modules/pilot-guard) |
+| `modules` 中有两个 | 1 | 0 | 测试用示例 |
+| `userConfig` 字段缺失 | 1 | 0 | 测试用示例 |
+
+12 个测试用示例中，不少是故意写错的。只看 31 个普通 Mod，保留名称有 15 个，接近一半。
+
+### 保留名称
+
+有 19 个收到了同一个错误。下面是验证器的原文。
+
+```text
+Plugin name "claude-council" is reserved: it passes as one of Anthropic's own.
+A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-",
+or "cc-plugin-", be "claude", "anthropic", "anthropics", "claude-code", or
+"claude-mods", or put "official" beside "claude" or "anthropic". Name it for what
+it does.
+```
+
+`claude-cat`、`claude-queue`、`claude-mermaid`、`claude-games`、`claude-link`、`claude-who`、`claude-slots` 也是因为同样的原因没通过。19 个中有 17 个只收到这一个错误。名称中间带有 `claude` 的情况不会失败，但可能收到警告。用 2.1.291 重新运行后，`mindful-claude` 收到了 "reads as one of Anthropic's own" 的警告。
+
+### 文件不存在
+
+`hooks/hooks.json` 的 `modules` 指向的文件在仓库里不存在，因而失败的有 6 个。其中两个指向 `dist/` 下的构建产物（`dist/hook-module.js`、`dist/integrations/claude.js`）。如果不提交构建产物，安装的人那里同样没有这个文件。模块直接指向 `.ts` 或 `.tsx` 源文件即可，引擎会直接读取。
+
+`import` 失败的 5 个中，有 2 个是文件存在，但在 Mod 文件夹之外。
+
+```text
+cannot import "../../../character-core/src/index.ts" (from hooks/function/register.js):
+it is outside the plugin's folder (packages/persona-panel)
+```
+
+在 monorepo 中用相对路径引入公共包，就会这样。验证器禁止导入 Mod 文件夹之外的文件。请把公共代码复制到 Mod 文件夹里。
+
+### 状态契约中没有的键
+
+在 `plugin.json` 里用 `"types"` 指定了状态契约文件的 Mod，通过 `$.state` 使用的所有键，都必须写进该文件的 `PluginState`。[terminal-gym](https://github.com/DrumAndCode/terminal-gym) 漏掉了 8 个键，收到了 8 行错误。
+
+```text
+terminal-gym.history is not declared: the manifest's types contract must name it
+in interface PluginState { terminal-gym: { history: ... } }
+```
+
+### 内置 Mod 也会不通过
+
+`anthropics/claude-code` 仓库的内置 `telemetry` Mod 同样显示为失败。
+
+```text
+its hooks stand on the telemetry stream "anthropic" (a matcher names it, or a
+telemetry hook names no "to" and so stands on every stream), which is for the
+plugins built into the CLI; name the collector on each telemetry hook:
+on("telemetry.log", { to: "collector" }, hook)
+```
+
+按文件夹验证时，验证器会把它当作外部 Mod。`anthropic` 流是 CLI 内置插件的专属，所以会拒绝。如果你的 Mod 挂了遥测钩子，务必写上 `{ to: "collector" }`。省略 `to`，就会被视为挂在所有流上。
+
+### 代码形态规则
+
+验证器按固定的形态读取源码。偏离这个形态，就会在运行之前失败。
+
+| 规则 | 失败的代码 | 修正后的形态 |
+| --- | --- | --- |
+| `on()` 的返回值只能在原地接 `.catch` | `const registration = on("command.run", ...)` | `on(...).catch(handler)` |
+| `$.env.get` 只接受字符串字面量 | `$.env.get(name)` | `$.env.get("TYPESAFE_API_KEY")` |
+| 事件名必须准确 | `on("classic.SessionStartt", ...)` | `on("classic.SessionStart", ...)` |
+| `turn.step` 钩子必须是 async generator | `async ($, e, next) => ...` | `async function* ($, e, next) { ... }` |
+| `modules` 里只放一个模块 | 第二个条目 | 从一个入口模块 `import` 其余部分 |
+
+`turn.step` 规则，是 `claude-slots` 在名称错误之外收到的第二个错误。[agents-skills](https://github.com/Leechael/claude-code-mod-agent-skills) 则是因为 `hooks/discover/scan.ts` 第 89 行的正则字面量解析器读不出来而失败。
+
+## 252 条警告
+
+以警告结束的条目有 252 个，其中普通 Mod 224 个。目录不保存警告文案。所以我浅克隆了处于警告状态的 43 个 Mod（12 个仓库），用 Claude Code 2.1.291 的 `claude plugin validate` 重新读了一遍。验证器只读源码，不运行 Mod。43 个全部再次得到 "passed with warnings"。一个 Mod 也可能收到多条警告。
+
+| 警告 | 43 个中 |
+| --- | ---: |
+| `author: No author information provided. Consider adding author details for plugin attribution` | 40 |
+| `root: CLAUDE.md at the plugin root is not loaded as project context.` | 2 |
+| 名称读起来像是 Anthropic 的 | 1 |
+| 命令钩子的 `${CLAUDE_PLUGIN_ROOT}` 没有加引号 | 1（14 行） |
+| 读取符号链接而没有跟随 | 1 |
+
+放到目录整体来看也是同样的情况。252 条警告中，有 169 条是作者栏为空。在通过的 1,605 条里，只有 1 条。也就是说，很多 Mod 只是因为 `plugin.json` 里少了一行 `author`，就没能进入目录。
+
+验证输出里还常见 `gating hook without .catch:` 这一行。这不是警告。它只是告诉你：挂在可以拒绝的位置（如 `tool.call`、`prompt.submit`）上的钩子没有 `.catch`。这样的钩子一旦出错就会被跳过，请求原样通过。如果钩子的目的是拦截，就请加上 `.catch`。
+
+## 184 条控制字符警告
+
+除了验证器，目录还有一项自己的检查，即 `ui-control-characters` 警告。共 184 条，目录收录的 Mod 中有 152 个收到了它。
+
+```text
+UI hook source contains control-character strings. Review any values passed to
+next() as rewritten props.text; the scanner does not trace whether these strings
+reach that call.
+```
+
+读目录扫描器的源码（`tools/compatibility.mjs`），规则很简单。在挂了 `ui.render` 的 Mod 的钩子模块，以及该模块用相对路径导入的文件里，字符串字面量只要含有 U+0000–0008、U+000B–001F、U+007F–009F 的字符就会标记。制表符和换行除外。至于这个字符串是否会到达屏幕，它并不关心。
+
+所以与屏幕无关的代码也会被命中。下面是我亲自打开看过的案例。
+
+| Mod | 被命中的字符串 | 用途 |
+| --- | --- | --- |
+| [diff-viewer](https://github.com/tylergraydev/cc-mods/tree/main/diff-viewer) | `'\u0000'` | 判断是否为二进制文件 |
+| [gb-pane](https://github.com/tylergraydev/cc-mods/tree/main/gb-pane) | `'\u0001F '` | 内部消息的分隔标记 |
+| [data-peek](https://github.com/mako-code/gobworks/tree/main/mods/abilities/data-peek) | `'\r'` | 处理 CSV 行尾 |
+| 内置 [diff](https://github.com/anthropics/claude-code/tree/main/mods/diff) | `git/parse/` 下的多行 | 解析 git 输出 |
+
+这条警告真正构成问题的情况，是把 ANSI 颜色码（`\x1b[31m`）之类的字符串交给引擎时。类型文件写明，`Code` 的 `source` 和 `Markdown` 的 `text` 只允许制表符和换行作为控制字符，窗格 `title` 中的控制字符会被拒绝。颜色请通过 `Text` 的 `color`、`bold` 等属性来设置。如果需要原样显示终端输出，请先去掉控制字符再传入。
+
+<Aside>
+  控制字符警告是目录自己的判断。Claude Code 验证器不会给出这条警告，收到这条警告的 Mod 也会被收录进目录。
+</Aside>
+
+## 作者检查表
+
+| 检查项 | 避免的失败 |
+| --- | --- |
+| 名称不以 `claude-`、`anthropic-`、`cc-plugin-` 开头，并说明它做什么 | 保留名称 |
+| `plugin.json` 里有 `author` | 警告（未进入目录） |
+| `hooks.json` 的 `modules` 指向一个已提交的源文件 | 模块文件不存在 |
+| `import` 的文件全部在 Mod 文件夹内 | 导入文件夹之外 |
+| `$.state` 的键都已写进契约文件的 `PluginState` | 状态契约 |
+| 像 `$.env.get("名称")` 这样用字面量写 | 传入变量 |
+| 在 `on(...)` 后面直接接 `.catch` | 保存返回值 |
+| `turn.step` 钩子是 `async function*` | generator 规则 |
+| 遥测钩子带有 `{ to: "collector" }` | `anthropic` 流 |
+| 命令钩子的 `${CLAUDE_PLUGIN_ROOT}` 用引号括起来 | 警告 |
+| 传给屏幕的文本里去掉了 ANSI 码 | 控制字符 |
+
+上传之前，请运行这两条命令。
+
+```bash
+claude plugin validate ./my-mod
+claude plugin test ./my-mod
+```
+
+`validate` 会一次读取清单、市场文件和钩子模块，并告诉你所有会被拒绝的地方。连警告也降到 0，就满足了进入目录的验证条件。发布流程见[发布你的 Mod](/zh-cn/articles/publish-your-mod/)，加载不了时该看哪里，见[故障排查](/zh-cn/guide/troubleshooting/)。

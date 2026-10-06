@@ -1,0 +1,107 @@
+---
+title: Nutzungs- und Kontext-Mods im Vergleich
+description: Ich habe den Quellcode von 7 Mods gelesen, die 5-Stunden-Limit, Wochenlimit und Kontext anzeigen. Die Tabellen zeigen Zahlenquelle, Aktualisierungsintervall, Modellaufrufe und blockierende Aktionen, dazu Kriterien für die Auswahl.
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Mods, die die Nutzung über dem Eingabefeld anzeigen, sind die häufigste Art im Katalog. Allein 105 Mods erwähnen in ihrer Beschreibung 5-Stunden-Limit, Wochenlimit, Rate Limit oder Quota. Davon habe ich 7 ausgewählt, die Repositories geladen und die Hook-Module vollständig gelesen. Installiert oder ausgeführt habe ich sie nicht.
+
+Stand: Scan des Community-Katalogs vom 2026-10-04, Claude Code 2.1.289. Die Quellen habe ich am 2026-10-06 gelesen, die API-Beschreibungen anhand der Typdatei von Claude Code 2.1.290 geprüft. Die Sterne zählen pro Repository, Mods aus demselben Repository haben also dieselbe Zahl.
+
+## Woher die Zahlen kommen
+
+Die Engine liefert über `$.session.usage()` dieselben Zahlen wie die Statuszeile. Enthalten sind die Füllung des Kontextfensters, die 5-Stunden- und 7-Tage-Limits (`rateLimits`) und die Sitzungskosten. Laut Beschreibung in der Typdatei kostet ein Aufruf ohne Argumente nichts. Das Ereignis `session.measure` schickt dieselben Zahlen, wenn ein Turn des Haupt-Threads endet und wenn sich das Limit um 1 Prozentpunkt bewegt. Bei Sitzungen mit API-Key ist `rateLimits` leer. Limit-Zahlen gibt es nur in Abo-Sitzungen.
+
+Von den 105 Nutzungs-Mods im Katalog rufen 100 `$.session.usage` auf und 88 hängen sich an `session.measure`. 13 rufen `$.http.fetch` auf. Von diesen 13 habe ich 9 geöffnet, und alle 9 riefen `https://api.anthropic.com/api/oauth/usage` auf. Die Zugangsdaten gehen über ein Handle mit, das `$.session.authorize()` liefert, der Mod sieht den Token-Wert also nicht. Diese Adresse steht nicht in der Typdatei von 2.1.290. Rechne damit, dass sie sich ohne Vorankündigung ändern kann. Wenn du `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` setzt, lehnt die Engine Anfragen mit diesem Handle ab.
+
+Die 7 Mods unten rufen diese Adresse nicht auf. Keiner von ihnen ruft `$.http.fetch` auf, und ein Modell ruft nur hud auf.
+
+## Auf einen Blick
+
+| Mod | Repository (Sterne) | Wo er zeichnet | Zahlenquelle | Aktualisierung |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | Band über dem Eingabefeld | `$.session.usage`, bei leerem Wert `plan-usage-history.json` der Desktop-App | nach Turn und Tool-Aufruf, Änderungsprüfung alle 15 s |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | Band | `session.measure`, `$.session.usage` | wenn die Engine pusht, Countdown 60 s |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | Statuszeile, Panel `/quota` | `$.session.usage` | Turn-Ende, alle 60 s |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | Band | `$.session.usage`, Ende der Transkriptdatei | Turn-Ende, Cache-Countdown 1 bis 30 s |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | Band, Panel `/burn` | `$.session.usage` | jede Sekunde, Flammenbild 80 ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | Statuszeile, Toast | `$.session.usage` | bei jedem Tool-Aufruf und Prompt |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | Band oder unter dem Eingabefeld, Detailpanel | `$.session.usage`, git, Transkriptdatei, `~/.claude/sessions/*.json` | alle 15 s, Prüfung der Fernsteuerung alle 3 s |
+
+| Mod | Blockieren/Ändern | Modellaufruf | Prozess/Datei | Was er hinterlässt | Stufe | Tests | Lizenz | Gelesener Commit |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | keins (die Compact-Schaltfläche drückt der Mensch) | keiner | liest App-Datei | `$.store`: letztes Limit, Benachrichtigungsprotokoll | 2 | ja | MIT | `dfc3df5` (10-03) |
+| usage-meter | keins | keiner | keiner | nur Sitzungszustand | 1 | ja | MIT | `3719682` (10-05) |
+| quota-meter | keins | keiner | keiner | `$.store`: Limit-Stichproben | 0 | nein | MIT in plugin.json, keine LICENSE-Datei | `d4fffd7` (09-15) |
+| token-weather | keins | keiner | liest Transkript, führt `tail` aus | `$.store`: Cache-Lebensdauer | 2 | ja | MIT | `3719682` (10-05) |
+| burn-meter | keins | keiner | keiner | `$.store`: kumulierte Kosten, ein Schlüssel pro Sitzung | 1 | ja | MIT | `e6da26c` (10-03) |
+| budget-guard | lehnt Tool-Aufrufe ab, bricht Turns ab, fragt vor dem Prompt nach | keiner | keiner | eigene Konfigurationszeile oder `$.store` | 2 | nein | MIT in plugin.json, keine LICENSE-Datei | `d4fffd7` (09-15) |
+| hud | keins | `$.model.fork` (standardmäßig alle 5 Turns) | führt git aus, liest und schreibt Dateien | Datei: Tageskostenbuch, `$.store` | 2 | ja | MIT | `8fb6f67` (10-04) |
+
+Die Stufe ist der Zugriffsbereich aus dem Katalog. 0 heißt nur Anzeige und Speicher, 1 Lesen, 2 Schreiben und Ausführen, 3 Netzwerk. Der Wert stammt aus einem statischen Scan des Quellcodes und kann von der tatsächlichen Ausführung abweichen. Der gelesene Commit ist der HEAD des Repositorys, das wir geladen haben.
+
+## Notizen zu den einzelnen Mods
+
+### usage-band
+
+- Ist `rateLimits` leer, liest er die Datei `plan-usage-history.json`, die die Claude-Desktop-App anlegt. Laut Code-Kommentar sind die Limit-Zahlen in Desktop-Sitzungen oft leer. Aus den Stichproben dieser Datei schätzt er den Beginn des 5-Stunden-Fensters und den Zeitpunkt des Wochen-Resets, und geschätzte Werte kennzeichnet er mit `~`.
+- Die Datei ist App-intern und ihr Format ist nicht dokumentiert. Ändert sich die App, kann die Schätzung aussetzen.
+- Über 80 % und 95 % zeigt er einen Toast. Damit er im selben Fenster nicht zweimal läutet, schreibt er das in `$.store`. Mehrere offene Chats teilen sich diesen Eintrag.
+- Liegt der Kontext über 70 %, erscheint eine Compact-Schaltfläche. Der Katalog stuft den Mod wegen dieses Aufrufs von `$.session.compact()` auf Stufe 2 ein.
+
+### usage-meter
+
+- Es gibt nur drei Hooks: `session.start`, `session.measure` und `ui.render`. Der Code hat 204 Zeilen.
+- Über 90 % Limit zeigt er pro Fenster einmal einen Toast.
+- Beim Zeichnen des Bands lässt er das Ergebnis von `next(e)` unverändert darunter stehen. Bänder anderer Mods werden also gestapelt statt überlagert.
+
+### quota-meter
+
+- Das Panel `/quota` zeigt pro Fenster Balken, Reset-Zeitpunkt, Verbrauchsrate und die Prognose bei dieser Rate. Die Stichproben liegen in `$.store`, die Verbrauchsrate läuft also auch nach einem Neustart weiter.
+- In API-Key-Sitzungen schreibt das Panel, dass keine Limits ankommen.
+- context-lens aus demselben Repository zeigt den Kontext nach Kategorien wie `/context`. Pro Turn schätzt es nur lokal mit `breakdown: "summary"` und ruft die Token-Zähl-API erst bei `/context-lens refresh` auf.
+
+### token-weather
+
+- Er zählt die Zeit, bis der Prompt-Cache erkaltet. Die Uhr startet bei jedem beendeten Haupt-Thread-Request neu.
+- Um zu wissen, ob die Cache-Lebensdauer 5 Minuten oder 1 Stunde beträgt, liest er das Feld `cache_creation` in der letzten Antwort des Transkript-JSONL. Den Pfad `~/.claude/projects/<Pfad>/<Sitzungs-ID>.jsonl` baut er selbst zusammen. Ist die Datei größer als 1 MB, führt er `tail -c` aus.
+- Diese Pfadregel ist keine dokumentierte API. Laut Kommentar hört er bei Abweichungen mit der Erkennung auf und nutzt den letzten Wert. Legst du in den Optionen `5m` oder `1h` fest, liest er die Datei nicht.
+
+### burn-meter
+
+- Jede Sekunde liest und schreibt er `$.session.usage()` und `$.store`. Solange das Band sichtbar ist, zeichnet er alle 80 ms das Flammen-Raster und alle 50 ms die Betragszahl neu. Von den 7 Mods hat er die geschäftigsten Timer.
+- Er rechnet die Kosten in Burritos und Big Macs um.
+- Zur Berechnung der kumulierten Kosten legt er pro Sitzung einen Schlüssel `last:<Sitzungs-ID>` an. Code zum Löschen habe ich nicht gefunden.
+
+### budget-guard
+
+- Er überwacht drei Limits: Sitzungskosten, 5-Stunden-Fenster und 7-Tage-Fenster. Standardwerte sind 90 % für 5 Stunden, 95 % für 7 Tage, Kostenlimit aus und Modus `block`.
+- Bei Überschreitung lehnt er in `tool.call` mit `{ deny }` ab und beendet nach 250 ms den Turn mit `$.turn.abort`. Laut Kommentar deshalb, weil das Modell nach einer Ablehnung mit einem anderen Tool einen neuen Versuch startet und dabei Kosten verursacht.
+- Beim Senden eines Prompts fragt er mit `$.ui.ask`, ob trotzdem gesendet werden soll. Slash-Befehle lässt er einfach durch, damit du `/guard override` eingeben kannst.
+- Dem blockierenden Hook fehlt ein `.catch`. Endet ein Hook mit einer Ausnahme, überspringt die Engine ihn und führt den Aufruf aus. So kann es vorkommen, dass trotz überschrittenem Limit etwas durchgeht.
+
+### hud
+
+- Es ist eine Portierung des Statuszeilen-Tools claude-hud 0.10.0 als Mod. Statt `fs` und `child_process` von Node setzt es ein Imitat-Modul auf `$.fs` und `$.process.run`.
+- Beim Start führt er `/usr/bin/env -0` aus und füllt damit `process.env` des Imitat-Moduls mit allen Umgebungsvariablen des Prozesses. Code, der diese Werte nach außen sendet, habe ich nicht gefunden.
+- Standardmäßig fasst er nach dem ersten Turn und danach alle 5 Turns mit `$.model.fork` die Arbeit in einer Zeile zusammen. Das Gespräch liest er über den Prompt-Cache, es zählt aber zur Nutzung. Mit `summaryEveryTurns` auf 0 ist es aus.
+- Das Tageskostenbuch schreibt er als Datei unter `~/.claude/plugins/claude-hud-mod/`. Die Kontoanzeige ist standardmäßig aus.
+- Der vom Nutzer festgelegte Shell-Befehl (`extraCmd`) läuft nur, wenn die Umgebungsvariable `CLAUDE_HUD_ALLOW_EXTRA_CMD` gesetzt ist.
+
+<Aside>
+Gleiche Namen gibt es in mehreren Repositories. Allein `usage-band` kommt im Katalog 22-mal vor, `token-weather` 8-mal. Prüfe, ob das Repository hinter `--marketplace` in der Installationszeile mit dem Repository in dieser Tabelle übereinstimmt.
+</Aside>
+
+## Welchen Mod nehmen?
+
+- Wenn du nur die beiden Limits und die Reset-Zeitpunkte unauffällig sehen willst, nimm **usage-meter**. Er ist kurz genug, um ihn vor der Installation ganz zu lesen, und rührt weder Dateien noch Prozesse an.
+- Wenn im Code-Tab der Desktop-App das Limit-Feld leer bleibt, nimm **usage-band**. Aus App-Dateien geschätzte Werte tragen ein `~`.
+- Wenn du wissen willst, wann bei diesem Tempo Schluss ist, nimm das Panel `/quota` von **quota-meter**.
+- Um zu sehen, wie stark der Kontext pro Turn wächst und wann der Cache erkaltet, nimm **token-weather**. Für die Aufschlüsselung nach Kategorien schau dir zusätzlich context-lens aus dem Repository von Arunjay4213 an.
+- Wenn bei Erreichen des Limits wirklich Schluss sein soll, nimm **budget-guard**. Beachte, dass bei einem Hook-Fehler alles durchgeht.
+- Wer claude-hud als Statuszeile genutzt hat, nimmt **hud**. Wenn du den Modellaufruf für die Zusammenfassung nicht willst, setze `summaryEveryTurns` auf 0.
+- Mit API-Key kommen keine Limit-Zahlen an. Dann passen **burn-meter** oder **token-weather**, die auf Kosten und Kontext setzen.
+- In Repositories mit Geheimnissen oder bei strengen Netzwerkrichtlinien meide Nutzungs-Mods, die `$.http.fetch` aufrufen. Sieh dir im [Mod-Verzeichnis](/de/mods/directory/) zuerst den Zugriffsbereich an und gehe vor der Installation die [Sicherheitsprüfung](/de/guide/safety-checklist/) durch.

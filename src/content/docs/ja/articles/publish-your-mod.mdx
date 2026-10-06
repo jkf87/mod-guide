@@ -1,0 +1,231 @@
+---
+title: 自分のModを公開する
+description: marketplace.json 1枚でインストール1行を作り、予約された名前・バージョン・ライセンスを整えて、コミュニティカタログに載せるまでの手順。実際に公開したide-modと、カタログ1,919件から抜き出した数字でまとめました。
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+自分のコンピューターで動いていたModを、ほかの人が1行でインストールできるようにする手順です。必要なファイルが1つ増えるだけですが、名前をひとつ間違えたせいで、インストールもカタログ登録もできなくなるケースがかなりあります。例として使うのは、このサイトの運営者が実際に公開した[ide-mod](https://github.com/jkf87/ide-mod)(MIT)と、コミュニティカタログのデータです。
+
+基準：コミュニティカタログの2026-10-04のスキャン、Claude Code 2.1.289。検証器の出力は、Claude Code 2.1.290・2.1.291で実際に実行した結果です。
+
+## 公開前チェックリスト
+
+- [ ] `plugin.json` の `name` が予約語のルールに引っかからない
+- [ ] `.claude-plugin/marketplace.json` があり、エントリ名が `plugin.json` の `name` と同じである
+- [ ] `version` と `license` が `plugin.json` にある
+- [ ] `claude plugin validate .` が警告なしで `✔ Validation passed` で終わる
+- [ ] `claude plugin test .` が通る([テストとデバッグ](/ja/articles/testing-and-debugging/))
+- [ ] リポジトリが公開されていて、`LICENSE` ファイルがある
+- [ ] READMEにインストールの1行とアクセス範囲が書かれている
+
+## リポジトリの構成
+
+### Modが1つだけのリポジトリ
+
+Modのフォルダがそのままリポジトリのルートです。ide-modがgitに上げたファイルは次のとおりです(`vendor/pdfjs/cmaps` のフォント表は省略しました)。
+
+```text title="jkf87/ide-mod"
+.claude-plugin/marketplace.json
+.claude-plugin/plugin.json
+.gitignore
+LICENSE
+README.md
+bin/grid.mjs            # Node로 돌리는 보조 스크립트
+bin/pdf-view.mjs
+bin/rhwp-view.mjs
+hooks/hooks.json
+hooks/register.tsx
+tests/ide.test.tsx
+types/index.d.ts        # 이 mod가 선언한 상태의 타입
+vendor/pdfjs/LICENSE    # 함께 싣는 라이브러리의 라이선스
+vendor/rhwp/LICENSE
+```
+
+コメントは順に「Nodeで動かす補助スクリプト」「このModが宣言した状態の型」「一緒に収めるライブラリのライセンス」です。
+
+`.gitignore` には `.claude-plugin/types/` と `tsconfig.json` が入っています。どちらもClaude Codeがフォルダを読み込むときに生成するファイルなので、リポジトリに置く理由はありません。エンジンのバージョンが変わると、書き直されることもあります。
+
+### 複数のModを収めたリポジトリ
+
+[hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods)のように、`mods/<名前>/` の下にModを1つずつ置き、ルートのマーケットプレイスファイルが各フォルダを指します。
+
+```json title=".claude-plugin/marketplace.json (hamzafer/claude-code-mods, 앞 2개)"
+{
+  "name": "claude-code-mods",
+  "owner": { "name": "hamzafer" },
+  "plugins": [
+    { "name": "agent-radar", "version": "0.1.2", "source": "./mods/agent-radar" },
+    { "name": "blast-radius", "version": "0.2.2", "source": "./mods/blast-radius" }
+  ]
+}
+```
+
+タイトルの「앞 2개」は「最初の2件」の意味です。
+
+カタログディレクトリの777リポジトリのうち、626個がModが1つだけ、151個が複数のModを収めたリポジトリです。複数Modのリポジトリに入っているModが862個で、全体の1,488個の半分を超えます。
+
+## marketplace.jsonを書く
+
+Modが1つだけなら、`source` を `"./"` にすれば完了です。ide-modのファイル全体です。
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "ide-mod",
+  "owner": { "name": "jkf87" },
+  "plugins": [{ "name": "ide-mod", "source": "./" }],
+  "description": "Claude Code 안의 IDE 창 모드: 에이전트 보드 + 파일 트리 + 탭 에디터"
+}
+```
+
+`description` は「Claude Code内のIDEウィンドウMod：エージェントボード + ファイルツリー + タブエディター」という意味です。
+
+`description` を省略しても動作します。その代わり、検証器が `No marketplace description provided` という警告を出します。`plugin.json` に `author` がないときも警告が付きます。
+
+エントリに `version` を書いた場合は、`plugin.json` と同じでなければなりません。違う値を書いてみたところ、検証器は次のように教えてくれました。
+
+```text
+❯ plugins[0].version: Entry declares version "0.2.0" but .claude-plugin/plugin.json says "0.1.0".
+  At install time, plugin.json wins (calculatePluginVersion precedence) — the entry version is silently ignored.
+```
+
+バージョンは `plugin.json` の1か所にだけ書くほうが、ミスが少なくなります。
+
+## インストール1行を試す
+
+ほかの人に渡すインストールコマンドは、この1行です。`<mod>` は `plugin.json` の `name`、後ろはGitHubの `owner/repo` です。
+
+```text
+/plugin install ide-mod --marketplace jkf87/ide-mod
+```
+
+<Steps>
+
+1. リポジトリをpushして、ターミナルのClaude Codeセッションで上の行を入力します。
+
+2. `Add marketplace?` に `y`、スコープの選択でEnterを押します。`userConfig` があれば、オプション画面がもう1つ表示されます。
+
+3. `Installed <mod>. Plugin is now active.` と表示されれば成功です。hooksモジュールだけのModは、読み込み直さなくてもそのセッションですぐ動きます。
+
+</Steps>
+
+失敗メッセージは2種類です。リポジトリにマーケットプレイスファイルがないと、質問画面に `Marketplace file not found at` とパスが表示されます。名前が間違っていると `Plugin "<mod>" not found in marketplace "<marketplace>"` と出ます。このコマンドはターミナル専用です。デスクトップアプリのCodeタブでは使えないと返されます。
+
+カタログディレクトリのMod 1,488個のうち277個(180リポジトリ)は、リポジトリのどこにもマーケットプレイスファイルがありませんでした。このようなModは、使う人がソースをダウンロードして `--plugin-dir` で起動する必要があります。1行でのインストールは期待しにくいです。
+
+## 名前のルール：`claude-` で始まるとブロックされます
+
+`plugin.json` に `claude-tally` という名前を入れて検証すると、このように落ちます。
+
+```text
+✘ name: Plugin name "claude-tally" is reserved: it passes as one of Anthropic's own.
+  A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-", or "cc-plugin-",
+  be "claude", "anthropic", "anthropics", "claude-code", or "claude-mods",
+  or put "official" beside "claude" or "anthropic". Name it for what it does.
+```
+
+カタログでも、このルールに引っかかった事例は少なくありません。
+
+| 項目 | 件数 |
+| --- | --- |
+| 名前の予約語で検証に落ちたMod | 19個(実際のMod 15、重複・テスト用4) |
+| 検証に失敗したmarketplace.json | 716個中15個 |
+| その15ファイルに出たエラー | 25件、すべて予約語のエラー |
+
+たとえば `claude-stats`、`claude-queue`、`claude-games`、`anthropic-pr-review` のような名前です。ルールが適用されるのはプラグイン名だけです。リポジトリ名が `claude-stats-mod` なのは問題なく、`claudesama` のようにハイフンなしでつなげた名前も通過しました。2.1.291で、マーケットプレイスの `name` を `claude-tally-market` に変えてみたときもエラーはありませんでした。
+
+すでに公開した名前が引っかかったときは、3か所を一緒に直します。`plugin.json` の `name`、マーケットプレイスのエントリの `name`、READMEのインストール行です。カタログのコントリビューション文書も同じ順序を勧めています。
+
+## バージョンとライセンス
+
+`version` は `0.4.2` のように3桁で書き、リリースごとに上げます。ide-modは、`plugin.json` を変更したコミット10個ごとにバージョンを上げて `0.1.0` から `0.4.2` まで来ており、GitHubリリースは `v0.4.0` と `v0.4.2` の2つを出しました。`claude plugin tag` を使うと、`plugin.json` とマーケットプレイスのエントリのバージョンが合っているか確認してからタグを作ってくれます。
+
+```bash
+claude plugin tag --dry-run .
+# Tag:     ide-mod--v0.4.2
+# ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
+```
+
+ライセンスのないModは、思ったより多くあります。ディレクトリの1,488個のうち324個(777リポジトリのうち164個)はライセンス情報が空で、44個は `NOASSERTION`(ファイルはあるが種類を判別できない)でした。[choosealicense.com](https://choosealicense.com/no-permission/)の説明のとおり、ライセンスがなければ著作者が著作権を独占します。公開リポジトリであっても、ほかの人にコピー・修正・配布する権利は生まれません。会社で使おうとする人は、法務審査ですぐに止まります。
+
+ほかの人のコードを一緒に収めるなら、そのライセンスも忘れずに用意してください。ide-modは、rhwp(MIT)とpdf.js(Apache-2.0)を `vendor/` の下に、それぞれの `LICENSE` ファイルと一緒に置き、READMEのLicenseの節に2つのライブラリとライセンスを書きました。
+
+## オプションはuserConfigで
+
+インストールする人ごとに変える値は、`plugin.json` の `userConfig` に宣言します。インストール時にオプション画面が表示され、秘密ではないフィールドは `/config` メニューにも行として出ます。
+
+```json title=".claude-plugin/plugin.json (일부)"
+"userConfig": {
+  "style": { "title": "표시 방식", "type": "string", "options": ["short", "full"], "default": "short" },
+  "apiKey": { "title": "API 키", "type": "string", "sensitive": true, "required": false }
+}
+```
+
+タイトルの「일부」は「一部」の意味、`표시 방식` は「表示方式」、`API 키` は「APIキー」です。
+
+`options` を指定した文字列フィールドは、その値だけを選ぶ選択ダイアログになります。`sensitive` フィールドは、settings.jsonではなくセキュアストレージに入ります。値のない `required` フィールドがあると、モジュールは読み込まれません。検証器は、`default` が `options` にないと `default must be one of the options` で、未知のキーを入れると `--strict` で `Unrecognized key` で検出してくれました。
+
+## コミュニティカタログに載る方法
+
+[awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods)の `contributing.md` とスキャナーのコード(`tools/`)を読んで確認した内容です。
+
+| 経路 | 条件 | 周期 |
+| --- | --- | --- |
+| コード検索 | リポジトリに `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` という文字列がある、または `hooks/hooks.json` に `modules` キーがある | 毎日 |
+| 最近のリポジトリ検索 | トピック `claude-code-mod`・`claude-code-mods`・`claude-mods`・`function-hooks`・`claude-code-plugin`、または名前・説明に「claude mod(s)」 | 3時間ごと |
+| PR | `data/seeds.txt` に `owner/repo` を1行追加 | マージ後に自動掲載 |
+
+最も早い方法は、リポジトリに `claude-code-mod` トピックを付けることです。コントリビューション文書は、このトピックがあれば、たいてい次のpushの後、数時間以内に拾われると書いています。ide-modも `claude-code`、`claude-code-mod`、`hwp` のトピックを付けました。10月6日に公開したので、10月4日のスキャンにはまだ載っていません。
+
+自動掲載から外れるケースも決まっています。クローンの失敗、検証の失敗、失敗したマーケットプレイス、UI互換性の警告、すでにあるModのコピーと見られる場合です。予約語の名前は、プラグイン検証とマーケットプレイス検証で2回引っかかります。
+
+登録されても、ディレクトリの数字に含まれない分類があります。
+
+| kind | 件数 | 判定基準 |
+| --- | --- | --- |
+| `fixture` | 93 | パスに `test`、`fixtures`、`examples`、`templates`、`docs`、`bench`、`probe` のようなフォルダがある、または説明に「test fixture」などがある |
+| `catalog` | 39 | ほかの人のModを集めて再掲したリポジトリ(`data/catalogs.txt`) |
+| `duplicate` | 28 | 確認されたコピー、または名前を変えたリポジトリ |
+| `mirror` | 3 | Anthropic組み込みのMod(`diff`、`sec-default`、`telemetry`)をコピーしたもの |
+
+本物のModを `examples/` の下に置くと、テスト用に分類されます。フォルダを移すか、`data/fixture-exceptions.txt` にidを入れるPRを送ってください。
+
+<Aside type="note">
+  このサイトの[Modディレクトリ](/ja/mods/directory/)は、検証結果が `passed` のModだけを表示します。スキャナーは `✔ Validation passed with warnings` を `warnings` として別に記録します。`author` やマーケットプレイスの `description` がなくて警告が付くと、カタログには載ってもこのディレクトリには入りません。そのようなModが252個ありました。
+</Aside>
+
+## リリースとアップデート
+
+<Steps>
+
+1. `plugin.json` の `version` を上げます。マーケットプレイスのエントリにもバージョンを書いていれば、一緒に上げます。
+
+2. `claude plugin validate .` と `claude plugin test .` をもう一度実行します。
+
+3. コミットしてpushします。必要なら `claude plugin tag --push .` でタグを付け、GitHubリリースを作ります。
+
+</Steps>
+
+インストールした人は、マーケットプレイスを新しく取得してからプラグインをアップデートします。
+
+```bash
+claude plugin marketplace update ide-mod
+claude plugin update ide-mod@ide-mod
+```
+
+`claude plugin update --help` は、再起動しないと反映されないと案内しています。リポジトリからインストールしたModは、インストール時に作ったコピーで動くので、作者が直した内容は新しいバージョンやコミットでしか伝わりません。詳しい管理コマンドは[インストールと管理](/ja/guide/install-and-manage/#更新)にあります。
+
+## READMEに必ず書くこと
+
+- **インストールの1行**をコードブロックで。その後に `y` を押してスコープを選ぶ、という説明まで。
+- **作って試したClaude Codeのバージョン。** 関数フックはearly access APIなので、バージョンごとに変わる可能性があります。ide-modは「2.1.290で作成・テストしました」と書きました。
+- **アクセス範囲。** 何を読み、何を実行し、どこへ送るのか。`claude plugin validate .` の `calls:` 行をそのまま写せば、漏れがありません。ide-modは、`$.fs.read` でファイルを読み、`$.process.run` で `node bin/*.mjs` とmacOSの `open` を実行し、`$.model.complete` でモデルを呼びます。
+- **検証器が見えない部分。** `calls:` 行は、フックモジュールが `$` から呼ぶものだけを示します。実行したプログラムがすることは、別に書く必要があります。ide-modの補助スクリプトは、さらに `pdftoppm`、`rsvg-convert`、`resvg`、`qlmanage` のうち存在するものを呼びます。フックモジュールにも補助スクリプトにも、ネットワーク呼び出しはありません。
+- **制限。** 対応していないターミナル、ファイルサイズの制限、画面の言語など。
+- **一緒に収めたコードのライセンス。**
+
+インストールする側が何を確認するかは、[インストール前の安全チェック](/ja/guide/safety-checklist/)にあります。その項目に先に答えておけば、試す人がソースをあまり読まなくて済みます。カタログは、Modごとにアクセス範囲のバッジと検証バッジも作ってくれます。コントリビューション文書の `badges/` パスをREADMEに貼ってください。
+
+検証でよく落ちるほかの理由は、[検証に落ちるMod](/ja/articles/validation-failures/)にまとめてあります。

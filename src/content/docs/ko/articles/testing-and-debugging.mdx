@@ -1,0 +1,184 @@
+---
+title: mod 테스트와 디버깅
+description: claude plugin validate·test가 실제로 무엇을 검사하는지, 디버그 로그에서 거절 사유를 찾는 법, 핫 리로드가 언제 먹히는지를 직접 돌린 출력과 ide-mod 제작 기록으로 정리했어요.
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+mod가 아무것도 안 하는 것처럼 보일 때, 원인은 대개 엔진이 이미 어딘가에 적어 뒀어요. 이 글은 그 기록을 찾는 세 도구를 다뤄요.
+
+| 도구 | 언제 | 무엇을 봐요 |
+| --- | --- | --- |
+| `claude plugin validate <폴더>` | 세션에 올리기 전 | 매니페스트와 훅 모듈 소스. 엔진이 거절할 부분 |
+| `claude plugin test <폴더>` | 고칠 때마다 | `*.test.ts(x)`를 엔진 위에서 실행 |
+| 디버그 로그 | 실제 세션에서 | 훅이 건너뛰어진 이유, 거절된 그리기 |
+
+기준: 명령 출력은 Claude Code 2.1.291에서 직접 돌린 결과예요. API 설명은 2.1.290 타입 선언과 레퍼런스에서 확인했어요. "관찰"이라고 적은 항목은 [ide-mod](/ko/mods/ide-mod/)를 만들며 2.1.290에서 겪은 일이에요.
+
+## validate: 소스를 읽는 검사
+
+`validate`는 mod를 실행하지 않아요. 엔진이 로드할 때와 같은 방식으로 소스를 읽고 보고해요. 출력의 줄마다 뜻이 정해져 있어요.
+
+| 줄 | 뜻 |
+| --- | --- |
+| `hooks:` | 등록한 이벤트와 매처 |
+| `calls:` | 소스에서 찾은 `$` 호출 |
+| `gating hook with .catch:` / `without .catch:` | 무언가를 거절할 수 있는 자리의 훅. 경고로 세지 않는 사실 보고예요 |
+| `state reads:` / `state writes:` | `$.state` 키. `plugin`과 `key`가 리터럴이라 읽혀요 |
+| `types … declares` | 매니페스트 `types`가 가리키는 계약 파일이 선언한 것 |
+
+종료 코드는 오류가 있으면 1이에요. `--strict`는 경고도 실패로 쳐서 CI에 맞고, `--json`은 같은 내용을 JSON으로 내요. JSON에는 거절 가능한 훅이 `gatingHooks` 배열로 따로 들어 있어요.
+
+검사가 소스 읽기라서 생기는 규칙이 있어요. 아래 두 오류는 일부러 틀린 mod를 만들어 받은 실제 출력이에요(경로는 줄였어요).
+
+```text
+✘ Found 1 error:
+
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 4 `await hello($);`: $ is passed to "hello", imported from "./helpers": $ is followed only into a function declared in this same file, never across an import; …
+
+✘ Validation failed
+```
+
+`$`는 같은 파일 안의 함수로만 따라가요. 다른 파일에 `$`를 넘기면 검사기가 무엇을 부르는지 알 수 없어서 거절해요. `$`를 쓰는 코드는 훅 모듈 한 파일에 두고, 바깥 파일에는 순수 함수만 두세요.
+
+```text
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 7 `on("session.start", async ($, e, next) => next(e));`: on("session.start") is registered twice without a matcher; the first is at …/hooks/register.ts:3; …
+```
+
+매처 없는 같은 이벤트를 두 번 등록해도 오류예요. 한 훅 안에서 여러 일을 하세요.
+
+<Aside type="caution">
+  validate 통과는 안전 보증이 아니에요. 소스를 읽어 호출 목록을 만들 뿐, 실행 중의 행동을 증명하지 못해요.
+</Aside>
+
+## test: 엔진 위에서 돌리는 테스트
+
+`claude plugin test <폴더>`는 폴더 아래 `*.test.ts`와 `*.test.tsx`를 찾아 파일마다 Claude Code 실행 파일의 자식 프로세스로 돌려요. 환경은 훅이 도는 환경과 같아서 Node의 파일·네트워크·프로세스 접근이 없어요. mod 폴더는 엔진의 로더가 세션에서처럼 읽어요.
+
+테스트는 `claude-code/testing`에서 가져와요.
+
+| 이름 | 하는 일 |
+| --- | --- |
+| `test(name, ($, on) => …)` | 테스트 하나. 기본 제한 5,000ms, `{ timeoutMs }`로 변경 |
+| `test(name, { options }, body)` | `userConfig` 값을 설정에 저장된 값처럼 넘겨요 |
+| `test(name, { plugins }, body)` | 다른 플러그인을 인라인으로 같이 올려요 |
+| `describe`, `expect` | 묶음과 검사. `toBe`, `toEqual`, `toMatch`, `toThrow`, `expect.any` 등 |
+| `mock.clock(on, { now })` | 메모리 시계. `advance`, `set`, `settle`, `sleep`으로만 움직여요 |
+| `mock.store(on, entries)` / `mock.env(on, vars)` | `$.store`와 `$.env.get`을 메모리로 답해요 |
+| `tier('append')` | 이 mod가 올라갈 계층을 파일 맨 위에서 정해요 |
+
+### `on`은 엔진 자리예요
+
+테스트의 `$`는 엔진 자체예요. `$.tool.call(...)`, `$.turn.start(...)`, `$.command.run(...)`은 세션의 엔진이 부르는 것과 같은 체인을 돌려요. 테스트의 `on`으로 건 훅은 모든 플러그인 아래에 서서 엔진 역할을 해요. 그 아래 바닥은 비어 있고, 답하는 훅이 없으면 이렇게 실패해요.
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+실패 메시지에 `the engine reported:`로 그동안 건너뛴 훅과 이유가 붙어요. 위 예는 시계 바닥이 없어서 내 훅이 건너뛰어진 경우예요. `mock.clock(on)` 한 줄이 답이었어요. 플러그인은 테스트가 `$`를 처음 부를 때 올라가요. 바닥 훅은 그 전에 등록하세요.
+
+바닥 훅이 돌려줄 모양은 이벤트마다 달라요. ide-mod 테스트에서 맞춘 규칙이에요(관찰).
+
+- `fs.read`, `fs.stat`, `ui.open`, `session.cwd`, `env.get` 같은 `$` 호출 이벤트는 `{ value: … }`로 감싸요.
+- `tool.call`은 `{ result: … }`나 `{ deny }`를 돌려줘요.
+- `turn.start`, `turn.complete` 같은 이벤트는 결과 타입을 그대로 돌려줘요(`{ turnId }`, `{ text }`).
+- 테스트 엔진은 상대 경로를 mod 폴더 기준으로 풀어요. 가짜 파일 시스템은 절대 경로로 만들어요.
+
+### 화면 테스트
+
+`$.ui.mount({ plugin, surface, component, props })`가 그리기를 한 번 하고 손잡이를 돌려줘요. `surface`는 기본값이 없어요. `terminal`, `desktop`, `vscode`, `mobile` 중 하나를 꼭 적어요. 손잡이로 `find`, `findAll`, `drawn`(트리 전체), `press`, `input`, `select`, `redraw`, `unmount`를 써요. `key`, `pointer`, `post`, `resize`는 `Client` 요소에만 닿아요.
+
+알아 둘 점이 둘 있어요.
+
+- `mount` 손잡이에는 `Pane` 본문에 키나 휠을 보내는 동작이 없어요. ide-mod의 스크롤 처리는 실제 화면에서 확인했어요(관찰).
+- `Text`에 단 `key`는 그려진 트리에 남지 않았어요(2.1.291에서 확인). `TextProps`에 `key`가 없어요. 찾을 요소는 키를 단 `Box`로 감싸요.
+
+그리기가 거절되면 `mount`가 그 이유로 reject해요. 세션에서 화면이 비는 원인을 테스트에서 미리 잡을 수 있어요. 일부러 틀린 트리 세 개를 마운트해 받은 실제 메시지예요.
+
+```text
+refuse-demo: ui.render (Pane) refused: Image source.generation must be a whole number when given; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Image source.png does not start as a PNG file does; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Svg source longer than 131072 characters; the engine drew its own
+```
+
+## 디버그 로그 읽기
+
+```bash
+claude --debug-file ./mod-debug.log      # 파일로 남기기 (디버그 모드도 켜져요)
+claude --debug                           # 디버그 모드
+claude --debug "hooks"                   # 범주 거르기
+```
+
+`session.start` 훅이 일부러 `JSON.parse('{oops')`로 던지게 만든 mod를 `--plugin-dir`로 올려 `claude -p "/ping"`을 돌렸어요. 로그 656줄 중 mod 이름이 나온 줄이에요(시각 생략).
+
+```text
+[DEBUG] --plugin-dir …/debug-demo is one plugin: .claude-plugin at its top marks it
+[DEBUG] hooks module debug-demo@inline loaded (worker, environment 1, tier user); events: session.start,command.run
+[DEBUG] plugin.register: debug-demo (user, debug-demo@inline), judged by core alone: admitted
+[DEBUG] type root of debug-demo at …/debug-demo/.claude-plugin/types: entries claude-code, claude-code-tools, claude-code-mcp; wrote …, tsconfig.json
+[DEBUG] $.command.register (debug-demo): /ping listed
+[ERROR] hook failed: debug-demo: errorKind=SyntaxError errorChars=30 (session.start; skipped; what is below it ran in its place)
+[ERROR] debug-demo: session.start hook skipped: threw SyntaxError: JSON Parse error: Expected '}'
+[DEBUG] debug-demo (user) answered command.run without next() in 0.6ms; nothing beneath it ran for this dispatch
+```
+
+읽는 순서는 이래요.
+
+1. `loaded … events:` 줄이 없으면 모듈이 안 올라간 거예요. `-p` 실행에서는 그 이유가 stderr에도 한 줄 찍혀요. 이번 실행의 stderr에는 `debug-demo: session.start hook skipped: threw SyntaxError…`가 찍혔어요.
+2. `hook failed` 줄에는 오류 종류와 메시지 길이(`errorChars=30`)만 있어요. 레퍼런스대로 글 자체는 따로 적혀요. 바로 다음 줄이 그 글이에요.
+3. `answered … without next()`는 내 훅이 직접 답해서 아래가 돌지 않았다는 뜻이에요. 다른 mod가 안 움직이면 이 줄부터 찾으세요.
+
+`type root … wrote` 줄도 볼 만해요. 엔진은 mod를 로드할 때마다 mod 폴더에 `.claude-plugin/types/`와 `tsconfig.json`을 써요. 한 번 로드된 mod 폴더에서는 `tsc -p <폴더>`가 바로 돌아요. `.claude-plugin/types/`에는 엔진이 `*` 한 줄짜리 `.gitignore`를 같이 써서 git에 올라가지 않아요. 루트의 `tsconfig.json`은 그 폴더의 설정을 `extends`하는 한 줄이에요.
+
+### "the engine drew its own"
+
+그리기 거절은 레퍼런스가 정한 문구로 남아요.
+
+| 줄 | 뜻 |
+| --- | --- |
+| `ui.render (<Component>): a hook returned a tree that does not validate` | 디버그 로그. 트리가 그 화면의 규칙에 안 맞음 |
+| `<plugin>: ui.render (<Component>) refused: <이유>; the engine drew its own` | 핫 리로드 중인 세션의 대화창. 같은 거절 |
+| `… threw while drawn: <이유>; the engine drew its own` | 검증은 통과했지만 그리다 터짐 |
+| `…; nothing was drawn` / `…; the pane was closed` | 엔진이 원래 그릴 것이 없던 자리. 띠는 비고 창은 닫혀요 |
+| `<n> characters of text are drawn up to the first <m>` | 글이 10만 자를 넘어 잘림 |
+
+대화창 줄은 `--plugin-dir`처럼 핫 리로드 중인 폴더에서만 떠요. 다른 세션에서는 디버그 로그에만 남아요. 그리다 터진 답은 다시 시도되지 않고, 다음 답(다른 props, invalidate, 리로드)부터 새로 그려요.
+
+## 핫 리로드
+
+| 어떻게 올렸나 | 고친 게 반영되는 때 |
+| --- | --- |
+| `--plugin-dir`, `CLAUDE_CODE_PLUGIN_DIRS` 폴더 | 대화형 세션이 폴더를 지켜봐요. 저장하면 `register`가 새 환경에서 다시 돌고 이전 타이머는 버려져요 |
+| 세션 mod 폴더(Enable hot reloading) | 같은 방식으로 지켜봐요 |
+| 폴더 마켓플레이스에서 설치 | `/reload-plugins`가 그 폴더를 다시 읽어요 |
+| git·npm 등에서 설치 | 새 버전으로 `claude plugin update` 후 `/reload-plugins` |
+
+모델이 턴 중에 고친 것은 턴이 끝날 때 한 번 다시 읽어요. 그 mod가 등록한 도구나 명령이 돌기 직전이면 그때 읽어요. 사람이 직접 저장하면 폴더가 잠잠해진 뒤 읽어요. 한 번 저장은 0.25초 뒤, 연달아 저장하면 저장이 멈춘 뒤예요. `claude -p`는 늘 새로 읽어요.
+
+- `/reload-skills`는 mod를 다시 읽지 않아요. 사용자가 이 명령을 쳤는데 화면이 그대로였어요(관찰). `/reload-plugins`를 쓰세요.
+- 세션 mod 폴더는 `~/.claude/dev-mods/<세션 ID>/` 아래에 있었어요. 세션이 재시작돼 ID가 바뀌면 폴더도 바뀌어 옛 폴더에서 고친 것은 안 읽혀요(관찰). 마지막 로드 시각은 `.claude-plugin/types/claude-code/index.d.ts`의 수정 시각으로 알 수 있어요. 오래 쓸 mod는 고정 폴더에 두세요.
+
+## ide-mod를 만들며 부딪힌 것
+
+| 증상 | 원인 | 근거 |
+| --- | --- | --- |
+| 그림 창 전체가 거절됨 | `Image`의 `source.generation`에 파일 수정 시각(소수)을 넣음. 정수여야 해요 | 타입 선언 "A whole number", 2.1.291 테스트 키트 재현 |
+| `Image`가 거절됨 | `source.png` 바이트가 PNG가 아님. 엔진은 IHDR까지 검사해요 | 2.1.290 관찰, 머리말 검사는 2.1.291 재현 |
+| 데스크톱 `Svg`가 안 보임 | `source`가 131,072자를 넘음 | 레퍼런스, 2.1.291 재현 |
+| WASM 라이브러리가 안 돌아감 | 훅 환경에 `WebAssembly`, `eval`, `new Function`이 없음. 무거운 일은 `$.process.run`으로 별도 프로세스에서 | 타입 선언 |
+| `setTimeout`이 없음 | 훅 모듈은 `$.clock.after`·`every`·`sleep`으로 기다려요 | 타입 선언 |
+| 그리기 중 상태 쓰기 실패 | 그리는 동안 `$.state.set`은 거절돼요. 쓰기는 버튼 핸들러나 다른 이벤트에서 | 레퍼런스 |
+| 그리기에서 시작한 일이 끊김 | 훅은 디스패치 하나 안에서 돌고, 디스패치가 버려지면 `next.signal`이 끊어요. 오래 갈 일은 `session.start`나 `$.clock.after` 타이머에서 시작 | 레퍼런스 |
+| 휠을 굴리면 트리와 파일 칸이 같이 움직임 | 엔진은 창 하나를 통째로 스크롤해요. `ui.scroll` 훅에서 `e.pointer.column`으로 어느 칸 위인지 보고, `next` 없이 `{}`로 답한 뒤 그 칸의 행을 `e.by`만큼 옮겨 다시 그려요 | 타입 선언, 2.1.290 관찰 |
+| `$.process.run`으로 부른 Node 스크립트가 출력 0자 | 링크된 폴더에서 돌면 `$.plugin.root`가 링크 경로라 "직접 실행" 판별이 거짓. `realpath`로 비교 | 2.1.290 관찰 |
+
+마지막 항목에서 배운 점이 하나 더 있어요. 진단은 엔진과 같은 경로(링크 경로)로 재현해야 해요. 실제 경로로 돌린 확인은 문제를 가렸어요.
+
+더 짧은 증상별 목록은 [문제 해결](/ko/guide/troubleshooting/)에 있어요. 이 글의 명령을 실제 mod에 적용한 예는 [입력창 위 띠](/ko/articles/tutorial-prompt-band/)와 [Bash 가드](/ko/articles/tutorial-bash-guard/) 따라 하기예요.

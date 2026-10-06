@@ -1,0 +1,184 @@
+---
+title: Testing and debugging mods
+description: What claude plugin validate and test actually check, how to find the reason for a refusal in the debug log, and when hot reload takes effect, based on output I ran myself and notes from building ide-mod.
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+When a mod seems to do nothing, the engine has usually already written down why. This article covers three tools for finding that record.
+
+| Tool | When | What it looks at |
+| --- | --- | --- |
+| `claude plugin validate <folder>` | Before loading into a session | The manifest and the hook module source. What the engine will refuse |
+| `claude plugin test <folder>` | After every change | Runs `*.test.ts(x)` on top of the engine |
+| Debug log | In a real session | Why a hook was skipped, refused draws |
+
+Baseline: command output is what I ran myself on Claude Code 2.1.291. API descriptions come from the 2.1.290 type declarations and the reference. Items marked "observed" are things I ran into on 2.1.290 while building [ide-mod](/en/mods/ide-mod/).
+
+## validate: a check that reads the source
+
+`validate` doesn't run the mod. It reads the source the same way the engine does when loading, and reports. Each line of the output has a fixed meaning.
+
+| Line | Meaning |
+| --- | --- |
+| `hooks:` | Registered events and matchers |
+| `calls:` | `$` calls found in the source |
+| `gating hook with .catch:` / `without .catch:` | A hook in a place that can reject something. A factual report, not counted as a warning |
+| `state reads:` / `state writes:` | `$.state` keys. Readable because `plugin` and `key` are literals |
+| `types … declares` | What the contract file pointed to by the manifest's `types` declares |
+
+The exit code is 1 if there are errors. `--strict` counts warnings as failures, which suits CI, and `--json` emits the same content as JSON. In the JSON, hooks that can reject are listed separately in a `gatingHooks` array.
+
+Because the check reads source, some rules follow from it. The two errors below are real output from deliberately broken mods (paths shortened).
+
+```text
+✘ Found 1 error:
+
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 4 `await hello($);`: $ is passed to "hello", imported from "./helpers": $ is followed only into a function declared in this same file, never across an import; …
+
+✘ Validation failed
+```
+
+`$` is followed only into functions in the same file. If you pass `$` to another file, the checker can't tell what gets called, so it refuses. Keep code that uses `$` in the single hook module file, and put only pure functions in other files.
+
+```text
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 7 `on("session.start", async ($, e, next) => next(e));`: on("session.start") is registered twice without a matcher; the first is at …/hooks/register.ts:3; …
+```
+
+Registering the same event twice without a matcher is also an error. Do several things inside one hook.
+
+<Aside type="caution">
+  Passing validate is not a safety guarantee. It reads the source and builds a call list, but it can't prove what happens at runtime.
+</Aside>
+
+## test: tests that run on the engine
+
+`claude plugin test <folder>` finds `*.test.ts` and `*.test.tsx` under the folder and runs each file as a child process of the Claude Code executable. The environment is the same one hooks run in, so there is no Node file, network, or process access. The engine's loader reads the mod folder as it would in a session.
+
+You import tests from `claude-code/testing`.
+
+| Name | What it does |
+| --- | --- |
+| `test(name, ($, on) => …)` | One test. Default limit 5,000ms, changeable with `{ timeoutMs }` |
+| `test(name, { options }, body)` | Passes `userConfig` values as if they were stored in settings |
+| `test(name, { plugins }, body)` | Loads other plugins inline alongside |
+| `describe`, `expect` | Grouping and assertions. `toBe`, `toEqual`, `toMatch`, `toThrow`, `expect.any`, and so on |
+| `mock.clock(on, { now })` | An in-memory clock. Moves only through `advance`, `set`, `settle`, and `sleep` |
+| `mock.store(on, entries)` / `mock.env(on, vars)` | Answers `$.store` and `$.env.get` from memory |
+| `tier('append')` | Sets, at the top of the file, the tier this mod will be loaded in |
+
+### `on` stands in for the engine
+
+The `$` in a test is the engine itself. `$.tool.call(...)`, `$.turn.start(...)`, and `$.command.run(...)` run the same chain the session's engine runs. Hooks you attach with the test's `on` sit beneath all plugins and act as the engine. Beneath that the floor is empty, and if no hook answers, the test fails like this.
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+The failure message carries `the engine reported:` followed by the hooks skipped so far and why. In the example above, the mod's hook was skipped because the clock had no floor. One line, `mock.clock(on)`, was the fix. Plugins are loaded the first time a test calls `$`, so register floor hooks before that.
+
+The shape a floor hook returns differs by event. These are the rules I settled on in the ide-mod tests (observed).
+
+- Events for `$` calls such as `fs.read`, `fs.stat`, `ui.open`, `session.cwd`, and `env.get` are wrapped as `{ value: … }`.
+- `tool.call` returns `{ result: … }` or `{ deny }`.
+- Events like `turn.start` and `turn.complete` return the result type directly (`{ turnId }`, `{ text }`).
+- The test engine resolves relative paths against the mod folder. Build the fake file system with absolute paths.
+
+### UI tests
+
+`$.ui.mount({ plugin, surface, component, props })` draws once and gives you a handle. `surface` has no default. Always write one of `terminal`, `desktop`, `vscode`, or `mobile`. The handle offers `find`, `findAll`, `drawn` (the whole tree), `press`, `input`, `select`, `redraw`, and `unmount`. `key`, `pointer`, `post`, and `resize` reach only `Client` elements.
+
+Two things to know.
+
+- The `mount` handle has no action for sending keys or wheel events to a `Pane` body. I checked ide-mod's scroll handling on a real screen (observed).
+- A `key` placed on `Text` did not survive into the drawn tree (confirmed on 2.1.291). `TextProps` has no `key`. Wrap the element you want to find in a `Box` that carries the key.
+
+If a draw is refused, `mount` rejects with that reason. That lets a test catch ahead of time what would blank the screen in a session. These are the real messages I got by mounting three deliberately wrong trees.
+
+```text
+refuse-demo: ui.render (Pane) refused: Image source.generation must be a whole number when given; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Image source.png does not start as a PNG file does; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Svg source longer than 131072 characters; the engine drew its own
+```
+
+## Reading the debug log
+
+```bash
+claude --debug-file ./mod-debug.log      # write to a file (also turns debug mode on)
+claude --debug                           # debug mode
+claude --debug "hooks"                   # filter by category
+```
+
+I loaded, with `--plugin-dir`, a mod whose `session.start` hook deliberately throws on `JSON.parse('{oops')`, and ran `claude -p "/ping"`. Of the log's 656 lines, these are the ones that mention the mod name (timestamps omitted).
+
+```text
+[DEBUG] --plugin-dir …/debug-demo is one plugin: .claude-plugin at its top marks it
+[DEBUG] hooks module debug-demo@inline loaded (worker, environment 1, tier user); events: session.start,command.run
+[DEBUG] plugin.register: debug-demo (user, debug-demo@inline), judged by core alone: admitted
+[DEBUG] type root of debug-demo at …/debug-demo/.claude-plugin/types: entries claude-code, claude-code-tools, claude-code-mcp; wrote …, tsconfig.json
+[DEBUG] $.command.register (debug-demo): /ping listed
+[ERROR] hook failed: debug-demo: errorKind=SyntaxError errorChars=30 (session.start; skipped; what is below it ran in its place)
+[ERROR] debug-demo: session.start hook skipped: threw SyntaxError: JSON Parse error: Expected '}'
+[DEBUG] debug-demo (user) answered command.run without next() in 0.6ms; nothing beneath it ran for this dispatch
+```
+
+Read it in this order.
+
+1. If there is no `loaded … events:` line, the module didn't load. In a `-p` run, the reason is also printed as one line on stderr. In this run, stderr showed `debug-demo: session.start hook skipped: threw SyntaxError…`.
+2. The `hook failed` line carries only the error kind and the message length (`errorChars=30`). As the reference says, the text itself is logged separately. The very next line is that text.
+3. `answered … without next()` means your hook answered directly, so nothing below it ran. If another mod isn't doing anything, look for this line first.
+
+The `type root … wrote` line is also worth a look. Each time the engine loads a mod, it writes `.claude-plugin/types/` and `tsconfig.json` into the mod folder. In a folder that has been loaded once, `tsc -p <folder>` runs right away. The engine also writes a one-line `.gitignore` containing `*` inside `.claude-plugin/types/`, so it doesn't go into git. The `tsconfig.json` at the root is a single line that `extends` the config in that folder.
+
+### "the engine drew its own"
+
+A refused draw is logged with wording the reference fixes.
+
+| Line | Meaning |
+| --- | --- |
+| `ui.render (<Component>): a hook returned a tree that does not validate` | Debug log. The tree doesn't match that surface's rules |
+| `<plugin>: ui.render (<Component>) refused: <reason>; the engine drew its own` | A dialog in a session being hot-reloaded. The same refusal |
+| `… threw while drawn: <reason>; the engine drew its own` | It passed validation but threw while drawing |
+| `…; nothing was drawn` / `…; the pane was closed` | A spot where the engine had nothing to draw to begin with. The band stays empty and the pane closes |
+| `<n> characters of text are drawn up to the first <m>` | Text over 100,000 characters was truncated |
+
+The dialog line appears only in a folder being hot-reloaded, such as with `--plugin-dir`. In other sessions it stays in the debug log only. An answer that threw while drawing is not retried; drawing starts fresh from the next answer (different props, an invalidate, or a reload).
+
+## Hot reload
+
+| How it was loaded | When your fix takes effect |
+| --- | --- |
+| `--plugin-dir`, `CLAUDE_CODE_PLUGIN_DIRS` folder | The interactive session watches the folder. On save, `register` runs again in a new environment and the old timers are discarded |
+| Session mod folder (Enable hot reloading) | Watched the same way |
+| Installed from a folder marketplace | `/reload-plugins` re-reads that folder |
+| Installed from git, npm, and so on | `claude plugin update` to the new version, then `/reload-plugins` |
+
+A fix the model makes mid-turn is re-read once when the turn ends. If it is right before a tool or command that mod registered runs, it is read then. When a person saves by hand, it is read after the folder goes quiet: 0.25 seconds after a single save, or after the saves stop if they come one after another. `claude -p` always reads fresh.
+
+- `/reload-skills` does not re-read mods. A user typed this command and the screen stayed the same (observed). Use `/reload-plugins`.
+- The session mod folder was under `~/.claude/dev-mods/<session ID>/`. When the session restarts and the ID changes, the folder changes too, and fixes made in the old folder aren't read (observed). You can tell the last load time from the modification time of `.claude-plugin/types/claude-code/index.d.ts`. Put a mod you'll use for a long time in a fixed folder.
+
+## What I hit while building ide-mod
+
+| Symptom | Cause | Evidence |
+| --- | --- | --- |
+| The whole image pane was refused | I put the file's modification time (a fraction) in `Image`'s `source.generation`. It must be an integer | Type declarations: "A whole number"; reproduced with the 2.1.291 test kit |
+| `Image` was refused | The `source.png` bytes weren't a PNG. The engine checks as far as IHDR | Observed on 2.1.290; the header check reproduced on 2.1.291 |
+| Desktop `Svg` didn't show | `source` was over 131,072 characters | Reference, reproduced on 2.1.291 |
+| A WASM library wouldn't run | The hook environment has no `WebAssembly`, `eval`, or `new Function`. Do heavy work in a separate process with `$.process.run` | Type declarations |
+| No `setTimeout` | Hook modules wait with `$.clock.after`, `every`, and `sleep` | Type declarations |
+| Writing state while drawing failed | `$.state.set` is refused during a draw. Write from a button handler or another event | Reference |
+| Work started from a draw got cut off | A hook runs inside one dispatch, and when the dispatch is discarded, `next.signal` aborts. Start long-running work from `session.start` or a `$.clock.after` timer | Reference |
+| Scrolling the wheel moved the tree and the file column together | The engine scrolls the whole pane. In a `ui.scroll` hook, use `e.pointer.column` to see which column the pointer is over, answer `{}` without `next`, then move that column's rows by `e.by` and redraw | Type declarations, observed on 2.1.290 |
+| A Node script run with `$.process.run` printed 0 characters | When run from a linked folder, `$.plugin.root` is the link path, so the "run directly" check is false. Compare with `realpath` | Observed on 2.1.290 |
+
+The last item taught one more lesson. Reproduce a diagnosis with the same path the engine uses (the link path). A check run with the real path hid the problem.
+
+A shorter list by symptom is in [Troubleshooting](/en/guide/troubleshooting/). Examples of applying this article's commands to real mods are the walkthroughs for the [prompt band](/en/articles/tutorial-prompt-band/) and the [Bash guard](/en/articles/tutorial-bash-guard/).

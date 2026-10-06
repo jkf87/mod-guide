@@ -1,0 +1,113 @@
+---
+title: Comparatif des mods de tableau de bord d'agents
+description: "Nous avons lu les sources de 7 mods qui affichent les sous-agents et les appels d'outils dans un panneau. Origine des données, fréquence de sondage, appels au modèle et dépendances à des programmes externes sont comparés dans des tableaux, avec ide-mod, créé par l'exploitant de ce site, évalué selon les mêmes critères."
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Dès que vous lancez plusieurs sous-agents, le transcript seul ne permet plus de suivre qui fait quoi. C'est pourquoi plusieurs mods dessinent l'arbre des agents dans un panneau latéral. Nous en avons choisi 7, récupéré les dépôts et lu les modules de hooks. Nous n'avons rien installé ni exécuté.
+
+<Aside>
+Parmi les 7, [ide-mod](/fr/mods/ide-mod/) est un mod créé par l'exploitant de ce site. Nous avons renseigné les mêmes rubriques, de la même manière que pour les 6 autres, et noté ses faiblesses telles que nous les avons vues dans le code.
+</Aside>
+
+Référence : scan du catalogue communautaire du 2026-10-04, Claude Code 2.1.289. Les sources ont été lues le 2026-10-06 et les descriptions d'API vérifiées dans le fichier de types de Claude Code 2.1.290. ide-mod a été publié pour la première fois le 2026-10-06, il n'est donc pas dans le catalogue. Le nombre d'étoiles est celui du dépôt.
+
+## Tous dessinent avec les mêmes ingrédients
+
+Les 7 construisent l'arbre à partir d'un petit nombre d'événements. L'agent naît avec `agent.spawn`, l'`agentId` de `tool.call` indique qui fait quoi à l'instant, et `turn.complete` ou `turn.step` donnent la fin et les tokens. À cela s'ajoute un appel périodique à `$.agent.list()` pour recaler l'état.
+
+`$.agent.list()` seul ne suffit pas. D'après la description du fichier de types, quand le moteur nettoie une tâche, l'agent disparaît de la liste, et les agents d'un workflow n'y figurent jamais. Tous gardent donc leur propre état à partir des événements. La différence tient à ce qu'ils lisent ou font en plus.
+
+## En un coup d'œil
+
+| mod | dépôt (étoiles) | où il dessine | origine des données | fréquence de relecture |
+| --- | --- | --- | --- | --- |
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | Charlie0113-T/claude-agent-flow (8) | panneau latéral, ligne d'état, `/flow text` | événements, attente de permission (hooks classic), `$.agent.list` | 2 s, uniquement pendant le travail |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | xuanji86/claude-agentpane (2) | panneau latéral, onglet dans la bande une fois replié, ligne d'état | événements, tokens par agent, `$.session.messages` | 1 s |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | tomstagl/cctop (2) | panneau latéral `/cctop-pane` | programme séparé `cctop`, événements, `$.session.usage` | panneau ouvert : 2 s au travail, 10 s au repos |
+| [flightdeck](https://github.com/scasella/claude-flightdeck) | scasella/claude-flightdeck (1) | panneau latéral, ligne d'état | 15 types d'événements, décisions de permission, `$.session.usage` | uniquement à l'arrivée d'un événement |
+| [agent-shell-watch](https://github.com/apolenkov/agent-shell-watch) | apolenkov/agent-shell-watch (0) | panneau latéral, ligne d'état | événements, fichiers de sortie de Bash, fichiers de session de Codex et Pi | 1 à 2 s, fichiers externes au moins 30 s |
+| [mission-control](https://github.com/hamzafer/claude-code-mods/tree/main/mods/mission-control) | hamzafer/claude-code-mods (54) | panneau (arbre, carte du code), une ligne de bande | événements, contenu des fichiers touchés | 1 s pendant le travail |
+| [ide-mod](https://github.com/jkf87/ide-mod) | jkf87/ide-mod (hors catalogue) | panneau (tableau, explorateur, visionneuse), sous-titre dans la bande, ligne d'état | événements, `$.agent.list`, arborescence de fichiers | 5 s, résumé 20 s |
+
+| mod | bloquer / modifier | appel au modèle | processus / fichiers | ce qu'il conserve | niveau | lignes de code | tests | licence | commit lu |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| agent-flow | aucun | aucun | aucun | `$.store` : panneau ouvert | 0 | 1 850 | oui | Apache-2.0 | `d87b255` (10-04) |
+| agentpane | aucun (bouton Stop → `TaskStop`) | aucun | aucun | état de session uniquement | 2 | 1 229 | oui | MIT | `17be889` (10-04) |
+| cctop | aucun (un bouton remplit la zone de saisie) | aucun | exécution de `cctop query`, écriture de fichiers d'affichage | `$.store`, `~/.cctop/pane/` | 2 | 3 395 | oui | MIT | `6ceafc3` (10-01) |
+| flightdeck | aucun | aucun | aucun | état de session uniquement | 1 | 1 709 | oui | MIT | `f31daca` (10-02) |
+| agent-shell-watch | aucun (stop → `TaskStop`) | aucun | exécution de `tail`, lecture de fichiers de session externes | `$.store` : état de l'affichage | 2 | 4 199 | oui | MIT (le catalogue n'a pas pu le déterminer) | `b529d60` (10-05) |
+| mission-control | aucun | haiku, à chaque tour avec modifications | lecture de fichiers, exécution de Chrome headless | fichiers image dans `$TMPDIR` | 2 | 678 | oui | MIT | `3719682` (10-05) |
+| ide-mod | aucun | haiku, toutes les 20 s quand le tableau est visible | lecture de fichiers, script auxiliaire `node`, `open` | `$.store` : historique des requêtes sur 40 sessions | hors catalogue | 2 295 | oui | MIT | `db51e75` (10-06) |
+
+Le niveau est la portée d'accès du catalogue (0 écran et mémoire, 1 lecture, 2 écriture et exécution, 3 réseau). C'est une valeur issue d'un balayage statique des sources et elle peut différer de l'exécution réelle. Les lignes de code sont celles du module de hooks et des fichiers qu'il utilise, hors tests et hors bibliothèques externes copiées. Voyez-y un ordre de grandeur de ce qu'il faut lire avant l'installation.
+
+## Notes par mod
+
+### agent-flow
+
+- Ses appels à `$` se limitent à l'horloge, au stockage, à l'écran, à l'enregistrement de commandes et à `$.agent.list`. Il n'utilise ni fichiers, ni processus, ni modèle, ni réseau, d'où le niveau 0 du catalogue.
+- Il reçoit `classic.PermissionRequest` et les notifications de permission, et signale à part les agents qui attendent une confirmation.
+- Le rapprochement toutes les 2 s et le redessin toutes les 1 s ne s'activent que lorsqu'un agent travaille.
+- Quand le premier sous-agent démarre et que le terminal fait 144 colonnes ou plus, il ouvre le panneau automatiquement, une seule fois. Si l'utilisateur le ferme, il ne le rouvre pas.
+
+### agentpane
+
+- Quand vous cliquez sur un agent, il lit sa conversation avec `$.session.messages({ agentId })` et l'affiche comme le fait Claude Code.
+- À partir de l'usage de `turn.step`, il collecte les tokens par agent ainsi que le modèle et l'effort réellement utilisés.
+- Si vous cliquez sur Stop puis confirmez une seconde fois, il appelle `TaskStop` via `$.tool.call`. C'est la raison du niveau 2 du catalogue.
+- Il appelle `$.agent.list` toutes les secondes, même sans agent. Il replie le panneau 10 s après la fin du dernier agent. Il ne s'ouvre pas automatiquement si seule l'app de bureau est connectée.
+
+### cctop
+
+- Le mod est l'écran ; les chiffres sont produits par un programme Rust séparé, `cctop`, à installer à part via Homebrew ou cargo. Le mod exécute `cctop query <élément> --session <id>` pour récupérer du JSON.
+- Un commentaire dit que, panneau fermé, les minuteurs et l'exécution s'arrêtent, et le code fait bien cela.
+- Les boutons de l'écran coach se contentent de remplir la zone de saisie avec une commande via `$.prompt.fill`, sans l'envoyer.
+- Tous les hooks ont un `.catch` qui rend la main au flux d'origine en cas d'échec.
+- Nous n'avons pas lu tout le binaire. Nous avons seulement vérifié que les dépendances Cargo ne comportent pas de client HTTP et que le récepteur OpenTelemetry, une fonction optionnelle, n'écoute que sur `127.0.0.1`.
+
+### flightdeck
+
+- Sur 15 hooks, hormis ses propres commandes et le dessin du panneau, tous se contentent d'observer. Il lit la décision dans `tool.check`, empile autorisations, questions et refus dans le panneau GATE, et transmet la décision telle quelle.
+- Les types d'agents qui correspondent à une expression régulière (par défaut `advisor|architect`) sont regroupés à part comme architect, pour montrer quand ils ont été consultés.
+- Il n'utilise ni `$.store`, ni fichiers, ni processus. À la fin de la session, l'historique disparaît.
+- Par défaut, il ouvre le panneau au début de la session.
+
+### agent-shell-watch
+
+- Il est centré sur les appels Bash et les tâches en arrière-plan plutôt que sur les agents. Quand vous lancez via Bash une autre CLI d'agent comme `codex`, `pi` ou `devin`, il affiche le temps écoulé, le dernier changement de la sortie et un verdict.
+- Il lit la fin des fichiers de sortie avec `tail -c`. Les limites et l'usage viennent des fichiers de session de `~/.codex/sessions/` et `~/.pi/agent/sessions/`, uniquement quand un runner est en cours ou que cette vue est ouverte, avec un intervalle d'au moins 30 s.
+- Avec 30 fichiers de test, c'est celui qui en compte le plus parmi les 7. C'est aussi le code le plus long.
+
+### mission-control
+
+- Quand le tour principal contient des Edit ou Write, il appelle haiku avec `$.model.complete` à la fin du tour. Il envoie une partie du contenu modifié (pour Edit, 300 caractères avant et 300 après le remplacement ; pour Write, les 400 premiers caractères ; au plus 1 500 caractères par fichier) et reçoit une description d'une ligne par fichier. Il appelle même panneau fermé, et il n'existe pas d'option pour le désactiver.
+- La carte du code génère un SVG et prend un PNG avec Chrome headless. Le chemin de Chrome est figé sur `/Applications/Google Chrome.app/...`, donc en dehors de macOS la carte du code ne s'affiche pas. Il utilise un profil temporaire séparé.
+- Pour dessiner les relations d'import sur la carte, il lit les fichiers de code touchés par Claude et cherche les imports dans les 200 000 premiers caractères.
+
+### ide-mod
+
+- Le résumé d'une ligne du tableau appelle haiku avec `$.model.complete`. Seulement si le tableau a été dessiné dans les 30 dernières secondes, toutes les 20 s, et pour au plus 3 agents au travail à la fois. Il envoie le rôle, la tâche confiée et un résumé d'une ligne des 12 derniers appels d'outils. Activé par défaut, désactivable avec `s`, et il se désactive tout seul après trois échecs.
+- La visionneuse HWP et PDF exécute avec `node` des scripts sous `bin/`, qui appellent `pdftoppm`, `qlmanage` et `sips`. Ces scripts tournent hors de `$`, donc leur fonctionnement interne n'apparaît ni dans la ligne `calls:` de `claude plugin validate` ni dans les scans statiques comme celui du catalogue. En les lisant directement, nous avons constaté qu'ils ne font que des conversions locales, sans appel réseau.
+- `open`, `qlmanage` et `sips` sont des commandes macOS. Sur les autres OS, l'aperçu ne fonctionne pas.
+- Il conserve l'historique des requêtes de chaque session dans `$.store`, limité aux 40 dernières sessions. Quand vous modifiez un manuscrit coréen, il lance un contrôle de style. Les textes de l'interface sont uniquement en coréen.
+- Le module de hooks tient en un seul fichier de 1 493 lignes, ce qui le rend plus concentré dans un seul fichier que n'importe lequel des 6 autres mods.
+
+<Aside type="caution">
+Les tableaux de bord qui appellent un modèle sont au nombre de deux : mission-control et ide-mod. Tous deux appellent l'API Anthropic avec le compte de la session, et cela compte dans l'usage. Ce qu'ils envoient comprend les entrées d'outils et une partie du code modifié.
+</Aside>
+
+## Lequel choisir
+
+- Pour un arbre qui ne lit ni n'exécute rien, **agent-flow**. Les agents qui attendent une confirmation de permission sont signalés à part.
+- Pour ouvrir la conversation d'un sous-agent dans le panneau et pouvoir l'arrêter, **agentpane**.
+- Pour voir sur un seul écran les décisions de permission, le contexte et l'historique des consultations, sans rien enregistrer, **flightdeck**.
+- Pour une vue détaillée du contexte, du coût et du temps d'outil à la manière de btop, si installer un programme séparé ne vous gêne pas, **cctop**.
+- Si vous répartissez le travail en lançant d'autres CLI comme Codex ou Pi via Bash, **agent-shell-watch**.
+- Si vous êtes sous macOS et voulez une carte des fichiers touchés par Claude et de leurs imports, **mission-control**. Gardez en tête que haiku est appelé à chaque modification.
+- Pour consulter HWP, HWPX et PDF dans la même fenêtre, et si une interface en coréen vous convient, **ide-mod**. C'est sous macOS qu'il fonctionne le mieux.
+
+Quel que soit le mod, passez par la [vérification de sécurité avant installation](/fr/guide/safety-checklist/), et cherchez d'autres candidats dans le [répertoire des mods](/fr/mods/directory/).

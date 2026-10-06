@@ -51,7 +51,7 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 
 ## 访问范围
 
-这个 Mod 会读取文件（浏览器、查看器），并为了绘制文档而运行 Node.js 和图像转换程序。看板的一行摘要会简短调用 haiku，可以用 `s` 关掉。它不会通过网络发送数据。源码只有 `hooks/register.tsx` 一个文件，安装前可以全部读完。
+这个 Mod 会读取文件（浏览器、查看器），并为了绘制文档而运行 Node.js 和图像转换程序。看板的一行摘要每 20 秒把智能体的近期活动发给 haiku 做摘要，默认开启，可以用 `s` 关掉。除了这次模型调用（用你自己账户的 Anthropic API），它不会通过网络发送数据。源码只有 `hooks/register.tsx` 一个文件，安装前可以全部读完。
 
 <Aside>
 函数钩子 (function hooks) 是 early access API。本 Mod 是在 2.1.290 上制作和测试的。界面文字为韩语。

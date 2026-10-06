@@ -1,0 +1,382 @@
+---
+title: "跟着做：在输入框上方画一条横条"
+description: 用五个文件做一个 Mod，在输入框上方用一行显示回合数、当前回合的已用时间和最后使用的工具。代码就是实际通过验证和测试的那份。
+sidebar:
+  order: 7
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+我们从零开始做一个 Mod，在输入框正上方画一条单行横条（`AbovePrompt`）。完成后的效果如下。
+
+```text
+턴 3 · 진행 12초 · 마지막 도구 Bash
+```
+
+这行文字的意思是“第 3 回合 · 进行 12 秒 · 最后的工具 Bash”。回合运行时，已用时间每秒增加一次；回合结束后会停在 `지난 턴 34초`（上一回合 34 秒）。输入 `/turn-meter` 可以隐藏或重新显示横条。即使其他 Mod 也在同一位置画了横条，它也不会把对方的横条擦掉。
+
+基准：这是在 Claude Code 2.1.291 上通过 `claude plugin validate` 和 `claude plugin test` 的代码。API 说明已与 2.1.290 的类型声明（`claude-code.d.ts`）核对。下面的代码块原样取自通过检查的文件。
+
+## 文件夹结构
+
+```text title="turn-meter/"
+.claude-plugin/plugin.json   # 매니페스트
+hooks/hooks.json             # 훅 모듈 위치
+hooks/register.tsx           # 훅 모듈
+types/index.d.ts             # 상태 계약
+tests/band.test.tsx          # 테스트
+```
+
+（注释依次为：清单、钩子模块位置、钩子模块、状态契约、测试。）
+
+和[做出第一个 Mod](/zh-cn/guide/build-your-first-mod/)里的窗格（Pane）示例不同，这次的 Mod 把值放在 `$.state` 而不是模块变量里。发生热重载时模块变量会消失，而 `$.state` 的值会一直保留到会话结束。
+
+## 动手做
+
+<Steps>
+
+1. **写清单。** `types` 告诉引擎，这个 Mod 把状态契约写在了哪里。
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "turn-meter",
+     "version": "0.1.0",
+     "description": "입력창 위에 턴 수, 지금 턴의 경과 시간, 마지막 도구를 한 줄로 보여 준다",
+     "author": {
+       "name": "mods.guide"
+     },
+     "types": "./types/index.d.ts"
+   }
+   ```
+
+   （`description` 的意思是：在输入框上方用一行显示回合数、当前回合的已用时间和最后使用的工具。）
+
+2. **写明钩子模块的位置。** 路径以 `hooks.json` 为基准。
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.tsx"] }
+   ```
+
+3. **写状态契约。** 在 `PluginState` 中声明要放进 `$.state` 的值的名称和类型。做法是在类型声明文件里标注为 “empty by default” 的接口上，加上自己 Mod 的那一份。
+
+   ```ts title="types/index.d.ts"
+   export type TurnMeterTurn = { startedAt: number; endedAt: number | null }
+
+   declare module 'claude-code' {
+     interface PluginState {
+       'turn-meter': {
+         count: number
+         turn: TurnMeterTurn | null
+         now: number
+         lastTool: string | null
+         isHidden: boolean
+       }
+     }
+   }
+   ```
+
+   验证器会读取这个文件，并原样列出五个键：`declares state: turn-meter.count, …`。因为没有给 `$` 对象添加新功能，所以还会同时出现 `declares on $: nothing`，这不是错误。
+
+4. **写钩子模块。** 先看完整代码，再分块讲解。
+
+   ```tsx title="hooks/register.tsx"
+   import { atom, read, update } from 'claude-code'
+   import type { Register, Timer } from 'claude-code'
+
+   import type { TurnMeterTurn } from '../types'
+
+   const count = atom({ plugin: 'turn-meter', key: 'count' } as const, 0)
+   const turn = atom({ plugin: 'turn-meter', key: 'turn' } as const, null)
+   const now = atom({ plugin: 'turn-meter', key: 'now' } as const, 0)
+   const lastTool = atom({ plugin: 'turn-meter', key: 'lastTool' } as const, null)
+   const isHidden = atom({ plugin: 'turn-meter', key: 'isHidden' } as const, false)
+
+   export function formatSeconds(ms: number): string {
+     const s = Math.max(0, Math.floor(ms / 1000))
+     return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`
+   }
+
+   export const register: Register = on => {
+     let tick: Timer | undefined
+
+     on('session.start', async ($, e, next) => {
+       await $.command.register({
+         name: 'turn-meter',
+         description: '입력창 위 턴 정보 띠를 켜고 끈다',
+       })
+       return next(e)
+     })
+
+     on('command.run', { command: 'turn-meter' }, async $ => {
+       const hidden = await update($, isHidden, v => !v)
+       return { text: hidden ? 'turn-meter 띠를 숨겼어요.' : 'turn-meter 띠를 다시 보여요.' }
+     })
+
+     on('turn.start', async ($, e, next) => {
+       const startedAt = await $.clock.now()
+       await update($, count, n => n + 1)
+       await update($, turn, () => ({ startedAt, endedAt: null }))
+       await update($, now, () => startedAt)
+       tick?.cancel()
+       tick = $.clock.every(1000, () => {
+         void $.clock.now().then(t => update($, now, () => t))
+       })
+       return next(e)
+     })
+
+     on('tool.call', async ($, e, next) => {
+       if (e.agentId === undefined) await update($, lastTool, () => String(e.tool))
+       return next(e)
+     }).catch(($, e, next) => next(e))
+
+     on('turn.complete', async ($, e, next) => {
+       if (e.agentId === undefined) {
+         tick?.cancel()
+         tick = undefined
+         const endedAt = await $.clock.now()
+         await update($, turn, t => (t === null ? null : { ...t, endedAt }))
+       }
+       return next(e)
+     })
+
+     on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+       const t: TurnMeterTurn | null = await read($, turn)
+       if (e.props.hasSurvey || t === null || (await read($, isHidden))) return next(e)
+
+       const below = await next(e)
+       const { Box, Text } = $.ui.resolve(e)
+       const n = await read($, count)
+       const tool = await read($, lastTool)
+       const time =
+         t.endedAt === null
+           ? `진행 ${formatSeconds((await read($, now)) - t.startedAt)}`
+           : `지난 턴 ${formatSeconds(t.endedAt - t.startedAt)}`
+
+       return (
+         <Box flexDirection="column" width={e.props.bodyColumns}>
+           <Box key="meter">
+             <Text dimColor wrap="truncate-end">
+               턴 {n} · {time} · 마지막 도구 {tool ?? '없음'}
+             </Text>
+           </Box>
+           {below}
+         </Box>
+       )
+     })
+   }
+   ```
+
+   代码中的韩文字符串含义如下：`진행` = 进行，`지난 턴` = 上一回合，`턴` = 回合，`마지막 도구` = 最后的工具，`없음` = 无，`초` / `분` = 秒 / 分钟；命令说明是“开关输入框上方的回合信息横条”，命令输出是“已隐藏 turn-meter 横条。”/“已重新显示 turn-meter 横条。”。
+
+</Steps>
+
+## 分块讲解
+
+**五个状态。** `atom(ref, initial)` 是带初始值的具名值。`plugin` 和 `key` 必须在源码里写成字面量，因为验证器要读源码来生成 `state writes:` 和 `state reads:` 列表。读值用 `read($, atom)`，改值用 `update($, atom, fn)`。`update` 会在确认版本的前提下写入；如果期间有别人先写了，就会重试。
+
+**`/turn-meter` 命令。** 在 `session.start` 里用 `$.command.register` 注册命令，再由 `command.run` 钩子通过 `{ command: 'turn-meter' }` 匹配器接收。`update` 会返回更新后的值，所以用它来选择提示文案。不调用 `next`、直接返回 `{ text }`，这段文字就会作为命令输出显示出来。
+
+**回合开始与 1 秒计时器。** 在 `turn.start` 里用 `$.clock.now()` 取时间。Mod 里没有 `setTimeout`，所以每秒刷新也要用 `$.clock.every` 来设置。计时器只改 `now` 的值。横条在绘制时读取了 `now`，所以值一变，引擎就会重绘横条。这时不需要调用 `$.ui.invalidate`，因为读取 `$.state` 时就已经订阅了绘制。
+
+**最后的工具。** `tool.call` 钩子只记录工具名，然后用 `next(e)` 放行。如果 `e.agentId` 存在，说明是子代理的调用，直接跳过。末尾的 `.catch(($, e, next) => next(e))` 是为了让记录失败时工具也照常运行。验证器把 `tool.call` 看作可以拒绝某些东西的位置，因此会输出 `gating hook with .catch: tool.call`。这是个只做观察的钩子，失败时选择放行才是对的。
+
+**回合结束。** `turn.complete` 在子代理的回合里也会触发。只有主回合（没有 `agentId`）时，才停掉计时器并记下结束时间。
+
+**画横条。** 关键是三点。
+
+- `e.props.hasSurvey` 为真，说明问卷正占用着横条，于是用 `next(e)` 让开。
+- 有东西要画时，先用 `const below = await next(e)` 取得下层的结果。它是其他 Mod 画的横条，或者在没人画时是引擎自己的结果。
+- 把 `{below}` 接在自己这一行的下面再返回。如果不调用 `next`、只返回自己的树，那么排在自己下层的 Mod 的横条就画不出来。因为 `AbovePrompt` 是只有一个实例的位置。
+
+宽度按 `e.props.bodyColumns` 设置，这是减去引擎 `[-]` 折叠标记所占五列之后的宽度。
+
+<Aside>
+  这一行外面包了一层带 `key="meter"` 的 `Box`。起初我是把 `key` 加在 `Text` 上的，但在 2.1.291 测试套件的 `ui.drawn()` 结果里，`Text` 的 `key` 丢了，`find({ key })` 也找不到。看类型声明可知，接受 `key` 的元素有 `Box`、`Button`、`Input`、`Select`、`Code`、`Image`、`Markdown` 等，`TextProps` 里没有 `key`。要在测试里查找的文本行，请包在带 key 的 `Box` 里。
+</Aside>
+
+## 写测试
+
+```tsx title="tests/band.test.tsx"
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { formatSeconds } from '../hooks/register'
+
+const BAND = { plugin: 'turn-meter', component: 'AbovePrompt' } as const
+const props = {
+  hasSurvey: false,
+  isWorking: true,
+  maxRows: 10,
+  bodyColumns: 80,
+  scroll: { offset: 0, bodyRows: 9 },
+  view: {},
+}
+const SURFACES = ['terminal', 'desktop'] as const
+
+// 엔진 자리: 다른 mod의 띠 하나, 그리고 도구·턴·명령의 바닥 응답
+function engine(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>다른 mod의 띠</Text>
+  })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+}
+
+const toggle = {
+  command: 'turn-meter',
+  args: '',
+  origin: { kind: 'composer' as const },
+  presentation: { isFullscreen: true, columns: 120 },
+}
+
+describe('formatSeconds', () => {
+  test('초와 분으로 적는다', () => {
+    expect(formatSeconds(0)).toBe('0초')
+    expect(formatSeconds(12_400)).toBe('12초')
+    expect(formatSeconds(75_000)).toBe('1분 15초')
+  })
+})
+
+describe('띠', () => {
+  test('첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다', async ($, on) => {
+    engine(on)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect(await ui.find({ key: 'meter' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 1_000_000 })
+    await $.turn.start({ text: '테스트 고쳐 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+    await clock.advance(12_000)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 진행 12초 · 마지막 도구 Bash')
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('턴이 끝나면 걸린 시간을 고정한다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 0 })
+    await $.turn.start({ text: '첫 번째', turnId: 't1' })
+    await clock.advance(5_000)
+    await $.turn.complete({ answer: '끝', durationMs: 5_000, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+    await clock.advance(30_000)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 지난 턴 5초 · 마지막 도구 없음')
+  })
+
+  test('서브에이전트의 도구 호출은 마지막 도구로 치지 않는다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '조사해 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/a.txt' })
+    await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'sub-1' } as never)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toMatch(/마지막 도구 Read$/)
+  })
+
+  test('/turn-meter로 숨기고 다시 켠다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '아무거나', turnId: 't1' })
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 숨겼어요.')
+    const hidden = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await hidden.find({ key: 'meter' })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+    await hidden.unmount()
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 다시 보여요.')
+    const shown = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await shown.find({ key: 'meter' })).toBeDefined()
+  })
+})
+```
+
+测试中的韩文含义：`다른 mod의 띠` = “其他 Mod 的横条”；测试名依次为“用秒和分钟表示”“第一个回合之前不绘制，保留下层横条”“显示进行中回合的已用时间和最后的工具”“回合结束后固定所用时间”“子代理的工具调用不算作最后的工具”“用 /turn-meter 隐藏再重新打开”。
+
+通过测试里的 `on` 注册的钩子，位于所有插件的下面，也就是引擎的位置。因此 `engine()` 函数做了两件事。
+
+- **模拟其他 Mod 的横条。** 最下层的 `AbovePrompt` 钩子画出 `다른 mod의 띠`。用来确认自己的横条没有把那一行擦掉。
+- **补上底层。** 如果下面没有钩子来应答，测试引擎会报错。不补底层就调用 `turn.start`，实际会这样失败。
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+第二行很重要。时钟没有底层的话，我的 `turn.start` 钩子会被跳过。所以每个涉及回合的测试都要铺上 `mock.clock(on, …)`。这个时钟只在测试用 `clock.advance(12_000)` 拨动时才走。拨动 12 秒，1 秒计时器就会跑十二次，变成 `진행 12초`。实际上并不需要真的等 12 秒。
+
+界面测试用 `$.ui.mount({ plugin, surface, component, props })` 把横条画一次，再用 `find` 查找元素。`surface` 没有默认值，必须写明。同一份测试体分别在 `terminal` 和 `desktop` 上各跑一遍，也就顺带确认了没有用到只存在于某一边界面的元素。
+
+## 跑一跑
+
+```bash
+claude plugin validate ./turn-meter
+```
+
+```text
+Validating plugin manifest: …/turn-meter/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: turn-meter.count, turn-meter.turn, turn-meter.now, turn-meter.lastTool, turn-meter.isHidden
+
+Validating hooks: …/turn-meter/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, command.run{command=turn-meter}, turn.start, tool.call, turn.complete, ui.render{component=AbovePrompt}
+  ❯ ./register.tsx gating hook with .catch: tool.call
+  ❯ ./register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.state.get, $.state.set, $.ui.resolve
+  ❯ ./register.tsx state writes: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+  ❯ ./register.tsx state reads: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+
+✔ Validation passed
+```
+
+这里只省略了路径的前半部分。第一次运行时有一条缺少 `author` 的警告，在清单里加上 `author` 后就消失了。从 `calls:` 一行可以看出，这个 Mod 不碰文件、网络和进程。这就是[安全检查](/zh-cn/guide/safety-checklist/)里所说的“仅屏幕与记忆”级别。
+
+```bash
+claude plugin test ./turn-meter
+```
+
+```text
+tests/band.test.tsx:
+(pass) formatSeconds > 초와 분으로 적는다 [1.14ms]
+(pass) 띠 > 첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다 [28.03ms]
+(pass) 띠 > 진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다 [25.08ms]
+(pass) 띠 > 턴이 끝나면 걸린 시간을 고정한다 [14.53ms]
+(pass) 띠 > 서브에이전트의 도구 호출은 마지막 도구로 치지 않는다 [11.61ms]
+(pass) 띠 > /turn-meter로 숨기고 다시 켠다 [13.68ms]
+
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [0.25s]
+```
+
+## 在会话里启用
+
+可以不安装，只在这一次会话中加载。
+
+```bash
+claude --plugin-dir ./turn-meter
+```
+
+以这种方式启动的会话会监视文件夹，保存文件时会重新读取钩子模块。如果看不到横条，请参考[测试与调试](/zh-cn/articles/testing-and-debugging/)中读取调试日志的方法。
+
+## 需要了解的限制
+
+- `AbovePrompt` 只会在终端和桌面界面中绘制。VS Code 和移动端没有这条横条。
+- 1 秒计时器保存在模块变量里。回合进行中发生热重载时，上一个环境的计时器会被丢弃，直到下一个回合开始之前，已用时间看起来会停住。
+- 横条重绘的速度由引擎决定。按类型声明，重绘每秒最多 10 次，终端中展开的横条最多 30 次。1 秒的间隔在此范围之内。
+- 回合数统计的是主循环的 `turn.start`。没有用户发送提示词的接续回合也算作一个回合。

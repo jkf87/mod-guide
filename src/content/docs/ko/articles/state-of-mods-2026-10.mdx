@@ -1,0 +1,145 @@
+---
+title: mod 생태계 현황 (2026년 10월)
+description: 커뮤니티 카탈로그 1,919개 항목을 다시 셌어요. mod가 쏟아진 날짜, 저장소별 몰림, 스타와 라이선스, 그리는 자리, 많이 거는 이벤트를 표로 봐요.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289
+
+이 글의 숫자는 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 카탈로그의 `data/mods.json`(CC0)을 파이썬으로 다시 센 값이에요. 카탈로그는 GitHub에서 mod를 찾고, 저장소마다 `claude plugin validate`를 돌려 그 출력에서 훅과 `$` 호출을 뽑아 둬요. 파일은 2026-10-04 08:26(UTC)에 만들어졌어요. 그 뒤에 생긴 mod는 빠져 있어요.
+
+## 무엇을 셌나
+
+카탈로그에는 저장소 1,171개에서 찾은 항목 1,919개가 있어요. 모두 설치용 mod는 아니에요.
+
+| 종류 | 항목 | 뜻 |
+| --- | ---: | --- |
+| `mod` | 1,752 | 일반 mod |
+| `fixture` | 93 | `tests/`·`examples/` 같은 폴더의 시험용 예제 |
+| `catalog` | 39 | 남의 mod를 다시 묶어 둔 저장소의 항목 |
+| `duplicate` | 28 | 다른 항목과 같은 mod |
+| `builtin` | 4 | `anthropics/claude-code` 저장소의 내장 mod |
+| `mirror` | 3 | 내장 mod를 복사해 둔 것 |
+
+이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 `mod`와 `builtin` 가운데 보관되지 않았고, 중복이 아니고, 검증을 경고 없이 통과한 것만 실어요. 그렇게 남는 것이 **mod 1,488개, 저장소 777개, 작성자 690명**이에요. 아래 숫자는 따로 밝히지 않으면 이 1,488개 기준이에요.
+
+## 사흘 동안 쏟아졌어요
+
+카탈로그의 `createdAt`은 저장소가 만들어진 시각이에요. mod를 올린 날과 꼭 같지는 않아요. 예를 들어 2026년 9월 전에 생긴 저장소 102개는 나중에 mod를 더한 경우예요.
+
+| 저장소 생성일(UTC) | 저장소 | 그 저장소의 mod |
+| --- | ---: | ---: |
+| 2026년 9월 전 | 102 | 154 |
+| 2026년 9월 | 108 | 190 |
+| 10월 1일 | 36 | 52 |
+| 10월 2일 | 258 | 453 |
+| 10월 3일 | 228 | 568 |
+| 10월 4일 (08:26까지) | 42 | 68 |
+| 10월 5일 | 3 | 3 |
+
+10월 2일과 3일 이틀에 생긴 저장소가 486개예요. 전체 777개의 63%예요. 10월 3일 숫자가 큰 데에는 그날 만들어진 [mako-code/gobworks](https://github.com/mako-code/gobworks) 한 저장소의 mod 117개도 들어 있어요. 9월 18일에 생긴 [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods)도 하루에 mod 53개를 보탰어요.
+
+npm 레지스트리에 Claude Code 2.1.287이 올라온 시각은 2026-10-01 16:59(UTC)예요. [FAQ](/ko/faq/)에 적은 대로 function hooks가 기본으로 켜진 버전이에요. 10월 1일에 생긴 저장소 36개 중 29개가 17시 이후에 생겼어요. 그 시각 이후 만들어진 저장소는 777개 중 560개(72%)이고, 거기 담긴 mod는 1,488개 중 1,137개(76%)예요. 시점은 겹쳐요. 다만 카탈로그에는 저장소를 만든 이유가 없어서 원인까지는 말할 수 없어요.
+
+## 저장소 하나에 mod 하나가 보통이에요
+
+| 저장소당 mod 수 | 저장소 | mod | mod 비율 |
+| --- | ---: | ---: | ---: |
+| 1개 | 626 | 626 | 42.1% |
+| 2~9개 | 133 | 429 | 28.8% |
+| 10~17개 | 15 | 193 | 13.0% |
+| 50개 이상 | 3 | 240 | 16.1% |
+
+저장소의 81%가 mod 하나짜리예요. 한편 상위 3개 저장소에 mod 240개가 몰려 있어요.
+
+| 저장소 | mod | 성격 |
+| --- | ---: | --- |
+| [mako-code/gobworks](https://github.com/mako-code/gobworks) | 117 | `mods/` 아래 `jev`·`abilities`·`ambient`·`autopilot` 같은 묶음으로 나눈 모음 |
+| [whyashthakker/awesome-claude-code-mods](https://github.com/whyashthakker/awesome-claude-code-mods) | 70 | 폴더 하나에 mod 하나씩 둔 작은 도구 모음 |
+| [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) | 53 | `gemini-*` 연동과 `sidebar` 같은 공용 부품을 나눠 둔 모음 |
+
+큰 모음 저장소는 mod끼리 부품을 나눠 쓰기도 해요. KilimcininKorOglu 저장소의 mod 36개는 같은 저장소의 `sidebar` mod가 `$`에 더한 `$.sidebar`를 불러요. 하나만 골라 설치하면 그 부품이 없을 수 있으니 README의 의존 관계를 먼저 봐요.
+
+## 스타는 저장소 단위예요
+
+카탈로그의 `stars`는 저장소의 스타예요. mod 117개가 든 저장소는 117개 mod가 모두 같은 숫자를 받아요. 그래서 저장소 777개로 셌어요.
+
+| 저장소 스타 | 저장소 | 비율 |
+| --- | ---: | ---: |
+| 0 | 538 | 69.2% |
+| 1~9 | 188 | 24.2% |
+| 10~99 | 36 | 4.6% |
+| 100~999 | 9 | 1.2% |
+| 1,000 이상 | 6 | 0.8% |
+
+스타 1,000 이상인 저장소 6개 중 5개는 mod 말고도 하는 일이 많은 큰 프로젝트예요. `anthropics/claude-code`(149,303), `ruvnet/RuView`(96,198), `ruvnet/ruflo`(73,820), `anthropics/claude-plugins-official`(37,363), `kunchenguid/firstmate`(7,488)이에요. mod 하나가 저장소의 주인공인 경우는 [zenbu-labs/terminal-browser](https://github.com/zenbu-labs/terminal-browser)(3,626)가 가장 커요. 반대로 mod가 가장 많은 gobworks는 스캔 시점에 스타가 0이었어요. 저장소가 사흘 안에 생긴 경우가 대부분이라 스타가 쌓일 시간도 없었어요. 스타는 mod의 품질을 말해 주지 않아요.
+
+## 라이선스 없는 저장소가 다섯에 하나예요
+
+카탈로그는 GitHub가 알아본 라이선스(SPDX ID)를 적어 둬요.
+
+| 라이선스 | 저장소 | 비율 |
+| --- | ---: | ---: |
+| MIT | 555 | 71.4% |
+| 없음 | 164 | 21.1% |
+| Apache-2.0 | 25 | 3.2% |
+| NOASSERTION | 24 | 3.1% |
+| AGPL-3.0 | 3 | 0.4% |
+| GPL-3.0 · Unlicense | 각 2 | 0.3% |
+| GPL-2.0 · MIT-0 | 각 1 | 0.1% |
+
+mod 단위로 세면 라이선스가 없는 mod가 324개(21.8%)예요. 라이선스 파일이 없는 저장소는 저작권법의 기본값을 따라요. 저작자가 허락하지 않은 이상 남이 코드를 복제하거나 고쳐서 다시 배포할 권리가 없어요. GitHub 이용 약관상 공개 저장소를 보고 포크하는 것은 돼요. 그래도 그 코드를 내 mod에 옮겨 붙이거나 고친 판을 배포하면 안 돼요. 필요하면 저자에게 라이선스를 붙여 달라고 이슈로 요청해요. `NOASSERTION`은 라이선스 파일은 있는데 GitHub가 종류를 알아보지 못한 경우예요. 그 파일을 직접 열어 확인해요.
+
+## 어디에 그리나
+
+`ui.render`를 거는 mod는 1,129개(75.9%)예요. 나머지 359개는 토스트·상태 줄·로그 줄만 쓰거나 화면에 아무것도 띄우지 않아요.
+
+| 그리는 자리 | mod | 무엇 |
+| --- | ---: | --- |
+| `Pane` | 673 | 옆이나 아래에 여는 창 |
+| `AbovePrompt` | 600 | 입력창 위 띠 |
+| `Spinner` | 76 | 작업 중 표시 |
+| `PromptHint` | 75 | 입력창 아래 힌트 줄 |
+| `SessionMode` | 65 | 하단의 모드 표시 |
+| 대화 기록 행 | 153 | `AssistantMessage` 67, `ToolUse` 59, `UserMessage` 50, `ToolResult` 40, `ToolGroup` 37, `CommandOutput` 33, `TurnDuration` 32, `InfoNotice` 7 |
+| `AskUserQuestion` | 11 | 질문 대화상자 |
+| `ToolProgress` | 7 | 도구 진행 표시 |
+
+`Pane`만 그리는 mod가 363개, `AbovePrompt`만 그리는 mod가 274개, 둘 다 그리는 mod가 266개예요. 창을 열어 자세히 보여 주고 띠에 한 줄 요약을 두는 구성이 흔해요. 대화 기록 행을 다시 그리는 mod 153개는 Claude가 쓴 답이나 도구 결과가 화면에 보이는 모양을 바꿔요. 권한 확인창은 목록에 없어요. 타입 파일에도 그 창은 엔진만 그린다고 적혀 있어요.
+
+## 많이 거는 이벤트
+
+카탈로그에 나온 이벤트는 114종이에요. mod 하나가 거는 이벤트는 중앙값 5종, 부르는 `$` 메서드는 중앙값 11개예요.
+
+| 이벤트 | mod | 비율 | 주로 하는 일 |
+| --- | ---: | ---: | --- |
+| `session.start` | 1,284 | 86.3% | 명령·도구 등록, 타이머 시작 |
+| `ui.render` | 1,129 | 75.9% | 화면 그리기 |
+| `command.run` | 1,078 | 72.4% | 슬래시 명령 처리 |
+| `tool.call` | 786 | 52.8% | 도구 호출 보기·막기·바꾸기 |
+| `turn.complete` | 738 | 49.6% | 턴이 끝난 뒤 집계·알림 |
+| `prompt.submit` | 474 | 31.9% | 보낸 프롬프트 보기·바꾸기 |
+| `turn.start` | 367 | 24.7% | 턴 시작 표시 |
+| `session.end` | 279 | 18.8% | 정리·저장 |
+| `turn.step` | 204 | 13.7% | 모델 요청 스트림 |
+| `ui.close` | 182 | 12.2% | 창 닫힘 처리 |
+| `session.measure` | 180 | 12.1% | 사용량·한도 수치가 바뀔 때 받기 |
+| `session.compact` | 144 | 9.7% | 압축 시점·방식 |
+| `agent.spawn` | 109 | 7.3% | 서브에이전트 모델 고르기·막기 |
+| `classic.SessionStart` | 103 | 6.9% | 설정 훅 이벤트를 함수로 받기 |
+
+`classic.*` 이벤트를 하나라도 거는 mod는 196개예요. 설정 파일의 훅(`Stop`, `PermissionRequest` 같은)이 받는 입력을 함수 훅에서 그대로 받아요.
+
+<Aside>
+  카탈로그 숫자는 소스를 읽어 얻은 값이에요. mod를 실행해 본 결과가 아니에요. 훅이 실제로 얼마나 자주 도는지, 화면이 제대로 그려지는지는 이 숫자로 알 수 없어요.
+</Aside>
+
+## 고를 때 쓰는 법
+
+- 스타 숫자는 저장소 이름값이에요. mod 하나를 고를 때는 그 mod 폴더의 마지막 커밋과 소스를 봐요.
+- 큰 모음 저장소의 mod는 같은 저장소의 다른 mod에 기대는지 확인해요.
+- 라이선스가 없는 mod는 설치해서 써 볼 수는 있어도 코드를 가져다 쓰면 안 돼요.
+- 접근 범위는 [mod는 실제로 무엇에 손대나](/ko/articles/what-mods-touch/)에서, 검증 실패 원인은 [검증에 떨어지는 mod](/ko/articles/validation-failures/)에서 이어서 다뤄요.

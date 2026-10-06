@@ -1,0 +1,149 @@
+---
+title: Mod 实际会碰什么
+description: 通过对目录中 1,488 个 Mod 的源码扫描来看访问范围。整理了执行进程的 594 个、查看所有提示词的 474 个、向外发送请求的 195 个分别触及哪里。
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289
+
+统计了 [Mod 目录](/zh-cn/mods/directory/)收录的 1,488 个 Mod 调用了哪些 API、接收哪些事件。数据来自 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 目录。各 API 的含义，是对照 Claude Code 2.1.290 提供的类型文件 `claude-code.d.ts` 确认的。
+
+## 读数字之前
+
+目录不会运行 Mod。它收集 `claude plugin validate` 读取源码后输出的 `calls:` 行和 `hooks:` 行，再按规则表评定等级。所以下面这些是无从得知的。
+
+- `$.http.fetch` 向哪个地址发送了什么
+- `$.process.run` 执行了什么程序。类型文件写着 "what a command of its own reaches is its own"。被执行的 `curl` 或 `gh` 即使访问了网络，目录也不会算作网络。
+- 钩子实际触发多少次，默认是否启用
+
+等级只是"能做的事"的上限，不是"做了什么"的证据。
+
+## 四级访问范围
+
+目录以 Mod 所调用的 `$` 调用中范围最广的一个来定级。
+
+| 级别 | 依据的调用 | Mod | 占比 |
+| --- | --- | ---: | ---: |
+| 0 画面·记忆 | `$.ui.*`、`$.store.*`、`$.audio.*` | 173 | 11.6% |
+| 1 读取 | `$.fs.read`、`$.env.get`、`$.settings.read`、`$.session.messages` | 338 | 22.7% |
+| 2 写入·执行 | `$.process.run`、`$.fs.write`、`$.config.set`、`$.prompt.submit`、`$.model.*` | 782 | 52.6% |
+| 3 网络 | `$.http.fetch`、`$.mcp.call` | 195 | 13.1% |
+
+超过一半在第 2 级。也就是说，光凭第 2 级无法筛选出 Mod。
+
+第 1 级里有水分。目录的规则表里没有 `$.state`，于是把它当作未知调用，升到第 1 级。`$.state` 是会话期间由宿主持有的值，碰不到文件或机密。第 1 级的 338 个中，有 178 个是因为 `$.state` 才被升上来的。把它们去掉，第 0 级就变成 351 个（23.6%）。
+
+## 各种能力有多少 Mod 在用
+
+| 标记 | Mod | 占比 | 对应的调用 |
+| --- | ---: | ---: | --- |
+| 保存状态 | 611 | 41.1% | `$.store.*` |
+| 执行进程 | 594 | 39.9% | `$.process.run` |
+| 读取文件 | 563 | 37.8% | `$.fs.read`·`list`·`stat`·`exists` |
+| 读取环境变量 | 522 | 35.1% | `$.env.get` |
+| 操控 Claude | 494 | 33.2% | `$.prompt.submit`、`$.model.*`、`$.tool.register`、`$.command.run`、`$.session.compact`、`$.turn.abort`、`$.agent.spawn` |
+| 写入文件 | 252 | 16.9% | `$.fs.write` |
+| 网络 | 170 | 11.4% | `$.http.fetch` |
+| 读取对话记录 | 159 | 10.7% | `$.session.messages` |
+| 写入输入框 | 123 | 8.3% | `$.prompt.fill`·`suggest` |
+| 读取设置 | 88 | 5.9% | `$.settings.read` |
+| 声音 | 70 | 4.7% | `$.audio.*` |
+| 修改设置 | 37 | 2.5% | `$.config.set` |
+| 调用 MCP 服务器 | 30 | 2.0% | `$.mcp.call` |
+| 写入环境变量 | 21 | 1.4% | `$.env.set` |
+
+## 按命名空间来看
+
+类型文件中的 `CoreEngineInterface` 是 `$` 的基本名称集合。每行的说明是照搬类型文件里的注释。
+
+| `$` 名称 | Mod | 常用方法 | 类型文件所说的范围 |
+| --- | ---: | --- | --- |
+| `ui` | 1,401 | `resolve` 1,090、`toast` 712、`open` 654 | 画面、窗格、toast、剪贴板 |
+| `command` | 1,092 | `register` 1,068 | 斜杠命令列表与执行 |
+| `clock` | 1,045 | `now` 785、`every` 617 | 时间与计时器 |
+| `session` | 863 | `usage` 327、`cwd` 300、`messages` 144 | 把运行中的会话当作数据读取、压缩、向其他会话发送消息 |
+| `state` | 828 | `get` 827、`set` 823 | 会话期间由宿主持有的值 |
+| `store` | 611 | `get` 609、`set` 607 | 用户设置文件夹下这个 Mod 专用的 JSON 文件 |
+| `process` | 608 | `run` 594、`spawn` 49 | 以与会话相同的用户权限执行宿主命令 |
+| `fs` | 595 | `read` 474、`exists` 299、`write` 252 | 引擎进程能触及的文件系统。绝对路径原样使用 |
+| `env` | 526 | `get` 522、`set` 21 | 该进程的环境变量。Bash、MCP 服务器和被执行的命令都会继承 |
+| `prompt` | 276 | `submit` 179、`fill` 111 | 以用户回合发送提示词，读写输入框 |
+| `model` | 206 | `complete` 159、`fork` 71 | 使用会话的客户端和凭据调用模型 |
+| `tool` | 172 | `register` 126、`call` 29 | 模型所用工具的列表与执行 |
+| `http` | 170 | `fetch` 170 | 经由宿主的网络请求 |
+| `agent` | 102 | `list` 97、`spawn` 16 | 子智能体 |
+| `settings` | 88 | `read` 88 | 设置文件与托管策略。连 `env` 也不过滤，原样交出 |
+| `config` | 75 | `list` 54、`set` 37 | `/config` 菜单中的所有行 |
+| `mcp` | 30 | `call` 30 | 调用已连接 MCP 服务器的工具 |
+
+其中有三行尤其值得留意。
+
+- `$.settings.read` 不会过滤设置文件的 `env` 块和辅助命令，而是原样交出。如果你把 API key 放在设置里，那些值也会一并被读到。
+- `$.env.get` 只接受字符串字面量作为变量名。所以 `claude plugin validate` 输出的 `env reads:` 行会列出 Mod 读取的全部变量名。安装前看一下这一行，就知道它读取哪些 key。
+- `$.model.*` 直接使用会话的凭据。有 206 个 Mod 用你的套餐或 API key 调用模型。其中 152 个还挂了 `turn.complete`，结构上可以在每个回合结束时调用。
+
+也能看到基本名称集合里没有的名称。13 个 Mod 通过 `engine.create` 事件往 `$` 上添加新名称。[KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) 的 [`sidebar`](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/sidebar) 添加的 `$.sidebar` 被同一仓库的 36 个 Mod 调用，[lemomo-ai/lemo-mod](https://github.com/lemomo-ai/lemo-mod) 的 `$.lemo` 被 16 个调用。这类 Mod 需要同时装上添加该名称的 Mod 才能正常运行。
+
+## 查看工具调用的 Mod
+
+`tool.call` 在引擎执行工具之前被调用。按类型文件所述，钩子可以用 `{ deny }` 拒绝，用 `{ result }` 不执行直接作答，也可以修改输入后交给 `next`。有 786 个 Mod（52.8%）挂了这个事件。
+
+| 匹配器 | Mod |
+| --- | ---: |
+| 没有工具名（所有工具调用） | 464 |
+| 含 `Bash` 的匹配器 | 168 |
+| `Write` | 111 |
+| `Edit` | 109 |
+| `NotebookEdit` | 54 |
+| `Read` | 34 |
+| `PowerShell` | 30 |
+| `AskUserQuestion` | 23 |
+| `Agent` | 19 |
+| `ExitPlanMode` | 15 |
+
+像 `Edit|Write|NotebookEdit` 这样合并的匹配器，是按名称分别统计的。另有 17 个是匹配器为变量、扫描器读不出来的情况。464 个没有设置匹配器，所以会看到所有工具调用的输入和结果。Bash 命令、要编辑的文件内容、网络请求地址都会经过这里。挂了决定是否执行工具的 `tool.check` 的 Mod 也有 64 个。
+
+## 查看提示词的 Mod
+
+`prompt.submit` 在提示词发送之后、回合开始之前被调用。钩子可以改写文本后放行，也可以用 `{ drop }` 中止。挂这个事件的 Mod 有 474 个（31.9%），其中 472 个没有匹配器，所以会看到所有提示词。反方向也有：用 `$.prompt.submit` 像人输入的一样发送提示词的 Mod 有 179 个。
+
+查看所有提示词或所有工具调用的 Mod 共 729 个，其中 95 个属于网络级别。
+
+## 195 个网络 Mod 把东西发到哪里
+
+第 3 级的 195 个中，170 个使用 `$.http.fetch`，25 个只使用 `$.mcp.call`。地址无法通过静态扫描得知，所以我按关键词对目录里的描述文字做了大致分组。
+
+| 分组 | Mod | 示例 |
+| --- | ---: | --- |
+| 判断模型服务（Jev、TypeSafe、Laya 等） | 52 | 每次编辑时做安全检查、判断压缩时机、选择模型 |
+| 工作服务 | 27 | GitHub PR、Linear、Jira、Slack、Gmail、日历、Home Assistant |
+| 休闲 | 29 | 音乐、歌词、游戏、比赛比分、股价 |
+| 用量·额度显示 | 19 | 5 小时·每周额度条 |
+| 其他模型·智能体 | 18 | Gemini、Codex、OpenAI 语音 |
+| 包·安全检查 | 6 | 查询注册表、OSV.dev |
+| 其他 | 44 | 本地守护进程、浏览器、记忆存储等 |
+
+这是关键词分类，所以边界有重叠，"其他"里也混有只与 `localhost` 本地服务器通信的 Mod。不过有两点是明确的。
+
+第一，超过四分之一的网络 Mod 会把内容发给判断模型。大部分是托管服务，也有少数像 Laya 或 ollama 那样使用你电脑上的本地模型。例如 [jev-seclint](https://github.com/mako-code/gobworks/tree/main/mods/jev/jev-seclint) 会在每次 `Edit|Write|NotebookEdit` 调用时，把文件路径和编辑前后的代码片段发送到 `api.typesafe.ai`。这是我在源码的 `register.tsx` 里亲自确认的。也就是说，代码会发送到外部服务。
+
+第二，有的 Mod 会把对话交给其他模型提供方。[gemini-review](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/gemini-review) 在说明里写着 "from the staged diff and the conversation"，每次模型执行 `git commit` 时都会交给 Gemini 审查。
+
+195 个网络 Mod 中，有 115 个还会读取环境变量，大多是用来读取服务 API key。有 46 个还会读取对话记录。
+
+<Aside type="caution">
+  这里的数字是在源码中找到的调用。即使不属于网络级别，用 `$.process.run` 执行的程序也可能访问网络。反过来，即使属于网络级别，也有 Mod 要填入 key 才会发送请求。jev-seclint 在没有 `TYPESAFE_API_KEY` 时是关闭的。
+</Aside>
+
+## 安装前的查看顺序
+
+1. 在[目录](/zh-cn/mods/directory/)里看级别和标记。第 2 级很常见，所以要同时看标记。
+2. 对于既查看"所有提示词"或"所有工具调用"、又属于网络级别的 Mod，到源码里找 `$.http.fetch` 发送了什么。
+3. 运行 `claude plugin validate`，通过 `env reads:` 行看它读取哪些 key。
+4. 如果调用了 `$.model.*`，看它在哪个事件里调用。如果每个回合都调用，用量就会相应增加。
+5. 判断规则请按[安装前安全检查](/zh-cn/guide/safety-checklist/)来做。
+
+基于同一份数据看到的生态整体面貌，在 [Mod 生态现状](/zh-cn/articles/state-of-mods-2026-10/)中。

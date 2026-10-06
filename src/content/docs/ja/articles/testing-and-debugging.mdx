@@ -1,0 +1,186 @@
+---
+title: Modのテストとデバッグ
+description: claude plugin validate・testが実際に何を検査するのか、デバッグログから拒否の理由を見つける方法、ホットリロードがいつ効くのかを、実際に実行した出力とide-modの制作記録でまとめました。
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Modが何もしていないように見えるとき、原因はたいていエンジンがすでにどこかに書き残しています。この記事では、その記録を探すための3つのツールを扱います。
+
+| ツール | いつ | 何を見るか |
+| --- | --- | --- |
+| `claude plugin validate <フォルダ>` | セッションに読み込む前 | マニフェストとフックモジュールのソース。エンジンが拒否する部分 |
+| `claude plugin test <フォルダ>` | 修正するたび | `*.test.ts(x)` をエンジン上で実行 |
+| デバッグログ | 実際のセッション | フックがスキップされた理由、拒否された描画 |
+
+基準：コマンドの出力はClaude Code 2.1.291で実際に実行した結果です。APIの説明は2.1.290の型宣言とリファレンスで確認しました。「観察」と書いた項目は、[ide-mod](/ja/mods/ide-mod/)を作る中で2.1.290で経験したことです。
+
+## validate：ソースを読む検査
+
+`validate` はModを実行しません。エンジンが読み込むときと同じ方法でソースを読み、報告します。出力の各行には決まった意味があります。
+
+| 行 | 意味 |
+| --- | --- |
+| `hooks:` | 登録したイベントとマッチャー |
+| `calls:` | ソースで見つかった `$` の呼び出し |
+| `gating hook with .catch:` / `without .catch:` | 何かを拒否できる場所のフック。警告には数えない事実の報告です |
+| `state reads:` / `state writes:` | `$.state` のキー。`plugin` と `key` がリテラルなので読み取れます |
+| `types … declares` | マニフェストの `types` が指す契約ファイルが宣言したもの |
+
+終了コードは、エラーがあれば1です。`--strict` は警告も失敗として扱うのでCIに向いていて、`--json` は同じ内容をJSONで出力します。JSONには、拒否できるフックが `gatingHooks` 配列として別に入っています。
+
+検査がソースの読み取りであるために生まれるルールがあります。以下の2つのエラーは、わざと間違ったModを作って得た実際の出力です(パスは省略しました)。
+
+```text
+✘ Found 1 error:
+
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 4 `await hello($);`: $ is passed to "hello", imported from "./helpers": $ is followed only into a function declared in this same file, never across an import; …
+
+✘ Validation failed
+```
+
+`$` は同じファイル内の関数にしか追跡されません。ほかのファイルに `$` を渡すと、検査器は何を呼ぶのか分からないので拒否します。`$` を使うコードはフックモジュールの1ファイルに置き、外のファイルには純粋関数だけを置いてください。
+
+```text
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 7 `on("session.start", async ($, e, next) => next(e));`: on("session.start") is registered twice without a matcher; the first is at …/hooks/register.ts:3; …
+```
+
+マッチャーなしで同じイベントを2回登録してもエラーです。1つのフックの中で複数の処理をしてください。
+
+<Aside type="caution">
+  validateを通過しても、安全が保証されるわけではありません。ソースを読んで呼び出しの一覧を作るだけで、実行中の挙動は証明できません。
+</Aside>
+
+## test：エンジン上で動かすテスト
+
+`claude plugin test <フォルダ>` は、フォルダ配下の `*.test.ts` と `*.test.tsx` を探し、ファイルごとにClaude Code実行ファイルの子プロセスとして動かします。環境はフックが動く環境と同じで、Nodeのファイル・ネットワーク・プロセスへのアクセスはありません。Modのフォルダは、エンジンのローダーがセッションと同じように読み込みます。
+
+テストは `claude-code/testing` からインポートします。
+
+| 名前 | 役割 |
+| --- | --- |
+| `test(name, ($, on) => …)` | テスト1つ。デフォルトの制限は5,000ms、`{ timeoutMs }` で変更 |
+| `test(name, { options }, body)` | `userConfig` の値を、設定に保存された値として渡します |
+| `test(name, { plugins }, body)` | ほかのプラグインをインラインで一緒に読み込みます |
+| `describe`, `expect` | グループ化と検査。`toBe`、`toEqual`、`toMatch`、`toThrow`、`expect.any` など |
+| `mock.clock(on, { now })` | メモリ上の時計。`advance`、`set`、`settle`、`sleep` でのみ動きます |
+| `mock.store(on, entries)` / `mock.env(on, vars)` | `$.store` と `$.env.get` をメモリで答えます |
+| `tier('append')` | このModが載る階層を、ファイルの先頭で決めます |
+
+### `on` はエンジンの位置です
+
+テストの `$` はエンジンそのものです。`$.tool.call(...)`、`$.turn.start(...)`、`$.command.run(...)` は、セッションのエンジンが呼ぶのと同じチェーンを動かします。テストの `on` で掛けたフックは、すべてのプラグインの下に立ち、エンジンの役を務めます。その下の土台は空で、答えるフックがないと次のように失敗します。
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+失敗メッセージには `the engine reported:` に続けて、それまでにスキップされたフックとその理由が付きます。上の例は、時計の土台がなく、自分のフックがスキップされたケースです。`mock.clock(on)` の1行が答えでした。プラグインは、テストが最初に `$` を呼んだときに読み込まれます。土台のフックはその前に登録してください。
+
+土台のフックが返す形は、イベントごとに異なります。ide-modのテストで合わせたルールです(観察)。
+
+- `fs.read`、`fs.stat`、`ui.open`、`session.cwd`、`env.get` のような `$` 呼び出しのイベントは `{ value: … }` で包みます。
+- `tool.call` は `{ result: … }` か `{ deny }` を返します。
+- `turn.start`、`turn.complete` のようなイベントは、結果の型をそのまま返します(`{ turnId }`、`{ text }`)。
+- テストエンジンは相対パスをModフォルダ基準で解決します。偽のファイルシステムは絶対パスで作ります。
+
+### 画面のテスト
+
+`$.ui.mount({ plugin, surface, component, props })` が描画を1回行い、ハンドルを返します。`surface` にはデフォルト値がありません。`terminal`、`desktop`、`vscode`、`mobile` のどれかを必ず指定します。ハンドルでは `find`、`findAll`、`drawn`(ツリー全体)、`press`、`input`、`select`、`redraw`、`unmount` が使えます。`key`、`pointer`、`post`、`resize` は `Client` 要素にだけ届きます。
+
+知っておくべき点が2つあります。
+
+- `mount` のハンドルには、`Pane` の本体にキーやホイールを送る操作がありません。ide-modのスクロール処理は、実際の画面で確認しました(観察)。
+- `Text` に付けた `key` は、描画されたツリーに残りませんでした(2.1.291で確認)。`TextProps` に `key` がありません。探したい要素は、キーを付けた `Box` で包んでください。
+
+描画が拒否されると、`mount` はその理由で reject します。セッションで画面が空になる原因を、テストの段階で先に捕まえられます。わざと間違えたツリーを3つマウントして得た、実際のメッセージです。
+
+```text
+refuse-demo: ui.render (Pane) refused: Image source.generation must be a whole number when given; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Image source.png does not start as a PNG file does; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Svg source longer than 131072 characters; the engine drew its own
+```
+
+## デバッグログを読む
+
+```bash
+claude --debug-file ./mod-debug.log      # 파일로 남기기 (디버그 모드도 켜져요)
+claude --debug                           # 디버그 모드
+claude --debug "hooks"                   # 범주 거르기
+```
+
+コメントの意味は順に、ファイルに残す(デバッグモードも有効になります)、デバッグモード、カテゴリで絞り込む、です。
+
+`session.start` フックがわざと `JSON.parse('{oops')` で例外を投げるModを `--plugin-dir` で読み込み、`claude -p "/ping"` を実行しました。ログ656行のうち、Mod名が出てくる行です(時刻は省略)。
+
+```text
+[DEBUG] --plugin-dir …/debug-demo is one plugin: .claude-plugin at its top marks it
+[DEBUG] hooks module debug-demo@inline loaded (worker, environment 1, tier user); events: session.start,command.run
+[DEBUG] plugin.register: debug-demo (user, debug-demo@inline), judged by core alone: admitted
+[DEBUG] type root of debug-demo at …/debug-demo/.claude-plugin/types: entries claude-code, claude-code-tools, claude-code-mcp; wrote …, tsconfig.json
+[DEBUG] $.command.register (debug-demo): /ping listed
+[ERROR] hook failed: debug-demo: errorKind=SyntaxError errorChars=30 (session.start; skipped; what is below it ran in its place)
+[ERROR] debug-demo: session.start hook skipped: threw SyntaxError: JSON Parse error: Expected '}'
+[DEBUG] debug-demo (user) answered command.run without next() in 0.6ms; nothing beneath it ran for this dispatch
+```
+
+読む順番は次のとおりです。
+
+1. `loaded … events:` の行がなければ、モジュールが読み込まれていません。`-p` 実行では、その理由がstderrにも1行出力されます。今回の実行のstderrには `debug-demo: session.start hook skipped: threw SyntaxError…` が出力されました。
+2. `hook failed` の行には、エラーの種類とメッセージの長さ(`errorChars=30`)だけがあります。リファレンスのとおり、文章そのものは別に記録されます。すぐ次の行がその文章です。
+3. `answered … without next()` は、自分のフックが直接答えたので、その下が動かなかったという意味です。ほかのModが動かないときは、この行から探してください。
+
+`type root … wrote` の行も見ておく価値があります。エンジンはModを読み込むたびに、Modフォルダに `.claude-plugin/types/` と `tsconfig.json` を書き込みます。一度読み込まれたModフォルダでは、`tsc -p <フォルダ>` がすぐに動きます。`.claude-plugin/types/` には、エンジンが `*` だけの1行の `.gitignore` を一緒に書くので、gitには上がりません。ルートの `tsconfig.json` は、そのフォルダの設定を `extends` する1行です。
+
+### 「the engine drew its own」
+
+描画の拒否は、リファレンスが定めた文言で記録されます。
+
+| 行 | 意味 |
+| --- | --- |
+| `ui.render (<Component>): a hook returned a tree that does not validate` | デバッグログ。ツリーがその画面のルールに合っていません |
+| `<plugin>: ui.render (<Component>) refused: <理由>; the engine drew its own` | ホットリロード中のセッションのダイアログ。同じ拒否です |
+| `… threw while drawn: <理由>; the engine drew its own` | 検証は通ったが、描画中にクラッシュしました |
+| `…; nothing was drawn` / `…; the pane was closed` | エンジンがもともと描くものがない場所です。帯は空になり、ペインは閉じます |
+| `<n> characters of text are drawn up to the first <m>` | テキストが10万文字を超えて切り詰められました |
+
+ダイアログの行は、`--plugin-dir` のようにホットリロード中のフォルダでだけ表示されます。ほかのセッションでは、デバッグログにだけ残ります。描画中にクラッシュした応答は再試行されず、次の応答(別のprops、invalidate、リロード)から改めて描画します。
+
+## ホットリロード
+
+| どう読み込んだか | 修正が反映されるとき |
+| --- | --- |
+| `--plugin-dir`、`CLAUDE_CODE_PLUGIN_DIRS` のフォルダ | 対話型セッションがフォルダを監視します。保存すると `register` が新しい環境で再実行され、以前のタイマーは破棄されます |
+| セッションModフォルダ(Enable hot reloading) | 同じ方式で監視します |
+| フォルダ型マーケットプレイスからインストール | `/reload-plugins` がそのフォルダを読み直します |
+| gitやnpmなどからインストール | 新しいバージョンで `claude plugin update` の後、`/reload-plugins` |
+
+モデルがターン中に修正したものは、ターンの終了時に1回読み直します。そのModが登録したツールやコマンドが動く直前なら、そのときに読みます。人が直接保存した場合は、フォルダが落ち着いてから読みます。1回の保存は0.25秒後、連続して保存した場合は保存が止まった後です。`claude -p` は常に新しく読み込みます。
+
+- `/reload-skills` はModを読み直しません。ユーザーがこのコマンドを入力しましたが、画面は変わりませんでした(観察)。`/reload-plugins` を使ってください。
+- セッションModフォルダは `~/.claude/dev-mods/<セッションID>/` の下にありました。セッションが再起動してIDが変わるとフォルダも変わり、古いフォルダで直したものは読み込まれません(観察)。最後に読み込まれた時刻は、`.claude-plugin/types/claude-code/index.d.ts` の更新時刻で分かります。長く使うModは、固定フォルダに置いてください。
+
+## ide-modを作る中でぶつかったこと
+
+| 症状 | 原因 | 根拠 |
+| --- | --- | --- |
+| 画像ペイン全体が拒否される | `Image` の `source.generation` にファイルの更新時刻(小数)を入れました。整数でなければなりません | 型宣言 "A whole number"、2.1.291のテストキットで再現 |
+| `Image` が拒否される | `source.png` のバイト列がPNGではありません。エンジンはIHDRまで検査します | 2.1.290で観察、ヘッダー検査は2.1.291で再現 |
+| デスクトップの `Svg` が表示されない | `source` が131,072文字を超えています | リファレンス、2.1.291で再現 |
+| WASMライブラリが動かない | フック環境に `WebAssembly`、`eval`、`new Function` がありません。重い処理は `$.process.run` で別プロセスで行います | 型宣言 |
+| `setTimeout` がない | フックモジュールは `$.clock.after`・`every`・`sleep` で待ちます | 型宣言 |
+| 描画中の状態書き込みが失敗する | 描画中の `$.state.set` は拒否されます。書き込みはボタンハンドラーや別のイベントで行います | リファレンス |
+| 描画から始めた処理が途切れる | フックは1つのディスパッチの中で動き、ディスパッチが破棄されると `next.signal` が途切れます。長く続く処理は `session.start` や `$.clock.after` のタイマーから始めます | リファレンス |
+| ホイールを回すとツリーとファイル欄が一緒に動く | エンジンはペイン1つをまるごとスクロールします。`ui.scroll` フックで `e.pointer.column` からどの欄の上かを見て、`next` なしで `{}` を返し、その欄の行を `e.by` だけ動かして再描画します | 型宣言、2.1.290で観察 |
+| `$.process.run` で呼んだNodeスクリプトの出力が0文字 | リンクされたフォルダで動かすと `$.plugin.root` がリンクのパスになり、「直接実行」の判定が偽になります。`realpath` で比較します | 2.1.290で観察 |
+
+最後の項目から学んだことがもう1つあります。診断は、エンジンと同じパス(リンクのパス)で再現しなければなりません。実際のパスで行った確認は、問題を覆い隠してしまいました。
+
+症状別のもっと短い一覧は[トラブルシューティング](/ja/guide/troubleshooting/)にあります。この記事のコマンドを実際のModに適用した例は、[入力欄の上の帯](/ja/articles/tutorial-prompt-band/)と[Bashガード](/ja/articles/tutorial-bash-guard/)のチュートリアルです。

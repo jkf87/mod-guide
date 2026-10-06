@@ -1,0 +1,186 @@
+---
+title: Mods testen und debuggen
+description: Was claude plugin validate und test tatsächlich prüfen, wie du im Debug-Log den Grund für eine Ablehnung findest und wann Hot-Reload greift. Zusammengestellt aus selbst ausgeführten Ausgaben und den Aufzeichnungen zum Bau von ide-mod.
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Wenn eine Mod scheinbar nichts tut, hat die Engine den Grund meistens schon irgendwo notiert. Dieser Artikel behandelt die drei Werkzeuge, mit denen du diese Aufzeichnungen findest.
+
+| Werkzeug | Wann | Was du siehst |
+| --- | --- | --- |
+| `claude plugin validate <Ordner>` | Bevor du die Mod in eine Sitzung lädst | Manifest und Quelltext des Hook-Moduls, also die Stellen, die die Engine ablehnen würde |
+| `claude plugin test <Ordner>` | Nach jeder Änderung | Führt `*.test.ts(x)` auf der Engine aus |
+| Debug-Log | In einer echten Sitzung | Warum ein Hook übersprungen wurde, abgelehntes Zeichnen |
+
+Stand: Die Befehlsausgaben stammen aus eigenen Läufen mit Claude Code 2.1.291. Die API-Beschreibungen habe ich anhand der Typdeklarationen von 2.1.290 und der Referenz geprüft. Mit „Beobachtung“ markierte Punkte habe ich beim Bau von [ide-mod](/de/mods/ide-mod/) unter 2.1.290 selbst erlebt.
+
+## validate: eine Prüfung, die den Quelltext liest
+
+`validate` führt die Mod nicht aus. Es liest den Quelltext genauso wie die Engine beim Laden und berichtet. Jede Zeile der Ausgabe hat eine feste Bedeutung.
+
+| Zeile | Bedeutung |
+| --- | --- |
+| `hooks:` | Registrierte Ereignisse und Matcher |
+| `calls:` | Im Quelltext gefundene `$`-Aufrufe |
+| `gating hook with .catch:` / `without .catch:` | Hook an einer Stelle, an der etwas abgelehnt werden kann. Ein Tatsachenbericht, der nicht als Warnung zählt |
+| `state reads:` / `state writes:` | `$.state`-Schlüssel. Sie werden erkannt, weil `plugin` und `key` Literale sind |
+| `types … declares` | Was die Vertragsdatei deklariert, auf die `types` im Manifest zeigt |
+
+Der Exit-Code ist 1, wenn es Fehler gibt. `--strict` wertet auch Warnungen als Fehlschlag und passt daher zu CI, und `--json` gibt dasselbe als JSON aus. Im JSON stehen die Hooks, die etwas ablehnen können, getrennt im Array `gatingHooks`.
+
+Weil die Prüfung den Quelltext liest, gibt es Regeln. Die beiden folgenden Fehler sind die echte Ausgabe, nachdem ich absichtlich fehlerhafte Mods gebaut hatte (die Pfade sind gekürzt).
+
+```text
+✘ Found 1 error:
+
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 4 `await hello($);`: $ is passed to "hello", imported from "./helpers": $ is followed only into a function declared in this same file, never across an import; …
+
+✘ Validation failed
+```
+
+`$` wird nur in Funktionen derselben Datei verfolgt. Gibst du `$` an eine andere Datei weiter, weiß der Prüfer nicht, was dort aufgerufen wird, und lehnt ab. Lege Code, der `$` benutzt, in eine einzige Hook-Moduldatei, und in die Dateien außerhalb nur reine Funktionen.
+
+```text
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 7 `on("session.start", async ($, e, next) => next(e));`: on("session.start") is registered twice without a matcher; the first is at …/hooks/register.ts:3; …
+```
+
+Auch dasselbe Ereignis zweimal ohne Matcher zu registrieren, ist ein Fehler. Erledige mehrere Aufgaben in einem Hook.
+
+<Aside type="caution">
+  Bestandenes validate ist keine Sicherheitsgarantie. Es liest den Quelltext und erstellt eine Liste der Aufrufe, kann aber das Verhalten zur Laufzeit nicht beweisen.
+</Aside>
+
+## test: Tests, die auf der Engine laufen
+
+`claude plugin test <Ordner>` sucht unter dem Ordner `*.test.ts` und `*.test.tsx` und führt jede Datei in einem Kindprozess der Claude-Code-Programmdatei aus. Die Umgebung entspricht der, in der Hooks laufen, daher gibt es keinen Zugriff von Node auf Dateien, Netzwerk oder Prozesse. Den Mod-Ordner liest der Loader der Engine wie in einer Sitzung.
+
+Du importierst Tests aus `claude-code/testing`.
+
+| Name | Was er tut |
+| --- | --- |
+| `test(name, ($, on) => …)` | Ein Test. Standardlimit 5.000 ms, änderbar mit `{ timeoutMs }` |
+| `test(name, { options }, body)` | Übergibt `userConfig`-Werte, als wären sie in der Konfiguration gespeichert |
+| `test(name, { plugins }, body)` | Lädt andere Plugins inline mit |
+| `describe`, `expect` | Gruppen und Prüfungen. `toBe`, `toEqual`, `toMatch`, `toThrow`, `expect.any` usw. |
+| `mock.clock(on, { now })` | Eine Uhr im Speicher. Sie bewegt sich nur mit `advance`, `set`, `settle` und `sleep` |
+| `mock.store(on, entries)` / `mock.env(on, vars)` | Beantworten `$.store` und `$.env.get` aus dem Speicher |
+| `tier('append')` | Legt ganz oben in der Datei fest, auf welche Ebene die Mod geladen wird |
+
+### `on` ist der Platz der Engine
+
+Das `$` im Test ist die Engine selbst. `$.tool.call(...)`, `$.turn.start(...)` und `$.command.run(...)` durchlaufen dieselbe Kette, die die Engine in einer Sitzung aufruft. Hooks, die du im Test mit `on` einhängst, stehen unter allen Plugins und spielen die Engine. Darunter ist der Boden leer, und wenn kein Hook antwortet, scheitert es so:
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+An die Fehlermeldung hängt `the engine reported:` die bisher übersprungenen Hooks samt Grund an. Im Beispiel oben wurde mein Hook übersprungen, weil der Boden für die Uhr fehlte. Die Antwort war eine einzige Zeile: `mock.clock(on)`. Das Plugin wird geladen, sobald der Test zum ersten Mal `$` aufruft. Registriere Boden-Hooks also davor.
+
+Welche Form ein Boden-Hook zurückgeben muss, hängt vom Ereignis ab. Das sind die Regeln, die ich in den ide-mod-Tests herausgefunden habe (Beobachtung).
+
+- Ereignisse für `$`-Aufrufe wie `fs.read`, `fs.stat`, `ui.open`, `session.cwd` und `env.get` verpackst du in `{ value: … }`.
+- `tool.call` gibt `{ result: … }` oder `{ deny }` zurück.
+- Ereignisse wie `turn.start` und `turn.complete` geben den Ergebnistyp unverändert zurück (`{ turnId }`, `{ text }`).
+- Die Test-Engine löst relative Pfade relativ zum Mod-Ordner auf. Das gefälschte Dateisystem baust du mit absoluten Pfaden.
+
+### UI-Tests
+
+`$.ui.mount({ plugin, surface, component, props })` zeichnet einmal und gibt dir ein Handle. `surface` hat keinen Standardwert. Gib eines von `terminal`, `desktop`, `vscode` oder `mobile` an. Mit dem Handle nutzt du `find`, `findAll`, `drawn` (der ganze Baum), `press`, `input`, `select`, `redraw` und `unmount`. `key`, `pointer`, `post` und `resize` wirken nur auf `Client`-Elemente.
+
+Zwei Dinge solltest du wissen.
+
+- Das `mount`-Handle hat keine Aktion, um Tasten oder das Mausrad an den Inhalt eines `Pane` zu senden. Das Scrollverhalten von ide-mod habe ich auf dem echten Bildschirm geprüft (Beobachtung).
+- Ein `key` an `Text` blieb im gezeichneten Baum nicht erhalten (in 2.1.291 bestätigt). `TextProps` hat keinen `key`. Verpacke das gesuchte Element in eine `Box` mit `key`.
+
+Wird das Zeichnen abgelehnt, lehnt `mount` mit diesem Grund ab. So fängst du schon im Test die Ursache ab, warum in einer Sitzung der Bildschirm leer bleibt. Das sind die echten Meldungen, nachdem ich absichtlich drei fehlerhafte Bäume gemountet hatte.
+
+```text
+refuse-demo: ui.render (Pane) refused: Image source.generation must be a whole number when given; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Image source.png does not start as a PNG file does; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Svg source longer than 131072 characters; the engine drew its own
+```
+
+## Das Debug-Log lesen
+
+```bash
+claude --debug-file ./mod-debug.log      # 파일로 남기기 (디버그 모드도 켜져요)
+claude --debug                           # 디버그 모드
+claude --debug "hooks"                   # 범주 거르기
+```
+
+(Die Kommentare bedeuten: in eine Datei schreiben, wobei auch der Debug-Modus eingeschaltet wird; Debug-Modus; nach Kategorie filtern.)
+
+Ich habe eine Mod, deren `session.start`-Hook absichtlich mit `JSON.parse('{oops')` wirft, per `--plugin-dir` geladen und `claude -p "/ping"` ausgeführt. Von 656 Logzeilen sind das die, in denen der Mod-Name vorkommt (ohne Zeitstempel).
+
+```text
+[DEBUG] --plugin-dir …/debug-demo is one plugin: .claude-plugin at its top marks it
+[DEBUG] hooks module debug-demo@inline loaded (worker, environment 1, tier user); events: session.start,command.run
+[DEBUG] plugin.register: debug-demo (user, debug-demo@inline), judged by core alone: admitted
+[DEBUG] type root of debug-demo at …/debug-demo/.claude-plugin/types: entries claude-code, claude-code-tools, claude-code-mcp; wrote …, tsconfig.json
+[DEBUG] $.command.register (debug-demo): /ping listed
+[ERROR] hook failed: debug-demo: errorKind=SyntaxError errorChars=30 (session.start; skipped; what is below it ran in its place)
+[ERROR] debug-demo: session.start hook skipped: threw SyntaxError: JSON Parse error: Expected '}'
+[DEBUG] debug-demo (user) answered command.run without next() in 0.6ms; nothing beneath it ran for this dispatch
+```
+
+So liest du das Log der Reihe nach:
+
+1. Fehlt die Zeile `loaded … events:`, wurde das Modul nicht geladen. Bei einem `-p`-Lauf steht der Grund auch in einer Zeile auf stderr. In diesem Lauf stand auf stderr `debug-demo: session.start hook skipped: threw SyntaxError…`.
+2. Die Zeile `hook failed` enthält nur die Fehlerart und die Länge der Meldung (`errorChars=30`). Laut Referenz wird der Text selbst getrennt notiert. Die direkt folgende Zeile ist dieser Text.
+3. `answered … without next()` heißt, dass dein Hook selbst geantwortet hat und darunter nichts mehr lief. Wenn sich eine andere Mod nicht bewegt, suche zuerst nach dieser Zeile.
+
+Auch die Zeile `type root … wrote` lohnt einen Blick. Bei jedem Laden einer Mod schreibt die Engine `.claude-plugin/types/` und `tsconfig.json` in den Mod-Ordner. In einem einmal geladenen Mod-Ordner läuft `tsc -p <Ordner>` sofort. In `.claude-plugin/types/` legt die Engine zusätzlich eine `.gitignore` mit nur einer Zeile `*` ab, sodass der Ordner nicht in Git landet. Die `tsconfig.json` im Stammordner ist eine einzige Zeile, die die Konfiguration dieses Ordners per `extends` übernimmt.
+
+### „the engine drew its own“
+
+Abgelehntes Zeichnen bleibt mit den Formulierungen zurück, die die Referenz festlegt.
+
+| Zeile | Bedeutung |
+| --- | --- |
+| `ui.render (<Component>): a hook returned a tree that does not validate` | Debug-Log. Der Baum passt nicht zu den Regeln dieser Oberfläche |
+| `<plugin>: ui.render (<Component>) refused: <Grund>; the engine drew its own` | Dialog in einer Sitzung mit Hot-Reload. Dieselbe Ablehnung |
+| `… threw while drawn: <Grund>; the engine drew its own` | Die Validierung wurde bestanden, aber beim Zeichnen gab es einen Absturz |
+| `…; nothing was drawn` / `…; the pane was closed` | An dieser Stelle hätte die Engine ursprünglich nichts gezeichnet. Das Band bleibt leer, und das Fenster wird geschlossen |
+| `<n> characters of text are drawn up to the first <m>` | Der Text war länger als 100.000 Zeichen und wurde abgeschnitten |
+
+Die Dialogzeile erscheint nur in Ordnern mit Hot-Reload wie bei `--plugin-dir`. In anderen Sitzungen bleibt sie nur im Debug-Log. Eine beim Zeichnen abgestürzte Antwort wird nicht erneut versucht. Erst die nächste Antwort (andere Props, invalidate, Reload) zeichnet wieder neu.
+
+## Hot-Reload
+
+| Wie du die Mod geladen hast | Wann eine Änderung wirkt |
+| --- | --- |
+| Ordner über `--plugin-dir`, `CLAUDE_CODE_PLUGIN_DIRS` | Die interaktive Sitzung beobachtet den Ordner. Beim Speichern läuft `register` in einer neuen Umgebung erneut, und die alten Timer werden verworfen |
+| Mod-Ordner der Sitzung (Enable hot reloading) | Wird auf dieselbe Weise beobachtet |
+| Aus einem Ordner-Marketplace installiert | `/reload-plugins` liest diesen Ordner neu |
+| Aus Git, npm usw. installiert | `claude plugin update` auf die neue Version, danach `/reload-plugins` |
+
+Was das Modell mitten im Turn ändert, wird einmal neu gelesen, wenn der Turn endet. Steht ein Tool oder Befehl dieser Mod kurz vor der Ausführung, wird schon dann gelesen. Speichert ein Mensch von Hand, wird gelesen, nachdem es im Ordner ruhig geworden ist. Ein einzelnes Speichern wird nach 0,25 Sekunden gelesen, bei mehreren Speichervorgängen in Folge erst, nachdem sie aufgehört haben. `claude -p` liest immer neu.
+
+- `/reload-skills` liest Mods nicht neu. Ein Nutzer hatte diesen Befehl eingegeben, und der Bildschirm blieb unverändert (Beobachtung). Nimm `/reload-plugins`.
+- Der Mod-Ordner der Sitzung lag unter `~/.claude/dev-mods/<Sitzungs-ID>/`. Wird die Sitzung neu gestartet und die ID ändert sich, ändert sich auch der Ordner, und Änderungen im alten Ordner werden nicht gelesen (Beobachtung). Den Zeitpunkt des letzten Ladens erkennst du an der Änderungszeit von `.claude-plugin/types/claude-code/index.d.ts`. Für eine Mod, die du lange benutzen willst, nimm einen festen Ordner.
+
+## Was mir beim Bau von ide-mod begegnet ist
+
+| Symptom | Ursache | Beleg |
+| --- | --- | --- |
+| Das ganze Bildfenster wird abgelehnt | In `source.generation` von `Image` stand die Änderungszeit der Datei (mit Nachkommastellen). Es muss eine ganze Zahl sein | Typdeklaration „A whole number“, mit dem Test-Kit von 2.1.291 reproduziert |
+| `Image` wird abgelehnt | Die Bytes von `source.png` sind kein PNG. Die Engine prüft bis zum IHDR | Beobachtung unter 2.1.290, die Header-Prüfung unter 2.1.291 reproduziert |
+| `Svg` auf dem Desktop ist nicht zu sehen | `source` ist länger als 131.072 Zeichen | Referenz, unter 2.1.291 reproduziert |
+| Eine WASM-Bibliothek läuft nicht | In der Hook-Umgebung gibt es `WebAssembly`, `eval` und `new Function` nicht. Schwere Arbeit gehört mit `$.process.run` in einen eigenen Prozess | Typdeklaration |
+| `setTimeout` fehlt | Hook-Module warten mit `$.clock.after`, `every` und `sleep` | Typdeklaration |
+| Zustand schreiben beim Zeichnen schlägt fehl | Während des Zeichnens wird `$.state.set` abgelehnt. Schreibe in Button-Handlern oder anderen Ereignissen | Referenz |
+| Eine im Zeichnen gestartete Arbeit wird abgebrochen | Hooks laufen innerhalb eines Dispatches, und wird der Dispatch verworfen, bricht `next.signal` ab. Starte lang laufende Arbeit in `session.start` oder in einem `$.clock.after`-Timer | Referenz |
+| Beim Rollen des Mausrads bewegen sich Baum und Dateispalte zusammen | Die Engine scrollt ein Fenster als Ganzes. Im `ui.scroll`-Hook siehst du mit `e.pointer.column`, über welcher Spalte der Zeiger steht, antwortest ohne `next` mit `{}` und verschiebst dann die Zeilen dieser Spalte um `e.by` und zeichnest neu | Typdeklaration, Beobachtung unter 2.1.290 |
+| Ein mit `$.process.run` gestartetes Node-Skript gibt 0 Zeichen aus | Läuft es in einem verlinkten Ordner, ist `$.plugin.root` der Link-Pfad, und die Prüfung „direkt ausgeführt“ wird falsch. Vergleiche mit `realpath` | Beobachtung unter 2.1.290 |
+
+Beim letzten Punkt habe ich noch etwas gelernt. Reproduziere Diagnosen über denselben Pfad wie die Engine (den Link-Pfad). Die Prüfung über den echten Pfad hat das Problem verdeckt.
+
+Eine kürzere Liste nach Symptomen findest du unter [Fehlerbehebung](/de/guide/troubleshooting/). Beispiele, in denen die Befehle dieses Artikels auf echte Mods angewendet werden, sind die Schritt-für-Schritt-Anleitungen [Band über dem Eingabefeld](/de/articles/tutorial-prompt-band/) und [Bash-Guard](/de/articles/tutorial-bash-guard/).

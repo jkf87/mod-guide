@@ -1,0 +1,384 @@
+---
+title: "Schritt für Schritt: ein Band über dem Eingabefeld zeichnen"
+description: Du baust in fünf Dateien eine Mod, die Turn-Anzahl, die Laufzeit des aktuellen Turns und das zuletzt benutzte Tool in einer Zeile über dem Eingabefeld anzeigt. Der Code ist genau der, der Validierung und Tests tatsächlich bestanden hat.
+sidebar:
+  order: 7
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Du baust von Grund auf eine Mod, die ein einzeiliges Band (`AbovePrompt`) direkt über dem Eingabefeld zeichnet. Fertig sieht es so aus:
+
+```text
+턴 3 · 진행 12초 · 마지막 도구 Bash
+```
+
+(Auf Deutsch: „Turn 3 · läuft seit 12 Sekunden · letztes Tool Bash“.)
+
+Solange ein Turn läuft, wächst die Laufzeit im Sekundentakt. Endet der Turn, bleibt das Band bei `지난 턴 34초` („letzter Turn: 34 Sekunden“) stehen. Mit `/turn-meter` blendest du das Band aus oder wieder ein. Zeichnet eine andere Mod an derselben Stelle ein Band, löscht deine Mod es nicht.
+
+Stand: Dieser Code hat in Claude Code 2.1.291 `claude plugin validate` und `claude plugin test` bestanden. Die API-Beschreibungen habe ich mit den Typdeklarationen von 2.1.290 (`claude-code.d.ts`) abgeglichen. Die Codeblöcke unten sind die bestandenen Dateien, unverändert übernommen.
+
+## Ordnerstruktur
+
+```text title="turn-meter/"
+.claude-plugin/plugin.json   # 매니페스트
+hooks/hooks.json             # 훅 모듈 위치
+hooks/register.tsx           # 훅 모듈
+types/index.d.ts             # 상태 계약
+tests/band.test.tsx          # 테스트
+```
+
+(Die Kommentare bedeuten: Manifest, Ort des Hook-Moduls, Hook-Modul, Zustandsvertrag, Test.)
+
+Anders als im Beispiel mit dem Fenster (Pane) in [Deine erste Mod bauen](/de/guide/build-your-first-mod/) legt diese Mod ihre Werte nicht in Modulvariablen ab, sondern in `$.state`. Bei einem Hot-Reload verschwinden Modulvariablen, die Werte in `$.state` bleiben dagegen bis zum Ende der Sitzung erhalten.
+
+## Bauen
+
+<Steps>
+
+1. **Schreibe das Manifest.** `types` teilt mit, wo diese Mod ihren Zustandsvertrag beschreibt.
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "turn-meter",
+     "version": "0.1.0",
+     "description": "입력창 위에 턴 수, 지금 턴의 경과 시간, 마지막 도구를 한 줄로 보여 준다",
+     "author": {
+       "name": "mods.guide"
+     },
+     "types": "./types/index.d.ts"
+   }
+   ```
+
+   Die `description` heißt auf Deutsch: „Zeigt über dem Eingabefeld Turn-Anzahl, Laufzeit des aktuellen Turns und das letzte Tool in einer Zeile an“.
+
+2. **Trage den Ort des Hook-Moduls ein.** Der Pfad gilt relativ zu `hooks.json`.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.tsx"] }
+   ```
+
+3. **Schreibe den Zustandsvertrag.** In `PluginState` deklarierst du Namen und Typen der Werte, die in `$.state` liegen. Du erweiterst damit das Interface, das die Typdeklarationsdatei als „empty by default“ beschreibt, um den Anteil deiner Mod.
+
+   ```ts title="types/index.d.ts"
+   export type TurnMeterTurn = { startedAt: number; endedAt: number | null }
+
+   declare module 'claude-code' {
+     interface PluginState {
+       'turn-meter': {
+         count: number
+         turn: TurnMeterTurn | null
+         now: number
+         lastTool: string | null
+         isHidden: boolean
+       }
+     }
+   }
+   ```
+
+   Der Validator liest diese Datei und nennt die fünf Schlüssel wörtlich: `declares state: turn-meter.count, …`. Da die Mod dem `$`-Objekt keine neuen Fähigkeiten hinzufügt, erscheint außerdem `declares on $: nothing`. Das ist kein Fehler.
+
+4. **Schreibe das Hook-Modul.** Erst der vollständige Code, danach die Erklärung Stück für Stück.
+
+   ```tsx title="hooks/register.tsx"
+   import { atom, read, update } from 'claude-code'
+   import type { Register, Timer } from 'claude-code'
+
+   import type { TurnMeterTurn } from '../types'
+
+   const count = atom({ plugin: 'turn-meter', key: 'count' } as const, 0)
+   const turn = atom({ plugin: 'turn-meter', key: 'turn' } as const, null)
+   const now = atom({ plugin: 'turn-meter', key: 'now' } as const, 0)
+   const lastTool = atom({ plugin: 'turn-meter', key: 'lastTool' } as const, null)
+   const isHidden = atom({ plugin: 'turn-meter', key: 'isHidden' } as const, false)
+
+   export function formatSeconds(ms: number): string {
+     const s = Math.max(0, Math.floor(ms / 1000))
+     return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`
+   }
+
+   export const register: Register = on => {
+     let tick: Timer | undefined
+
+     on('session.start', async ($, e, next) => {
+       await $.command.register({
+         name: 'turn-meter',
+         description: '입력창 위 턴 정보 띠를 켜고 끈다',
+       })
+       return next(e)
+     })
+
+     on('command.run', { command: 'turn-meter' }, async $ => {
+       const hidden = await update($, isHidden, v => !v)
+       return { text: hidden ? 'turn-meter 띠를 숨겼어요.' : 'turn-meter 띠를 다시 보여요.' }
+     })
+
+     on('turn.start', async ($, e, next) => {
+       const startedAt = await $.clock.now()
+       await update($, count, n => n + 1)
+       await update($, turn, () => ({ startedAt, endedAt: null }))
+       await update($, now, () => startedAt)
+       tick?.cancel()
+       tick = $.clock.every(1000, () => {
+         void $.clock.now().then(t => update($, now, () => t))
+       })
+       return next(e)
+     })
+
+     on('tool.call', async ($, e, next) => {
+       if (e.agentId === undefined) await update($, lastTool, () => String(e.tool))
+       return next(e)
+     }).catch(($, e, next) => next(e))
+
+     on('turn.complete', async ($, e, next) => {
+       if (e.agentId === undefined) {
+         tick?.cancel()
+         tick = undefined
+         const endedAt = await $.clock.now()
+         await update($, turn, t => (t === null ? null : { ...t, endedAt }))
+       }
+       return next(e)
+     })
+
+     on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+       const t: TurnMeterTurn | null = await read($, turn)
+       if (e.props.hasSurvey || t === null || (await read($, isHidden))) return next(e)
+
+       const below = await next(e)
+       const { Box, Text } = $.ui.resolve(e)
+       const n = await read($, count)
+       const tool = await read($, lastTool)
+       const time =
+         t.endedAt === null
+           ? `진행 ${formatSeconds((await read($, now)) - t.startedAt)}`
+           : `지난 턴 ${formatSeconds(t.endedAt - t.startedAt)}`
+
+       return (
+         <Box flexDirection="column" width={e.props.bodyColumns}>
+           <Box key="meter">
+             <Text dimColor wrap="truncate-end">
+               턴 {n} · {time} · 마지막 도구 {tool ?? '없음'}
+             </Text>
+           </Box>
+           {below}
+         </Box>
+       )
+     })
+   }
+   ```
+
+   Die koreanischen Texte im Code bedeuten: `턴` = „Turn“, `진행` = „läuft“, `지난 턴` = „letzter Turn“, `마지막 도구` = „letztes Tool“, `없음` = „keins“, `초`/`분` = Sekunden/Minuten. `turn-meter 띠를 숨겼어요.` heißt „Das turn-meter-Band ist ausgeblendet.“ und `turn-meter 띠를 다시 보여요.` heißt „Das turn-meter-Band wird wieder angezeigt.“
+
+</Steps>
+
+## Erklärung Stück für Stück
+
+**Fünf Zustandswerte.** `atom(ref, initial)` ist ein benannter Wert mit Anfangswert. `plugin` und `key` musst du im Quelltext als Literale schreiben, weil der Validator den Quelltext liest und daraus die Listen `state writes:` und `state reads:` erzeugt. Werte liest du mit `read($, atom)` und änderst sie mit `update($, atom, fn)`. `update` schreibt mit Versionsprüfung und versucht es erneut, falls inzwischen jemand anders zuerst geschrieben hat.
+
+**Der Befehl `/turn-meter`.** In `session.start` registrierst du den Befehl mit `$.command.register`, und der `command.run`-Hook fängt ihn mit dem Matcher `{ command: 'turn-meter' }` ab. `update` gibt den geänderten Wert zurück, nach dem du den Hinweistext auswählst. Ruft der Hook `next` nicht auf und liefert stattdessen `{ text }`, erscheint dieser Text als Ausgabe des Befehls.
+
+**Turn-Start und Ein-Sekunden-Timer.** In `turn.start` misst du die Zeit mit `$.clock.now()`. In einer Mod gibt es kein `setTimeout`, deshalb hängst du auch die Aktualisierung im Sekundentakt mit `$.clock.every` ein. Der Timer ändert nur den Wert `now`. Das Band hat beim Zeichnen `now` gelesen, also zeichnet die Engine es neu, sobald sich der Wert ändert. Dafür musst du `$.ui.invalidate` nicht aufrufen, denn Lesezugriffe auf `$.state` abonnieren das Zeichnen bereits.
+
+**Das letzte Tool.** Der `tool.call`-Hook notiert nur den Tool-Namen und reicht mit `next(e)` weiter. Ist `e.agentId` gesetzt, stammt der Aufruf von einem Subagenten und wird übersprungen. Das angehängte `.catch(($, e, next) => next(e))` sorgt dafür, dass das Tool auch dann normal läuft, wenn das Notieren fehlschlägt. Der Validator betrachtet `tool.call` als Stelle, an der etwas abgelehnt werden kann, und gibt `gating hook with .catch: tool.call` aus. Da der Hook nur beobachtet, ist es richtig, bei einem Fehler durchzulassen.
+
+**Turn-Ende.** `turn.complete` kommt auch bei Turns von Subagenten an. Nur beim Haupt-Turn (ohne `agentId`) stoppst du den Timer und notierst die Endzeit.
+
+**Das Band zeichnen.** Der Kern besteht aus drei Zeilen:
+
+- Ist `e.props.hasSurvey` wahr, benutzt gerade eine Umfrage das Band, und du weichst mit `next(e)` aus.
+- Gibt es etwas zu zeichnen, holst du zuerst mit `const below = await next(e)` das Ergebnis der darunterliegenden Seite ab. Das ist das Band einer anderen Mod oder, falls niemand zeichnet, das Ergebnis der Engine.
+- Unter deine Zeile hängst du `{below}` und gibst alles zurück. Rufst du `next` nicht auf und gibst nur deinen eigenen Baum zurück, werden die Bänder der Mods unter dir nicht gezeichnet. Das liegt daran, dass `AbovePrompt` ein Platz mit nur einer Instanz ist.
+
+Die Breite richtest du an `e.props.bodyColumns` aus. Das ist die Breite abzüglich der fünf Spalten, die die Einklapp-Anzeige `[-]` der Engine belegt.
+
+<Aside>
+  Deine Zeile ist in eine `Box` mit `key="meter"` eingepackt. Anfangs hatte ich den `key` an `Text` gehängt, doch im Ergebnis von `ui.drawn()` im Test-Kit von 2.1.291 fehlte der `key` von `Text`, und auch `find({ key })` fand ihn nicht. Laut Typdeklaration nehmen unter anderem `Box`, `Button`, `Input`, `Select`, `Code`, `Image` und `Markdown` einen `key` an, `TextProps` hat keinen. Verpacke Textzeilen, die du im Test suchen willst, in eine `Box` mit `key`.
+</Aside>
+
+## Den Test schreiben
+
+```tsx title="tests/band.test.tsx"
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { formatSeconds } from '../hooks/register'
+
+const BAND = { plugin: 'turn-meter', component: 'AbovePrompt' } as const
+const props = {
+  hasSurvey: false,
+  isWorking: true,
+  maxRows: 10,
+  bodyColumns: 80,
+  scroll: { offset: 0, bodyRows: 9 },
+  view: {},
+}
+const SURFACES = ['terminal', 'desktop'] as const
+
+// 엔진 자리: 다른 mod의 띠 하나, 그리고 도구·턴·명령의 바닥 응답
+function engine(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>다른 mod의 띠</Text>
+  })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+}
+
+const toggle = {
+  command: 'turn-meter',
+  args: '',
+  origin: { kind: 'composer' as const },
+  presentation: { isFullscreen: true, columns: 120 },
+}
+
+describe('formatSeconds', () => {
+  test('초와 분으로 적는다', () => {
+    expect(formatSeconds(0)).toBe('0초')
+    expect(formatSeconds(12_400)).toBe('12초')
+    expect(formatSeconds(75_000)).toBe('1분 15초')
+  })
+})
+
+describe('띠', () => {
+  test('첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다', async ($, on) => {
+    engine(on)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect(await ui.find({ key: 'meter' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 1_000_000 })
+    await $.turn.start({ text: '테스트 고쳐 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+    await clock.advance(12_000)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 진행 12초 · 마지막 도구 Bash')
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('턴이 끝나면 걸린 시간을 고정한다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 0 })
+    await $.turn.start({ text: '첫 번째', turnId: 't1' })
+    await clock.advance(5_000)
+    await $.turn.complete({ answer: '끝', durationMs: 5_000, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+    await clock.advance(30_000)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 지난 턴 5초 · 마지막 도구 없음')
+  })
+
+  test('서브에이전트의 도구 호출은 마지막 도구로 치지 않는다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '조사해 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/a.txt' })
+    await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'sub-1' } as never)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toMatch(/마지막 도구 Read$/)
+  })
+
+  test('/turn-meter로 숨기고 다시 켠다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '아무거나', turnId: 't1' })
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 숨겼어요.')
+    const hidden = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await hidden.find({ key: 'meter' })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+    await hidden.unmount()
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 다시 보여요.')
+    const shown = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await shown.find({ key: 'meter' })).toBeDefined()
+  })
+})
+```
+
+`다른 mod의 띠` heißt „Band einer anderen Mod“. Die Testnamen lauten übersetzt: „schreibt Sekunden und Minuten“, „Band“, „vor dem ersten Turn wird nichts gezeichnet und das Band darunter bleibt unangetastet“, „zeigt Laufzeit des laufenden Turns und das letzte Tool“, „friert nach dem Turn-Ende die benötigte Zeit ein“, „Tool-Aufrufe von Subagenten zählen nicht als letztes Tool“ und „mit /turn-meter aus- und wieder einblenden“.
+
+Hooks, die du im Test mit `on` registrierst, stehen unter allen Plugins an der Stelle der Engine. Deshalb erledigt die Funktion `engine()` zwei Dinge:
+
+- **Sie imitiert das Band einer anderen Mod.** Der `AbovePrompt`-Hook ganz unten zeichnet `다른 mod의 띠`. So prüfst du, dass dein Band diese Zeile nicht löscht.
+- **Sie füllt den Boden.** Die Test-Engine meldet einen Fehler, wenn unten kein Hook antwortet. Rufst du `turn.start` ohne Boden auf, scheitert es tatsächlich so:
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+Die zweite Zeile ist wichtig. Fehlt auch der Boden für die Uhr, wird dein `turn.start`-Hook übersprungen. Darum legst du in jedem Test, der Turns behandelt, `mock.clock(on, …)` darunter. Diese Uhr läuft nur, wenn der Test sie mit `clock.advance(12_000)` bewegt. Bei 12 Sekunden läuft der Ein-Sekunden-Timer zwölfmal, und es erscheint `진행 12초`. Du wartest nicht wirklich 12 Sekunden.
+
+Ein UI-Test zeichnet das Band mit `$.ui.mount({ plugin, surface, component, props })` einmal und sucht Elemente mit `find`. `surface` hat keinen Standardwert und muss angegeben werden. Läuft derselbe Test für `terminal` und `desktop`, merkst du außerdem, wenn du ein Element benutzt hast, das es nur auf einer der beiden Oberflächen gibt.
+
+## Ausprobieren
+
+```bash
+claude plugin validate ./turn-meter
+```
+
+```text
+Validating plugin manifest: …/turn-meter/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: turn-meter.count, turn-meter.turn, turn-meter.now, turn-meter.lastTool, turn-meter.isHidden
+
+Validating hooks: …/turn-meter/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, command.run{command=turn-meter}, turn.start, tool.call, turn.complete, ui.render{component=AbovePrompt}
+  ❯ ./register.tsx gating hook with .catch: tool.call
+  ❯ ./register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.state.get, $.state.set, $.ui.resolve
+  ❯ ./register.tsx state writes: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+  ❯ ./register.tsx state reads: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+
+✔ Validation passed
+```
+
+Nur den vorderen Teil der Pfade habe ich gekürzt. Beim ersten Durchlauf erschien eine Warnung, dass `author` fehlt. Sie verschwand, nachdem ich `author` ins Manifest eingetragen hatte. An der Zeile `calls:` siehst du, dass diese Mod weder Dateien noch Netzwerk noch Prozesse berührt. Das ist die Stufe „nur Bildschirm und Speicher“ aus der [Sicherheitsprüfung](/de/guide/safety-checklist/).
+
+```bash
+claude plugin test ./turn-meter
+```
+
+```text
+tests/band.test.tsx:
+(pass) formatSeconds > 초와 분으로 적는다 [1.14ms]
+(pass) 띠 > 첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다 [28.03ms]
+(pass) 띠 > 진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다 [25.08ms]
+(pass) 띠 > 턴이 끝나면 걸린 시간을 고정한다 [14.53ms]
+(pass) 띠 > 서브에이전트의 도구 호출은 마지막 도구로 치지 않는다 [11.61ms]
+(pass) 띠 > /turn-meter로 숨기고 다시 켠다 [13.68ms]
+
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [0.25s]
+```
+
+## In der Sitzung einschalten
+
+Du kannst die Mod nur für diese Sitzung laden, ohne sie zu installieren.
+
+```bash
+claude --plugin-dir ./turn-meter
+```
+
+Eine so gestartete Sitzung beobachtet den Ordner und lädt das Hook-Modul neu, sobald du eine Datei speicherst. Siehst du das Band nicht, lies in [Testen und Debuggen](/de/articles/testing-and-debugging/) nach, wie du das Debug-Log liest.
+
+## Einschränkungen, die du kennen solltest
+
+- `AbovePrompt` wird nur in der Terminal- und der Desktop-Oberfläche gezeichnet. In VS Code und auf dem Handy gibt es dieses Band nicht.
+- Den Ein-Sekunden-Timer hältst du in einer Modulvariablen. Passiert mitten in einem Turn ein Hot-Reload, wird der Timer der früheren Umgebung verworfen. Die Laufzeit wirkt dann bis zum Start des nächsten Turns angehalten.
+- Wie schnell das Band neu gezeichnet wird, bestimmt die Engine. Laut Typdeklaration ist das Neuzeichnen auf höchstens 10-mal pro Sekunde begrenzt, bei einem aufgeklappten Band im Terminal auf 30-mal. Der Ein-Sekunden-Takt liegt darunter.
+- Die Turn-Anzahl zählt die `turn.start`-Aufrufe der Hauptschleife. Auch ein Fortsetzungs-Turn, bei dem kein Mensch einen Prompt gesendet hat, zählt als einer.

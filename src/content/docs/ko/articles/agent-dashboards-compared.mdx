@@ -1,0 +1,113 @@
+---
+title: 에이전트 대시보드 mod 비교
+description: 서브에이전트와 도구 호출을 패널로 보여 주는 mod 7개의 소스를 읽었어요. 데이터 출처, 폴링 주기, 모델 호출, 외부 프로그램 의존을 표로 비교했고 이 사이트 운영자가 만든 ide-mod도 같은 기준으로 넣었어요.
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+서브에이전트를 여러 개 띄우면 transcript만으로는 누가 무엇을 하는지 따라가기 어려워요. 그래서 에이전트 트리를 옆 패널에 그리는 mod가 여럿 나와 있어요. 7개를 골라 저장소를 받고 훅 모듈을 읽었어요. 설치하거나 실행하지 않았어요.
+
+<Aside>
+7개 중 [ide-mod](/ko/mods/ide-mod/)는 이 사이트 운영자가 만든 mod예요. 다른 6개와 같은 항목을 같은 방식으로 적었고, 약점도 코드에서 본 그대로 적었어요.
+</Aside>
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289. 소스는 2026-10-06에 읽었고 API 설명은 Claude Code 2.1.290 타입 파일로 확인했어요. ide-mod는 2026-10-06에 처음 공개돼 카탈로그에 없어요. 별 수는 저장소 단위예요.
+
+## 모두 같은 재료로 그려요
+
+7개 모두 몇 개 안 되는 이벤트로 트리를 만들어요. `agent.spawn`에서 에이전트가 태어나고, `tool.call`의 `agentId`로 누가 지금 무엇을 하는지 알고, `turn.complete`나 `turn.step`으로 끝과 토큰을 알아요. 여기에 `$.agent.list()`를 주기적으로 불러 상태를 맞춰요.
+
+`$.agent.list()`만으로는 부족해요. 타입 파일 설명으로는 엔진이 작업을 치우면 그 에이전트가 목록에서 빠지고, 워크플로의 에이전트는 처음부터 목록에 없어요. 그래서 다들 이벤트로 자기 상태를 따로 들고 있어요. 차이는 그 밖에 무엇을 더 읽고 무엇을 더 하느냐에서 나요.
+
+## 한눈에 보기
+
+| mod | 저장소 (별) | 그리는 곳 | 데이터 출처 | 다시 읽는 주기 |
+| --- | --- | --- | --- | --- |
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | Charlie0113-T/claude-agent-flow (8) | 옆 패널, 상태 줄, `/flow text` | 이벤트, 권한 대기(classic 훅), `$.agent.list` | 작업 중일 때만 2초 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | xuanji86/claude-agentpane (2) | 옆 패널, 접으면 띠의 탭, 상태 줄 | 이벤트, 에이전트별 토큰, `$.session.messages` | 1초 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | tomstagl/cctop (2) | 옆 패널 `/cctop-pane` | 별도 `cctop` 프로그램, 이벤트, `$.session.usage` | 패널이 열렸을 때 작업 중 2초, 쉴 때 10초 |
+| [flightdeck](https://github.com/scasella/claude-flightdeck) | scasella/claude-flightdeck (1) | 옆 패널, 상태 줄 | 이벤트 15종, 권한 판정, `$.session.usage` | 이벤트가 올 때만 |
+| [agent-shell-watch](https://github.com/apolenkov/agent-shell-watch) | apolenkov/agent-shell-watch (0) | 옆 패널, 상태 줄 | 이벤트, Bash 출력 파일, Codex·Pi 세션 파일 | 1~2초, 외부 파일은 최소 30초 |
+| [mission-control](https://github.com/hamzafer/claude-code-mods/tree/main/mods/mission-control) | hamzafer/claude-code-mods (54) | 패널(트리·코드 지도), 띠 한 줄 | 이벤트, 건드린 파일 내용 | 작업 중 1초 |
+| [ide-mod](https://github.com/jkf87/ide-mod) | jkf87/ide-mod (카탈로그 밖) | 패널(보드·탐색기·뷰어), 띠 자막, 상태 줄 | 이벤트, `$.agent.list`, 파일 트리 | 5초, 요약 20초 |
+
+| mod | 막기·바꾸기 | 모델 호출 | 프로세스·파일 | 남기는 것 | 단계 | 코드 줄 | 테스트 | 라이선스 | 읽은 커밋 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| agent-flow | 없음 | 없음 | 없음 | `$.store`: 패널 열림 | 0 | 1,850 | 있음 | Apache-2.0 | `d87b255` (10-04) |
+| agentpane | 없음 (Stop 버튼 → `TaskStop`) | 없음 | 없음 | 세션 상태만 | 2 | 1,229 | 있음 | MIT | `17be889` (10-04) |
+| cctop | 없음 (버튼이 입력창을 채움) | 없음 | `cctop query` 실행, 표시 파일 쓰기 | `$.store`, `~/.cctop/pane/` | 2 | 3,395 | 있음 | MIT | `6ceafc3` (10-01) |
+| flightdeck | 없음 | 없음 | 없음 | 세션 상태만 | 1 | 1,709 | 있음 | MIT | `f31daca` (10-02) |
+| agent-shell-watch | 없음 (stop → `TaskStop`) | 없음 | `tail` 실행, 외부 세션 파일 읽기 | `$.store`: 보기 상태 | 2 | 4,199 | 있음 | MIT (카탈로그는 판별 불가) | `b529d60` (10-05) |
+| mission-control | 없음 | haiku, 편집이 있는 턴마다 | 파일 읽기, 헤드리스 Chrome 실행 | `$TMPDIR` 그림 파일 | 2 | 678 | 있음 | MIT | `3719682` (10-05) |
+| ide-mod | 없음 | haiku, 보드가 보일 때 20초마다 | 파일 읽기, `node` 보조 스크립트, `open` | `$.store`: 요청 기록 40세션 | 카탈로그 밖 | 2,295 | 있음 | MIT | `db51e75` (10-06) |
+
+단계는 카탈로그의 접근 범위(0 화면·기억, 1 읽기, 2 쓰기·실행, 3 네트워크)예요. 소스를 정적으로 훑은 값이라 실행 결과와 다를 수 있어요. 코드 줄은 훅 모듈과 그 모듈이 쓰는 파일에서 테스트와 내려받아 넣은 외부 라이브러리를 뺀 줄 수예요. 설치 전에 읽어야 할 양을 가늠하는 숫자로 봐요.
+
+## mod별 메모
+
+### agent-flow
+
+- `$` 호출이 시계, 저장소, 화면, 명령 등록, `$.agent.list`뿐이에요. 파일·프로세스·모델·네트워크를 쓰지 않아서 카탈로그 0단계예요.
+- `classic.PermissionRequest`와 권한 알림을 받아 권한 확인을 기다리는 에이전트를 따로 표시해요.
+- 2초 대조와 1초 다시 그리기 타이머는 작업 중인 에이전트가 있을 때만 켜져요.
+- 첫 서브에이전트가 뜰 때 터미널이 144칸 이상이면 패널을 한 번 저절로 열어요. 사람이 닫으면 다시 열지 않아요.
+
+### agentpane
+
+- 에이전트를 누르면 그 에이전트의 대화를 `$.session.messages({ agentId })`로 읽어 Claude Code와 같은 모양으로 보여 줘요.
+- `turn.step`의 사용량으로 에이전트별 토큰과 실제 모델·effort를 모아요.
+- Stop을 누르고 한 번 더 확인하면 `$.tool.call`로 `TaskStop`을 불러요. 카탈로그가 2단계로 매긴 이유예요.
+- `$.agent.list`를 1초마다, 에이전트가 없어도 불러요. 마지막 에이전트가 끝나고 10초 뒤 패널을 접어요. 데스크톱 앱만 붙어 있으면 저절로 열지 않아요.
+
+### cctop
+
+- mod는 화면이고 숫자는 별도 Rust 프로그램 `cctop`이 만들어요. Homebrew나 cargo로 따로 설치해야 해요. mod는 `cctop query <항목> --session <id>`를 실행해 JSON을 받아요.
+- 패널이 닫혀 있으면 타이머와 실행이 멈춘다고 주석에 적혀 있고 코드도 그래요.
+- 코치 화면의 버튼은 `$.prompt.fill`로 입력창에 명령을 채우기만 하고 보내지는 않아요.
+- 모든 훅에 `.catch`가 달려 있어 실패해도 원래 흐름으로 넘겨요.
+- 바이너리는 전부 읽지 않았어요. Cargo 의존성에 HTTP 클라이언트가 없고, 선택 기능인 OpenTelemetry 수신기는 `127.0.0.1`에만 바인드하는 것까지 확인했어요.
+
+### flightdeck
+
+- 훅 15개 중 자기 명령과 패널 그리기를 빼면 모두 관찰만 해요. `tool.check`에서 판정을 읽어 GATE 패널에 허용·질문·거절을 쌓고, 판정은 그대로 넘겨요.
+- 정규식(기본 `advisor|architect`)에 맞는 에이전트 유형을 architect로 따로 모아 언제 상담했는지 보여 줘요.
+- `$.store`, 파일, 프로세스를 쓰지 않아요. 세션이 끝나면 기록이 사라져요.
+- 기본값으로 세션 시작 때 패널을 열어요.
+
+### agent-shell-watch
+
+- 에이전트보다 Bash 호출과 백그라운드 작업이 중심이에요. `codex`, `pi`, `devin` 같은 다른 에이전트 CLI를 Bash로 띄우면 경과 시간, 출력이 마지막으로 바뀐 때, 판정을 보여 줘요.
+- 출력 파일의 끝을 `tail -c`로 읽어요. 한도와 사용량은 `~/.codex/sessions/`와 `~/.pi/agent/sessions/`의 세션 파일에서 읽어요. 실행 중인 runner가 있거나 그 보기를 열었을 때만, 최소 30초 간격이에요.
+- 테스트 파일이 30개로 7개 중 가장 많아요. 코드도 가장 길어요.
+
+### mission-control
+
+- 메인 턴에 Edit·Write가 있으면 턴이 끝날 때 haiku를 `$.model.complete`로 불러요. 고친 내용 일부(Edit은 바꾸기 전후 문자열 각 300자, Write는 앞 400자, 파일당 최대 1,500자)를 보내 파일마다 한 줄 설명을 받아요. 패널이 닫혀 있어도 부르고, 끄는 옵션은 없어요.
+- 코드 지도는 SVG를 만들어 헤드리스 Chrome으로 PNG를 찍어요. Chrome 경로가 `/Applications/Google Chrome.app/...`로 고정돼 macOS 밖에서는 코드 지도가 그려지지 않아요. 별도 임시 프로필을 써요.
+- 코드 지도에 import 관계를 그리려고 Claude가 건드린 코드 파일을 읽고 앞 20만 자에서 import를 찾아요.
+
+### ide-mod
+
+- 보드의 한 줄 요약은 haiku를 `$.model.complete`로 불러요. 보드가 30초 안에 그려졌을 때만, 20초마다, 한 번에 작업 중인 에이전트 3개까지예요. 역할, 맡은 작업, 최근 도구 호출 12개의 한 줄 요약을 보내요. 기본값이 켜짐이고 `s`로 끄며, 세 번 실패하면 저절로 꺼져요.
+- HWP·PDF 뷰어는 `node`로 `bin/` 아래 스크립트를 실행하고, 그 스크립트가 `pdftoppm`, `qlmanage`, `sips`를 불러요. 이 스크립트는 `$` 밖에서 돌아서 `claude plugin validate`의 `calls:` 줄과 카탈로그 같은 정적 스캔에 내부 동작이 드러나지 않아요. 직접 읽어 보면 로컬 변환만 하고 네트워크 호출은 없어요.
+- `open`, `qlmanage`, `sips`는 macOS 명령이에요. 다른 OS에서는 미리보기 기능이 동작하지 않아요.
+- 요청 기록을 세션마다 `$.store`에 남기고 최근 40세션만 둬요. 한국어 원고 파일을 고치면 문체 검사를 돌려요. 화면 문구가 한국어뿐이에요.
+- 훅 모듈이 한 파일 1,493줄이라 6개 중 어느 mod보다 한 파일에 몰려 있어요.
+
+<Aside type="caution">
+모델을 부르는 대시보드는 mission-control과 ide-mod 둘이에요. 둘 다 세션의 계정으로 Anthropic API를 부르고 사용량에 잡혀요. 보내는 내용에 도구 입력과 고친 코드 일부가 들어가요.
+</Aside>
+
+## 어떤 걸 고를까
+
+- 아무것도 읽거나 실행하지 않는 트리가 필요하면 **agent-flow**. 권한 확인을 기다리는 에이전트가 따로 보여요.
+- 서브에이전트의 대화를 패널 안에서 열어 보고 멈추고 싶으면 **agentpane**.
+- 권한 판정, 컨텍스트, 상담 기록까지 한 화면에서 보고 싶은데 저장은 원하지 않으면 **flightdeck**.
+- 컨텍스트·비용·도구 시간을 btop처럼 깊게 보고 싶고 별도 프로그램 설치가 괜찮으면 **cctop**.
+- Codex나 Pi 같은 다른 CLI를 Bash로 돌려 일을 나누면 **agent-shell-watch**.
+- Claude가 건드린 파일과 import 관계를 지도로 보고 싶은 macOS 사용자는 **mission-control**. 편집할 때마다 haiku가 불린다는 점을 감안해요.
+- HWP·HWPX·PDF를 같은 창에서 보고 한국어 화면이 편하면 **ide-mod**. macOS에서 가장 잘 동작해요.
+
+어떤 mod든 설치 전에 [설치 전 안전 점검](/ko/guide/safety-checklist/)을 거치고, 다른 후보는 [mod 디렉터리](/ko/mods/directory/)에서 찾아요.

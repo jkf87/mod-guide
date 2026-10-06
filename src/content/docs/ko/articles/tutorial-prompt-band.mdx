@@ -1,0 +1,374 @@
+---
+title: "따라 하기: 입력창 위에 띠 하나 그리기"
+description: 턴 수, 지금 턴의 경과 시간, 마지막 도구를 입력창 위에 한 줄로 띄우는 mod를 파일 다섯 개로 만들어요. 검증·테스트를 실제로 통과한 코드 그대로예요.
+sidebar:
+  order: 7
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+입력창 바로 위 한 줄짜리 띠(`AbovePrompt`)를 그리는 mod를 처음부터 만들어요. 완성하면 이렇게 보여요.
+
+```text
+턴 3 · 진행 12초 · 마지막 도구 Bash
+```
+
+턴이 돌고 있으면 경과 시간이 1초마다 늘고, 턴이 끝나면 `지난 턴 34초`로 멈춰요. `/turn-meter`를 치면 띠를 숨기거나 다시 보여 줘요. 다른 mod가 같은 자리에 띠를 그리고 있어도 그 띠를 지우지 않아요.
+
+기준: Claude Code 2.1.291에서 `claude plugin validate`와 `claude plugin test`를 통과한 코드예요. API 설명은 2.1.290 타입 선언(`claude-code.d.ts`)과 대조했어요. 아래 코드 블록은 통과한 파일을 그대로 옮긴 거예요.
+
+## 폴더 구조
+
+```text title="turn-meter/"
+.claude-plugin/plugin.json   # 매니페스트
+hooks/hooks.json             # 훅 모듈 위치
+hooks/register.tsx           # 훅 모듈
+types/index.d.ts             # 상태 계약
+tests/band.test.tsx          # 테스트
+```
+
+[첫 mod 만들기](/ko/guide/build-your-first-mod/)의 창(Pane) 예제와 달리 이번 mod는 모듈 변수 대신 `$.state`에 값을 둬요. 핫 리로드가 일어나면 모듈 변수는 사라지지만 `$.state` 값은 세션이 끝날 때까지 남아요.
+
+## 만들기
+
+<Steps>
+
+1. **매니페스트를 써요.** `types`는 이 mod가 상태 계약을 어디에 적었는지 알려 줘요.
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "turn-meter",
+     "version": "0.1.0",
+     "description": "입력창 위에 턴 수, 지금 턴의 경과 시간, 마지막 도구를 한 줄로 보여 준다",
+     "author": {
+       "name": "mods.guide"
+     },
+     "types": "./types/index.d.ts"
+   }
+   ```
+
+2. **훅 모듈 위치를 적어요.** 경로는 `hooks.json` 기준이에요.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.tsx"] }
+   ```
+
+3. **상태 계약을 써요.** `$.state`에 둘 값의 이름과 타입을 `PluginState`에 선언해요. 타입 선언 파일이 "empty by default"라고 적어 둔 인터페이스에 내 mod 몫을 더하는 방식이에요.
+
+   ```ts title="types/index.d.ts"
+   export type TurnMeterTurn = { startedAt: number; endedAt: number | null }
+
+   declare module 'claude-code' {
+     interface PluginState {
+       'turn-meter': {
+         count: number
+         turn: TurnMeterTurn | null
+         now: number
+         lastTool: string | null
+         isHidden: boolean
+       }
+     }
+   }
+   ```
+
+   검증기는 이 파일을 읽고 `declares state: turn-meter.count, …`라고 다섯 키를 그대로 짚어 줘요. `$` 객체에 새 기능을 붙이지 않으니 `declares on $: nothing`도 함께 나오는데, 오류가 아니에요.
+
+4. **훅 모듈을 써요.** 전체 코드부터 보고 부분별로 풀어요.
+
+   ```tsx title="hooks/register.tsx"
+   import { atom, read, update } from 'claude-code'
+   import type { Register, Timer } from 'claude-code'
+
+   import type { TurnMeterTurn } from '../types'
+
+   const count = atom({ plugin: 'turn-meter', key: 'count' } as const, 0)
+   const turn = atom({ plugin: 'turn-meter', key: 'turn' } as const, null)
+   const now = atom({ plugin: 'turn-meter', key: 'now' } as const, 0)
+   const lastTool = atom({ plugin: 'turn-meter', key: 'lastTool' } as const, null)
+   const isHidden = atom({ plugin: 'turn-meter', key: 'isHidden' } as const, false)
+
+   export function formatSeconds(ms: number): string {
+     const s = Math.max(0, Math.floor(ms / 1000))
+     return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`
+   }
+
+   export const register: Register = on => {
+     let tick: Timer | undefined
+
+     on('session.start', async ($, e, next) => {
+       await $.command.register({
+         name: 'turn-meter',
+         description: '입력창 위 턴 정보 띠를 켜고 끈다',
+       })
+       return next(e)
+     })
+
+     on('command.run', { command: 'turn-meter' }, async $ => {
+       const hidden = await update($, isHidden, v => !v)
+       return { text: hidden ? 'turn-meter 띠를 숨겼어요.' : 'turn-meter 띠를 다시 보여요.' }
+     })
+
+     on('turn.start', async ($, e, next) => {
+       const startedAt = await $.clock.now()
+       await update($, count, n => n + 1)
+       await update($, turn, () => ({ startedAt, endedAt: null }))
+       await update($, now, () => startedAt)
+       tick?.cancel()
+       tick = $.clock.every(1000, () => {
+         void $.clock.now().then(t => update($, now, () => t))
+       })
+       return next(e)
+     })
+
+     on('tool.call', async ($, e, next) => {
+       if (e.agentId === undefined) await update($, lastTool, () => String(e.tool))
+       return next(e)
+     }).catch(($, e, next) => next(e))
+
+     on('turn.complete', async ($, e, next) => {
+       if (e.agentId === undefined) {
+         tick?.cancel()
+         tick = undefined
+         const endedAt = await $.clock.now()
+         await update($, turn, t => (t === null ? null : { ...t, endedAt }))
+       }
+       return next(e)
+     })
+
+     on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+       const t: TurnMeterTurn | null = await read($, turn)
+       if (e.props.hasSurvey || t === null || (await read($, isHidden))) return next(e)
+
+       const below = await next(e)
+       const { Box, Text } = $.ui.resolve(e)
+       const n = await read($, count)
+       const tool = await read($, lastTool)
+       const time =
+         t.endedAt === null
+           ? `진행 ${formatSeconds((await read($, now)) - t.startedAt)}`
+           : `지난 턴 ${formatSeconds(t.endedAt - t.startedAt)}`
+
+       return (
+         <Box flexDirection="column" width={e.props.bodyColumns}>
+           <Box key="meter">
+             <Text dimColor wrap="truncate-end">
+               턴 {n} · {time} · 마지막 도구 {tool ?? '없음'}
+             </Text>
+           </Box>
+           {below}
+         </Box>
+       )
+     })
+   }
+   ```
+
+</Steps>
+
+## 부분별 설명
+
+**상태 다섯 개.** `atom(ref, initial)`은 초깃값을 가진 이름 붙은 값이에요. `plugin`과 `key`는 소스에 리터럴로 써야 해요. 검증기가 소스를 읽어 `state writes:`, `state reads:` 목록을 만들기 때문이에요. 값은 `read($, atom)`로 읽고 `update($, atom, fn)`로 바꿔요. `update`는 버전을 확인하며 쓰고, 그사이 누가 먼저 썼으면 다시 시도해요.
+
+**`/turn-meter` 명령.** `session.start`에서 `$.command.register`로 명령을 등록하고, `command.run` 훅이 `{ command: 'turn-meter' }` 매처로 받아요. `update`는 바뀐 값을 돌려주니 그 값으로 안내 문구를 골라요. `next`를 부르지 않고 `{ text }`를 돌려주면 그 글이 명령 출력으로 떠요.
+
+**턴 시작과 1초 타이머.** `turn.start`에서 시각을 `$.clock.now()`로 재요. mod 안에는 `setTimeout`이 없어서 1초 간격 갱신도 `$.clock.every`로 걸어요. 타이머는 `now` 값만 바꿔요. 띠는 그리면서 `now`를 읽었으니 값이 바뀌면 엔진이 띠를 다시 그려요. 이때 `$.ui.invalidate`를 부를 필요는 없어요. `$.state` 읽기가 그리기를 구독해 두기 때문이에요.
+
+**마지막 도구.** `tool.call` 훅은 도구 이름만 적고 `next(e)`로 넘겨요. `e.agentId`가 있으면 서브에이전트의 호출이라 건너뛰어요. 뒤에 붙은 `.catch(($, e, next) => next(e))`는 기록이 실패해도 도구는 그대로 돌게 하는 장치예요. 검증기는 `tool.call`을 무언가를 거절할 수 있는 자리로 보고 `gating hook with .catch: tool.call`이라고 적어요. 관찰만 하는 훅이니 실패하면 통과시키는 쪽이 맞아요.
+
+**턴 끝.** `turn.complete`는 서브에이전트 턴에도 와요. 메인 턴(`agentId` 없음)일 때만 타이머를 끄고 끝난 시각을 적어요.
+
+**띠 그리기.** 핵심은 세 줄이에요.
+
+- `e.props.hasSurvey`가 참이면 설문이 띠를 쓰는 중이라 `next(e)`로 비켜요.
+- 그릴 게 있으면 먼저 `const below = await next(e)`로 아래쪽 결과를 받아요. 다른 mod가 그린 띠, 또는 아무도 안 그렸을 때의 엔진 결과예요.
+- 내 줄 아래에 `{below}`를 붙여 돌려줘요. `next`를 부르지 않고 내 트리만 돌려주면 내 아래에 선 mod의 띠는 그려지지 않아요. `AbovePrompt`는 인스턴스가 하나뿐인 자리라서 그래요.
+
+폭은 `e.props.bodyColumns`에 맞춰요. 엔진의 `[-]` 접기 표시가 차지하는 다섯 칸을 뺀 폭이에요.
+
+<Aside>
+  내 줄은 `key="meter"`를 단 `Box`로 감쌌어요. 처음에는 `Text`에 `key`를 달았는데, 2.1.291 테스트 키트의 `ui.drawn()` 결과에서 `Text`의 `key`가 빠져 있었고 `find({ key })`도 못 찾았어요. 타입 선언을 보면 `key`를 받는 요소는 `Box`, `Button`, `Input`, `Select`, `Code`, `Image`, `Markdown` 등이고 `TextProps`에는 `key`가 없어요. 테스트에서 찾을 글줄은 키를 단 `Box`로 감싸세요.
+</Aside>
+
+## 테스트 쓰기
+
+```tsx title="tests/band.test.tsx"
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { formatSeconds } from '../hooks/register'
+
+const BAND = { plugin: 'turn-meter', component: 'AbovePrompt' } as const
+const props = {
+  hasSurvey: false,
+  isWorking: true,
+  maxRows: 10,
+  bodyColumns: 80,
+  scroll: { offset: 0, bodyRows: 9 },
+  view: {},
+}
+const SURFACES = ['terminal', 'desktop'] as const
+
+// 엔진 자리: 다른 mod의 띠 하나, 그리고 도구·턴·명령의 바닥 응답
+function engine(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>다른 mod의 띠</Text>
+  })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+}
+
+const toggle = {
+  command: 'turn-meter',
+  args: '',
+  origin: { kind: 'composer' as const },
+  presentation: { isFullscreen: true, columns: 120 },
+}
+
+describe('formatSeconds', () => {
+  test('초와 분으로 적는다', () => {
+    expect(formatSeconds(0)).toBe('0초')
+    expect(formatSeconds(12_400)).toBe('12초')
+    expect(formatSeconds(75_000)).toBe('1분 15초')
+  })
+})
+
+describe('띠', () => {
+  test('첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다', async ($, on) => {
+    engine(on)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect(await ui.find({ key: 'meter' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 1_000_000 })
+    await $.turn.start({ text: '테스트 고쳐 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+    await clock.advance(12_000)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 진행 12초 · 마지막 도구 Bash')
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('턴이 끝나면 걸린 시간을 고정한다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 0 })
+    await $.turn.start({ text: '첫 번째', turnId: 't1' })
+    await clock.advance(5_000)
+    await $.turn.complete({ answer: '끝', durationMs: 5_000, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+    await clock.advance(30_000)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 지난 턴 5초 · 마지막 도구 없음')
+  })
+
+  test('서브에이전트의 도구 호출은 마지막 도구로 치지 않는다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '조사해 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/a.txt' })
+    await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'sub-1' } as never)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toMatch(/마지막 도구 Read$/)
+  })
+
+  test('/turn-meter로 숨기고 다시 켠다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '아무거나', turnId: 't1' })
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 숨겼어요.')
+    const hidden = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await hidden.find({ key: 'meter' })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+    await hidden.unmount()
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 다시 보여요.')
+    const shown = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await shown.find({ key: 'meter' })).toBeDefined()
+  })
+})
+```
+
+테스트의 `on`으로 등록한 훅은 모든 플러그인 아래, 엔진 자리에 서요. 그래서 `engine()` 함수가 하는 일이 두 가지예요.
+
+- **다른 mod의 띠를 흉내 내요.** 맨 아래 `AbovePrompt` 훅이 `다른 mod의 띠`를 그려요. 내 띠가 그 줄을 지우지 않는지 확인하는 장치예요.
+- **바닥을 채워요.** 테스트 엔진은 아래에서 답하는 훅이 없으면 오류를 내요. `turn.start`를 바닥 없이 부르면 실제로 이렇게 실패해요.
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+두 번째 줄이 중요해요. 시계도 바닥이 없으면 내 `turn.start` 훅이 건너뛰어져요. 그래서 턴을 다루는 테스트마다 `mock.clock(on, …)`을 깔아요. 이 시계는 테스트가 `clock.advance(12_000)`로 움직일 때만 가요. 12초를 움직이면 1초 타이머가 열두 번 돌아 `진행 12초`가 돼요. 실제로 12초를 기다리지 않아요.
+
+화면 테스트는 `$.ui.mount({ plugin, surface, component, props })`로 띠를 한 번 그리고 `find`로 요소를 찾아요. `surface`는 기본값이 없어서 꼭 적어야 해요. 같은 본문을 `terminal`과 `desktop`에 돌리면 한쪽 화면에만 있는 요소를 쓰지 않았는지도 함께 확인돼요.
+
+## 돌려 보기
+
+```bash
+claude plugin validate ./turn-meter
+```
+
+```text
+Validating plugin manifest: …/turn-meter/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: turn-meter.count, turn-meter.turn, turn-meter.now, turn-meter.lastTool, turn-meter.isHidden
+
+Validating hooks: …/turn-meter/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, command.run{command=turn-meter}, turn.start, tool.call, turn.complete, ui.render{component=AbovePrompt}
+  ❯ ./register.tsx gating hook with .catch: tool.call
+  ❯ ./register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.state.get, $.state.set, $.ui.resolve
+  ❯ ./register.tsx state writes: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+  ❯ ./register.tsx state reads: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+
+✔ Validation passed
+```
+
+경로 앞부분만 줄였어요. 첫 실행 때는 `author`가 없다는 경고가 하나 붙었고, 매니페스트에 `author`를 넣자 사라졌어요. `calls:` 줄을 보면 이 mod는 파일·네트워크·프로세스를 건드리지 않아요. [안전 점검](/ko/guide/safety-checklist/)에서 말하는 "화면·기억만" 단계예요.
+
+```bash
+claude plugin test ./turn-meter
+```
+
+```text
+tests/band.test.tsx:
+(pass) formatSeconds > 초와 분으로 적는다 [1.14ms]
+(pass) 띠 > 첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다 [28.03ms]
+(pass) 띠 > 진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다 [25.08ms]
+(pass) 띠 > 턴이 끝나면 걸린 시간을 고정한다 [14.53ms]
+(pass) 띠 > 서브에이전트의 도구 호출은 마지막 도구로 치지 않는다 [11.61ms]
+(pass) 띠 > /turn-meter로 숨기고 다시 켠다 [13.68ms]
+
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [0.25s]
+```
+
+## 세션에서 켜 보기
+
+설치하지 않고 이번 세션에만 불러올 수 있어요.
+
+```bash
+claude --plugin-dir ./turn-meter
+```
+
+이렇게 띄운 세션은 폴더를 지켜보다가 파일을 저장하면 훅 모듈을 다시 읽어요. 띠가 안 보이면 [테스트와 디버깅](/ko/articles/testing-and-debugging/)의 디버그 로그 읽는 법을 보세요.
+
+## 알아 둘 한계
+
+- `AbovePrompt`는 터미널과 데스크톱 화면에서만 그려져요. VS Code와 모바일에는 이 띠가 없어요.
+- 1초 타이머는 모듈 변수에 들고 있어요. 턴 도중 핫 리로드가 일어나면 이전 환경의 타이머가 버려져요. 다음 턴이 시작될 때까지 경과 시간이 멈춰 보여요.
+- 띠가 다시 그려지는 속도는 엔진이 정해요. 타입 선언에 따르면 다시 그리기는 1초에 최대 10번, 터미널의 펼친 띠는 30번까지예요. 1초 간격은 그 안이에요.
+- 턴 수는 메인 루프의 `turn.start`를 세요. 사람이 프롬프트를 보내지 않은 이어 가기 턴도 하나로 세요.

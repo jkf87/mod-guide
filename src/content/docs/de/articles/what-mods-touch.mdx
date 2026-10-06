@@ -1,0 +1,149 @@
+---
+title: Worauf greifen Mods tatsächlich zu
+description: "Der Zugriffsumfang im Quellcode-Scan der 1.488 Verzeichnis-Mods. Wir zeigen, wo die 594 Mods, die Prozesse ausführen, die 474 Mods, die jeden Prompt sehen, und die 195 Mods mit Anfragen nach außen ansetzen."
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Stand: Scan des Community-Katalogs vom 04.10.2026, Claude Code 2.1.289
+
+Wir haben gezählt, welche APIs die 1.488 Mods im [Mod-Verzeichnis](/de/mods/directory/) aufrufen und welche Events sie empfangen. Die Daten stammen aus dem Katalog [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods). Was die einzelnen APIs bedeuten, haben wir in der Typdatei `claude-code.d.ts` nachgelesen, die Claude Code 2.1.290 mitliefert.
+
+## Bevor du die Zahlen liest
+
+Der Katalog führt Mods nicht aus. Er sammelt die Zeilen `calls:` und `hooks:`, die `claude plugin validate` beim Lesen des Quellcodes ausgibt, und stuft sie nach einer Regeltabelle ein. Deshalb lässt sich Folgendes nicht erkennen:
+
+- an welche Adresse `$.http.fetch` was sendet
+- welches Programm `$.process.run` ausführt. Die Typdatei schreibt: „what a command of its own reaches is its own“. Geht ein ausgeführtes `curl` oder `gh` ins Netz, zählt der Katalog das nicht als Netzwerk.
+- wie oft ein Hook tatsächlich läuft und ob er standardmäßig aktiv ist
+
+Die Stufe ist die Obergrenze dessen, was ein Mod tun kann. Sie belegt nicht, was er tut.
+
+## Vier Zugriffsstufen
+
+Der Katalog bestimmt die Stufe nach dem weitestreichenden `$`-Aufruf, den ein Mod verwendet.
+
+| Stufe | Maßgebliche Aufrufe | Mods | Anteil |
+| --- | --- | ---: | ---: |
+| 0 Bildschirm und Gedächtnis | `$.ui.*`, `$.store.*`, `$.audio.*` | 173 | 11,6 % |
+| 1 Lesen | `$.fs.read`, `$.env.get`, `$.settings.read`, `$.session.messages` | 338 | 22,7 % |
+| 2 Schreiben und Ausführen | `$.process.run`, `$.fs.write`, `$.config.set`, `$.prompt.submit`, `$.model.*` | 782 | 52,6 % |
+| 3 Netzwerk | `$.http.fetch`, `$.mcp.call` | 195 | 13,1 % |
+
+Mehr als die Hälfte liegt auf Stufe 2. Allein anhand von Stufe 2 lassen sich Mods also nicht aussortieren.
+
+Stufe 1 ist aufgebläht. In der Regeltabelle des Katalogs fehlt `$.state`, deshalb gilt es als unbekannter Aufruf und hebt den Mod auf Stufe 1. `$.state` sind Werte, die der Host während der Sitzung hält, und sie berühren weder Dateien noch Geheimnisse. Bei 178 der 338 Mods auf Stufe 1 ist `$.state` der Grund. Ohne diese Mods hätte Stufe 0 351 Mods (23,6 %).
+
+## Welche Fähigkeiten wie viele Mods nutzen
+
+| Kennzeichen | Mods | Anteil | Zugehörige Aufrufe |
+| --- | ---: | ---: | --- |
+| Zustand speichern | 611 | 41,1 % | `$.store.*` |
+| Prozesse ausführen | 594 | 39,9 % | `$.process.run` |
+| Dateien lesen | 563 | 37,8 % | `$.fs.read`, `list`, `stat`, `exists` |
+| Umgebungsvariablen lesen | 522 | 35,1 % | `$.env.get` |
+| Claude steuern | 494 | 33,2 % | `$.prompt.submit`, `$.model.*`, `$.tool.register`, `$.command.run`, `$.session.compact`, `$.turn.abort`, `$.agent.spawn` |
+| Dateien schreiben | 252 | 16,9 % | `$.fs.write` |
+| Netzwerk | 170 | 11,4 % | `$.http.fetch` |
+| Gesprächsverlauf lesen | 159 | 10,7 % | `$.session.messages` |
+| In das Eingabefeld schreiben | 123 | 8,3 % | `$.prompt.fill`, `suggest` |
+| Einstellungen lesen | 88 | 5,9 % | `$.settings.read` |
+| Ton | 70 | 4,7 % | `$.audio.*` |
+| Einstellungen ändern | 37 | 2,5 % | `$.config.set` |
+| MCP-Server aufrufen | 30 | 2,0 % | `$.mcp.call` |
+| Umgebungsvariablen schreiben | 21 | 1,4 % | `$.env.set` |
+
+## Nach Namensraum betrachtet
+
+`CoreEngineInterface` in der Typdatei enthält die Standardnamen von `$`. Die Beschreibung in jeder Zeile ist aus den Kommentaren der Typdatei übernommen.
+
+| Name unter `$` | Mods | Häufig genutzte Methoden | Umfang laut Typdatei |
+| --- | ---: | --- | --- |
+| `ui` | 1.401 | `resolve` 1.090, `toast` 712, `open` 654 | Bildschirm, Fenster, Toasts, Zwischenablage |
+| `command` | 1.092 | `register` 1.068 | Liste und Ausführung von Slash-Befehlen |
+| `clock` | 1.045 | `now` 785, `every` 617 | Zeit und Timer |
+| `session` | 863 | `usage` 327, `cwd` 300, `messages` 144 | die laufende Sitzung als Daten lesen, komprimieren, Nachrichten an andere Sitzungen senden |
+| `state` | 828 | `get` 827, `set` 823 | Werte, die der Host während der Sitzung hält |
+| `store` | 611 | `get` 609, `set` 607 | eine JSON-Datei nur für diesen Mod im Benutzer-Konfigurationsordner |
+| `process` | 608 | `run` 594, `spawn` 49 | Host-Befehle mit den Rechten des Sitzungsnutzers ausführen |
+| `fs` | 595 | `read` 474, `exists` 299, `write` 252 | das Dateisystem, das der Engine-Prozess erreicht. Absolute Pfade gelten unverändert |
+| `env` | 526 | `get` 522, `set` 21 | Umgebungsvariablen dieses Prozesses. Bash, MCP-Server und ausgeführte Befehle erben sie |
+| `prompt` | 276 | `submit` 179, `fill` 111 | Prompts als Benutzer-Turn senden, das Eingabefeld lesen und beschreiben |
+| `model` | 206 | `complete` 159, `fork` 71 | Modell mit Client und Zugangsdaten der Sitzung aufrufen |
+| `tool` | 172 | `register` 126, `call` 29 | Liste und Ausführung der Tools, die das Modell nutzt |
+| `http` | 170 | `fetch` 170 | Netzwerkanfragen über den Host |
+| `agent` | 102 | `list` 97, `spawn` 16 | Subagents |
+| `settings` | 88 | `read` 88 | Einstellungsdateien und Verwaltungsrichtlinien. `env` wird ungefiltert weitergereicht |
+| `config` | 75 | `list` 54, `set` 37 | alle Zeilen des `/config`-Menüs |
+| `mcp` | 30 | `call` 30 | Tools verbundener MCP-Server aufrufen |
+
+Drei Zeilen verdienen besondere Aufmerksamkeit.
+
+- `$.settings.read` reicht den `env`-Block und die Hilfsbefehle der Einstellungsdatei ungefiltert weiter. Hast du einen API-Schlüssel in die Einstellungen geschrieben, wird auch er mitgelesen.
+- `$.env.get` nimmt Variablennamen nur als String-Literal an. Deshalb listet die Zeile `env reads:` in der Ausgabe von `claude plugin validate` alle Variablennamen auf, die der Mod liest. Wirf vor der Installation einen Blick auf diese Zeile, dann weißt du, welche Schlüssel gelesen werden.
+- `$.model.*` nutzt die Zugangsdaten der Sitzung unverändert. 206 Mods rufen das Modell über deinen Tarif oder deinen API-Schlüssel auf. 152 davon hängen auch `turn.complete` ein und können das Modell damit am Ende jedes Turns aufrufen.
+
+Es gibt auch Namen, die nicht zu den Standardnamen gehören. 13 Mods fügen `$` über das Event `engine.create` neue Namen hinzu. `$.sidebar`, das [`sidebar`](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/sidebar) aus [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) hinzufügt, rufen 36 Mods desselben Repositorys auf, und `$.lemo` aus [lemomo-ai/lemo-mod](https://github.com/lemomo-ai/lemo-mod) rufen 16 Mods auf. Solche Mods laufen nur richtig, wenn der Mod, der den Namen hinzufügt, mitinstalliert ist.
+
+## Mods, die Tool-Aufrufe beobachten
+
+`tool.call` wird unmittelbar aufgerufen, bevor die Engine ein Tool ausführt. Laut Typdatei kann der Hook mit `{ deny }` ablehnen, mit `{ result }` antworten, ohne auszuführen, oder die Eingabe ändern und an `next` weitergeben. 786 Mods (52,8 %) hängen dieses Event ein.
+
+| Matcher | Mods |
+| --- | ---: |
+| ohne Tool-Namen (alle Tool-Aufrufe) | 464 |
+| Matcher mit `Bash` | 168 |
+| `Write` | 111 |
+| `Edit` | 109 |
+| `NotebookEdit` | 54 |
+| `Read` | 34 |
+| `PowerShell` | 30 |
+| `AskUserQuestion` | 23 |
+| `Agent` | 19 |
+| `ExitPlanMode` | 15 |
+
+Gruppierte Matcher wie `Edit|Write|NotebookEdit` haben wir pro Namen gezählt. In 17 Fällen konnte der Scanner den Matcher nicht lesen, weil er eine Variable ist. 464 Mods hängen sich ohne Matcher ein und sehen deshalb Eingabe und Ergebnis jedes Tool-Aufrufs. Dort laufen Bash-Befehle, Inhalte zu bearbeitender Dateien und Adressen von Webanfragen durch. Außerdem hängen 64 Mods `tool.check` ein, das entscheidet, ob ein Tool ausgeführt wird.
+
+## Mods, die Prompts beobachten
+
+`prompt.submit` wird direkt nach dem Senden eines Prompts aufgerufen, bevor der Turn beginnt. Der Hook kann den Text ändern und weitergeben oder mit `{ drop }` stoppen. 474 Mods (31,9 %) hängen dieses Event ein, 472 davon ohne Matcher, sie sehen also jeden Prompt. Es gibt auch die Gegenrichtung: 179 Mods senden mit `$.prompt.submit` Prompts, als hätte ein Mensch sie getippt.
+
+729 Mods sehen jeden Prompt oder jeden Tool-Aufruf. 95 davon liegen auf der Netzwerkstufe.
+
+## Wohin senden die 195 Netzwerk-Mods?
+
+Von den 195 Mods auf Stufe 3 nutzen 170 `$.http.fetch` und 25 nur `$.mcp.call`. Die Adressen lassen sich per statischem Scan nicht ermitteln, deshalb haben wir die Beschreibungen im Katalog nach Stichwörtern grob gruppiert.
+
+| Gruppe | Mods | Beispiele |
+| --- | ---: | --- |
+| Dienste für Urteilsmodelle (Jev, TypeSafe, Laya usw.) | 52 | Sicherheitsprüfung bei jeder Bearbeitung, Zeitpunkt der Komprimierung bestimmen, Modell wählen |
+| Arbeitsdienste | 27 | GitHub-PRs, Linear, Jira, Slack, Gmail, Kalender, Home Assistant |
+| Freizeit | 29 | Musik, Songtexte, Spiele, Spielstände, Aktienkurse |
+| Anzeige von Nutzung und Limits | 19 | Balken für das 5-Stunden- und das Wochenlimit |
+| Andere Modelle und Agents | 18 | Gemini, Codex, OpenAI-Sprachausgabe |
+| Paket- und Sicherheitsprüfung | 6 | Abfragen bei Registries und OSV.dev |
+| Sonstiges | 44 | lokale Daemons, Browser, Speicher für Erinnerungen usw. |
+
+Die Einteilung beruht auf Stichwörtern, die Grenzen überlappen sich, und unter „Sonstiges“ stecken auch Mods, die nur mit einem lokalen Server auf `localhost` sprechen. Zwei Dinge sind trotzdem klar.
+
+Erstens schickt mehr als ein Viertel der Netzwerk-Mods Inhalte an ein Urteilsmodell. Meist sind es gehostete Dienste, einige wenige nutzen aber auch lokale Modelle auf deinem Rechner wie Laya oder ollama. [jev-seclint](https://github.com/mako-code/gobworks/tree/main/mods/jev/jev-seclint) etwa schickt bei jedem Aufruf von `Edit|Write|NotebookEdit` den Dateipfad und Codeausschnitte vor und nach der Änderung an `api.typesafe.ai`. Das haben wir direkt in `register.tsx` des Quellcodes geprüft. Dein Code verlässt also den Rechner zu einem externen Dienst.
+
+Zweitens gibt es Mods, die das Gespräch an einen anderen Modellanbieter übergeben. [gemini-review](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/gemini-review) schreibt in der Beschreibung „from the staged diff and the conversation“ und lässt Gemini bei jedem `git commit`, das das Modell ausführt, eine Prüfung vornehmen.
+
+115 der 195 Netzwerk-Mods lesen auch Umgebungsvariablen, meist um API-Schlüssel von Diensten zu lesen. 46 lesen zusätzlich den Gesprächsverlauf.
+
+<Aside type="caution">
+  Die Zahlen hier sind im Quellcode gefundene Aufrufe. Auch ein Programm, das über `$.process.run` gestartet wird, kann ins Netz gehen, selbst wenn der Mod nicht auf der Netzwerkstufe liegt. Umgekehrt gibt es Mods auf der Netzwerkstufe, die erst eine Anfrage senden, wenn du einen Schlüssel einträgst. jev-seclint bleibt ausgeschaltet, solange `TYPESAFE_API_KEY` fehlt.
+</Aside>
+
+## Reihenfolge vor der Installation
+
+1. Sieh im [Verzeichnis](/de/mods/directory/) Stufe und Kennzeichen an. Stufe 2 ist häufig, achte deshalb zusätzlich auf die Kennzeichen.
+2. Wenn ein Mod „jeden Prompt“ oder „jeden Tool-Aufruf“ sieht und auf der Netzwerkstufe liegt, suche im Quellcode, was `$.http.fetch` sendet.
+3. Führe `claude plugin validate` aus und lies in der Zeile `env reads:`, welche Schlüssel gelesen werden.
+4. Ruft ein Mod `$.model.*` auf, sieh nach, in welchem Event. Bei Aufrufen in jedem Turn steigt deine Nutzung entsprechend.
+5. Für die Entscheidungsregeln folge der [Sicherheitsprüfung vor der Installation](/de/guide/safety-checklist/).
+
+Das Gesamtbild des Ökosystems auf Basis derselben Daten findest du in [Stand des Mod-Ökosystems](/de/articles/state-of-mods-2026-10/).

@@ -1,0 +1,126 @@
+---
+title: Sicherheits-Mods im Vergleich
+description: Ich habe den Quellcode von 6 Mods gelesen, die gefährliche Bash-Befehle abfangen und Geheimnisse verbergen, dazu den in Claude Code eingebauten sec-default von Anthropic. Verglichen wird, was sie blockieren, ob sie bei eigenem Ausfall offen oder geschlossen bleiben und was das Modell tatsächlich sieht.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Bei Sicherheits-Mods stellst du zwei Fragen: Was fangen sie ab, und was passiert, wenn der Mod selbst ausfällt? Ich habe 2 Mods für gefährliche Befehle, 3 zum Verbergen von Geheimnissen, 1 gegen gleichzeitiges Bearbeiten und den sec-default gelesen, den Anthropic in Claude Code eingebaut hat. Ich habe die Repositories geladen und die Hook-Module nur gelesen, nicht installiert oder ausgeführt.
+
+Stand: Scan des Community-Katalogs vom 2026-10-04, Claude Code 2.1.289. Die Quellen habe ich am 2026-10-06 gelesen, das API-Verhalten anhand der Typdatei von Claude Code 2.1.290 und der Referenzdokumentation geprüft. Die Sterne zählen pro Repository.
+
+honmoon-redact, ursprünglich ein Kandidat, habe ich aus den Tabellen genommen. Es überlässt die Entscheidung einer separaten Rust-Engine (dem Binary `honmoon`) oder einer vom Nutzer angegebenen HTTP-Adresse, sodass sich allein aus dem Mod-Quellcode nicht erkennen lässt, was verborgen wird. Der Standard ist bei Ausfall geschlossen. Schaltest du den Mod ohne Binary ein, werden daher alle Ergebnisse von Read, Bash, Grep und WebFetch sowie Prompts blockiert.
+
+## Offen oder geschlossen bei Ausfall
+
+So funktioniert die Engine: Wirft ein Hook eine Ausnahme oder überschreitet sein Zeitbudget, wird nur dieser Hook übersprungen und die Kette läuft weiter. Hängst du an die Registrierung ein `.catch`, antwortet dieser Handler stattdessen. Hat ein blockierender Mod also kein `.catch`, wird der Befehl in dem Moment, in dem der Mod kaputtgeht, einfach ausgeführt.
+
+```tsx title="launch-codes/hooks/register.tsx (발췌)"
+on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  // ...
+})
+  // A hook that fails must not let the command through.
+  .catch(($, e) => {
+    const danger = classify(e.command)
+    return danger ? deny(e.command, danger.reason, 'the launch check failed') : { deny: '...' }
+  })
+```
+
+Von den 7 sind launch-codes, secrets-veil und sec-default so gebaut, dass sie geschlossen bleiben.
+
+## Die Ebene des Verbergens und was das Modell sieht
+
+Die drei Mods für Geheimnisse greifen auf unterschiedlichen Ebenen ein.
+
+- **secret-redactor** ändert Prompts, Tool-Ergebnisse und Kontext wie die CLAUDE.md, die an die erste Nachricht gehängt wird. Das Modell sieht Platzhalter, und bei der Ausführung eines Tools wird der ursprüngliche Wert wieder eingesetzt.
+- **secrets-veil** ändert nur Tool-Ergebnisse. Es gibt keinen Weg zurück.
+- **recording-mode** ändert nur den Text, der auf dem Bildschirm gezeichnet wird. Wie in der Referenzdokumentation beschrieben, bleibt der Inhalt, den das Modell gelesen hat, unverändert, auch wenn du den `text` einer Zeile änderst. Das Modell sieht den echten Schlüssel.
+
+## Auf einen Blick
+
+| Mod | Repository (Sterne) | Eingehängte Ereignisse | Was er abfängt | Wo er zeichnet |
+| --- | --- | --- | --- | --- |
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | hamzafer/claude-code-mods (54) | `tool.call` (Bash), `ui.render` | rekursives `rm`, erzwungener `git push`, DB-Migrationen | Panel, bei wenig Platz Band |
+| [launch-codes](https://github.com/OneWave-AI/claude-code-mods/tree/main/launch-codes) | OneWave-AI/claude-code-mods (1) | `tool.call` (Bash), `command.run`, `ui.render` | `rm -rf`, erzwungener Push, `reset --hard`, SQL `DROP`, `vercel --prod`, `chmod -R 777`, `curl \| sh` usw. | Panel, Fragefenster, Sirenenton |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | ray-amjad/awesome-claude-code-function-hooks (3) | `prompt.submit`, `tool.call`, `prompt.context` | Anbieter-Schlüssel, Token mit hoher Entropie, E-Mails, öffentliche IPs | Hinweis in der Tool-Zeile, Toast |
+| [secrets-veil](https://github.com/yonatangross/orchestkit/tree/main/mods/secrets-veil) | yonatangross/orchestkit (286) | `session.start`, `tool.call` | Werte von 21 Umgebungsvariablen, Schlüsselmuster, Token mit hoher Entropie | Toast, Statuszeile |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | nateherkai/claude-code-mods (7) | `prompt.submit`, `tool.call`, 7 `ui.render`-Komponenten | Schlüssel, personenbezogene Daten und Beträge auf dem Bildschirm, Öffnen privater Dateien | ● REC im Band |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | nateherkai/claude-code-mods (7) | `tool.call` (Edit, Write, NotebookEdit), `prompt.submit`, `session.*` | Bearbeitung von Dateien, die ein anderer Chat in den letzten 30 Minuten geändert hat | Fragefenster |
+| [sec-default](https://github.com/anthropics/claude-code/tree/main/mods/sec-default) | anthropics/claude-code (eingebaut) | 15 wie `classic.*`, `prompt.*`, `tool.check`, `plugin.register` | dass Nutzer-Mods die Organisationsrichtlinie umgehen | einzeilige Meldung, Debug-Log |
+
+| Mod | Blockieren/Ändern | Bei Ausfall | Ausführung ohne Oberfläche | Prozess/Datei | Was er hinterlässt | Tests | Lizenz | Gelesener Commit |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| blast-radius | lehnt ab | offen | lehnt sofort ab | `du` und `find` über `bash -c`, `git log` | nichts | ja | MIT | `3719682` (10-05) |
+| launch-codes | lehnt ab | geschlossen | lehnt ab, weil die Frage fehlschlägt | keiner | nichts | ja | MIT | `e6da26c` (10-03) |
+| secret-redactor | ändert Prompt, Ergebnis und Kontext, stellt Tool-Eingaben wieder her | offen | läuft normal weiter | keiner | Tresor im Speicher | ja | MIT | `12b5fea` (09-11) |
+| secrets-veil | ändert Tool-Ergebnisse | geschlossen (Ergebnis wird zurückgehalten) | läuft normal weiter | keiner | nichts | ja | MIT | `b13b64a` (10-05) |
+| recording-mode | ändert Bildschirmtext, lehnt private Dateien ab, hängt Notiz an den Prompt | offen | Ablehnung funktioniert | liest und schreibt Dateien | Flag- und Konfigurationsdatei | nein | MIT | `33a936f` (10-02) |
+| collision-guard | lehnt Bearbeitung ab | offen | lässt durch, ohne zu fragen | liest und schreibt Dateien, `git ls-files` | Protokolldatei pro Chat, `$.store` | nein | MIT | `33a936f` (10-02) |
+| sec-default | überspringt Nutzerstufen, lehnt Nutzer-Mods ab | geschlossen | gleich | keiner | nichts | ja | kommerzielle Bedingungen von Anthropic | `8e60c4c` (10-06) |
+
+## Notizen zu den einzelnen Mods
+
+### blast-radius
+
+- Er fängt `rm` mit rekursiver Option, erzwungene Pushes (`-f`, `--force*`, `+`-Refspec) und Migrationsbefehle wie prisma, supabase und drizzle ab. `rm` prüft er nur, wenn es das erste Wort des Befehls ist oder direkt nach `sudo` steht. Laut Code kommen `xargs rm -rf` und `find -delete` durch.
+- Beim Abfangen misst er die tatsächliche Auswirkung. Das zu löschende Ziel gibt er als Argument an `bash -c`, löst nur die Globs auf und zählt mit `du` und `find` Dateianzahl und Größe (höchstens 5.000 Dateien). Pfade mit Shell-Variablen löst er nicht auf und schreibt, dass du sie selbst prüfen sollst. Bei erzwungenen Pushes zeigt er mit `git log HEAD..@{u}`, welche Commits verloren gehen (Stand des letzten Fetch).
+- Drückt niemand innerhalb von 60 Sekunden etwas, bricht er ab. Setzt du die Option auf 0, wartet er unbegrenzt. Beim Warten startet er alle 0,25 Sekunden einen `sleep`-Prozess.
+
+### launch-codes
+
+- Er hat einen Tokenizer, der Anführungszeichen und Backslashes behandelt, und überspringt umhüllende Befehle wie `sudo`, `env`, `xargs` und `npx`, um das eigentliche Programm zu finden. Deshalb deckt er mehr ab als blast-radius.
+- `rm` fängt er nur ab, wenn sowohl `-r` als auch `-f` vorkommen. Unter `node_modules`, `dist` und `/tmp/` gilt es als sicher und wird durchgelassen.
+- Den im Panel angezeigten 4-stelligen Code musst du innerhalb von 30 Sekunden im Feld Other des Fragefensters eingeben, und danach musst du noch einmal auf LAUNCH drücken, damit der Befehl läuft. Beim Warten spielt er wiederholt eine Sirene ab.
+
+### secret-redactor
+
+- Die Werte liegen in einem Tresor im Modulspeicher und werden durch Platzhalter wie `[REDACTED-SECRET-1a2b3c4d]` ersetzt. Derselbe Wert ergibt immer denselben Platzhalter. Auf die Platte schreibt er nicht.
+- Bei der Ausführung eines Tools ersetzt er die Platzhalter wieder durch die ursprünglichen Werte (standardmäßig an). Befehle, die den Schlüssel benötigen, funktionieren also weiter. Sendet das Modell dafür aber eine Anfrage mit Platzhaltern nach außen, geht dabei der echte Schlüssel mit.
+- Der Tresor ist leer, sobald das Modul neu geladen wird. Platzhalter, die vorher entstanden sind, werden nicht mehr in den ursprünglichen Wert zurückverwandelt.
+- Die Katalogstufe ist 0. Die Stufe zählt nur Aufrufe von `$`, und dieser Mod ändert Inhalte nur über `next()` und ruft über `$` weder Dateien noch Netzwerk auf. Auch ein Mod, der alle Prompts und Tool-Ergebnisse sieht, kann also auf Stufe 0 landen.
+
+### secrets-veil
+
+- Er liest 21 Namen wie `ANTHROPIC_API_KEY`, `GITHUB_TOKEN` und `AWS_SECRET_ACCESS_KEY` einzeln als wörtliche Zeichenketten und trägt deren Werte in seine Verbergetabelle ein. Variablen mit anderen Namen, die deine Firma nutzt, liest er nicht. Den Rest übernehmen Wertmuster und die Entropieprüfung.
+- Ist ein Ergebnis länger als 8 Millionen Zeichen oder dauert das Verbergen mehr als 4 Sekunden, hält er das gesamte Ergebnis zurück. Im Toast steht nur die Anzahl, die Byte-Zahl steht nur im Debug-Log. Der Grund: Auch die Länge eines Geheimnisses ist ein Hinweis.
+- Mit `SECRETS_VEIL_OFFER_COPY=1` fragt er, ob er den verborgenen Wert nur in die Zwischenablage kopieren soll.
+
+### recording-mode
+
+- Mit `/rec` schreibt er die Flag-Datei `~/.claude/mods-data/recording.json`. Alle Sitzungen auf diesem Rechner prüfen die Datei alle 3 Sekunden und schalten sich mit ein.
+- Solange er aktiv ist, lehnt er Tool-Aufrufe ab, die Pfade zu `.env`, Zugangsdaten, Claude-Memory, Finanzdokumenten und Konfigurationsdateien öffnen, sowie Finanz-Tools. Bei jedem Prompt hängt er dem Modellkontext eine Notiz an, keine Namen und Beträge zu schreiben.
+- Die Werte aus `.env` und `.env.local` im Arbeitsordner und in den drei Ordnern darüber liest er in den Speicher und verbirgt sie auf dem Bildschirm.
+- Die Muster für Telefon- und Sozialversicherungsnummern folgen US-Formaten (Nummern im Format 3-3-4, SSN, Bundesstaatenkürzel mit Postleitzahl). Nummern im Format 3-4-4 wie `010-1234-5678` und koreanische Meldenummern (Jumin) sind in den Standardmustern nicht enthalten. Wenn du einen koreanischen Bildschirm aufzeichnest, fülle `names` und `privatePaths` in der Konfigurationsdatei.
+
+### collision-guard
+
+- Direkt vor dem Bearbeiten prüft er, ob ein anderer offener Chat dieselbe Datei in den letzten 30 Minuten geändert hat. Wenn ja, fragt er: fortfahren, in einen Worktree verschieben (nur bei von git verfolgten Dateien) oder abbrechen.
+- Pro Chat schreibt er die Pfade der geänderten Dateien und die ersten 80 Zeichen des ersten Prompts im Klartext nach `~/.claude/mods-data/collision-guard/<Sitzungs-ID>.json`. Damit kann er den anderen Chat im Fragefenster beim Namen nennen.
+- Bei Ausführung ohne Oberfläche fragt er nicht und lässt die Bearbeitung durch. Das ist so gebaut, damit unbeaufsichtigte Aufgaben nicht stehen bleiben.
+- Er hängt nichts an den Prompt und verbraucht deshalb keine Tokens.
+
+### sec-default
+
+- Das ist kein Mod, den ein Mensch installiert. Laut README setzt die CLI ihn auf Rechnern mit verwalteten Einstellungen oder in Team- und Enterprise-Organisationen an den Anfang der Prepend-Stufe.
+- Eine eigene Richtlinie hat er nicht. Bei den Ereignissen der Classic-Hooks der Organisation, der verwalteten CLAUDE.md, der Einstellungen und der MCP-Allowlist überspringt er mit `next.to(e, "append")` die Nutzerstufe. Vom Nutzer installierte Mods können diese Ereignisse nicht ändern.
+- Hebt ein Nutzer-Mod in `tool.check` eine Deny-Regel auf, führt er den Durchlauf ohne die Nutzerstufe noch einmal aus. Ist das Ergebnis eine regelbasierte Ablehnung, gilt diese Ablehnung als Antwort.
+- Schaltet der Administrator `allowManagedModsOnly` ein, werden nur von der Organisation verteilte und eingebaute Mods geladen.
+- In einer Sitzung, in der er aktiv ist, durchläuft jeder Tool-Aufruf die `tool.check`-Kette. Das nennt die README als Kostenpunkt.
+
+<Aside type="caution">
+Alle hier genannten Mods urteilen nach der Befehlszeichenkette oder der Form eines Werts. Befehle in abgewandelter Form und Geheimnisse, die nicht auf der Liste stehen, kommen durch. Sie ersetzen weder die Berechtigungsabfrage noch die Deny-Regeln in den Einstellungen.
+</Aside>
+
+## Welchen Mod nehmen?
+
+- Wenn du vor dem Löschen in Zahlen sehen willst, wie viele Dateien verschwinden, nimm **blast-radius**. Der Bereich ist eng, und bei einem Defekt kommt der Befehl durch.
+- Wenn du dir Sorgen machst, gefährliche Befehle aus Gewohnheit freizugeben, nimm **launch-codes**. Der Bereich ist breit, und bei Ausfall wird blockiert. Es macht Geräusche, schalte es in Meetings also bewusst ein.
+- Wenn das Modell die Schlüssel nicht sehen soll, du aber weiter Aufgaben erledigen willst, die sie nutzen, nimm **secret-redactor**. Nutze ihn nur, wenn du akzeptieren kannst, dass in Tool-Eingaben der ursprüngliche Wert zurückkehrt.
+- Wenn schon das Gelangen der Schlüssel zum Modell verhindert werden muss, nimm **secrets-veil**. Er ist nicht umkehrbar und hält bei Ausfall das Ergebnis zurück.
+- Wenn du den Bildschirm aufzeichnest oder in einer Vorlesung demonstrierst, nimm **recording-mode**. Denk daran, dass er nur den Bildschirm verbirgt.
+- Wenn du mehrere Chat-Fenster im selben Repository offen hast, nimm **collision-guard**.
+- Wenn du in einer Firma Nutzer-Mods kontrollieren musst, sieh dir die Option **sec-default** in den verwalteten Einstellungen an. Er ist nichts, was Einzelne installieren.
+
+Die allgemeine Prüfung vor der Installation findest du unter [Sicherheitsprüfung vor der Installation](/de/guide/safety-checklist/), den Weg zum Selbstbauen unter [Gefährliche Bash-Befehle abfangen](/de/articles/tutorial-bash-guard/).

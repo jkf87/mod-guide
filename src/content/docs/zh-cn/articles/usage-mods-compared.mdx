@@ -1,0 +1,107 @@
+---
+title: "用量与上下文 Mod 对比"
+description: "我读了 7 个显示 5 小时、每周额度和上下文的 Mod 的源码。表格里列出了数字来源、重新读取周期、模型调用和拦截行为，并给出选择标准。"
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+在输入框上方显示用量的 Mod，是目录里最常见的一类。仅描述中带有 5 小时·每周额度、rate limit、quota 的 Mod 就有 105 个。我从中挑了 7 个，下载仓库，把钩子模块从头读到尾。没有安装，也没有运行。
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289。源码于 2026-10-06 阅读，API 说明以 Claude Code 2.1.290 类型文件为准。star 数按仓库统计，所以同一仓库的 Mod 拿到的是同一个数字。
+
+## 数字从哪来
+
+引擎通过 `$.session.usage()` 提供与状态栏相同的数字，包括上下文窗口占用、5 小时·7 天额度（`rateLimits`）和会话费用。按类型文件的说明，不带参数调用不产生费用。`session.measure` 事件会在主线程一轮结束时，以及额度变化 1 个百分点时，把同样的数字推送过来。用 API 密钥的会话，`rateLimits` 是空的。额度数字只会出现在订阅会话里。
+
+目录中 105 个用量 Mod 里，有 100 个调用 `$.session.usage`，88 个监听 `session.measure`。另有 13 个调用 `$.http.fetch`。我打开了其中 9 个，9 个全都请求了 `https://api.anthropic.com/api/oauth/usage`。凭据通过 `$.session.authorize()` 给出的句柄附带，Mod 本身看不到令牌的值。这个地址没有出现在 2.1.290 类型文件里。请按"可能不经通知就变更"来使用。一旦开启 `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`，引擎会拒绝带这个句柄的请求。
+
+下面这 7 个都不请求这个地址。没有一个调用 `$.http.fetch`，调用模型的只有 hud 一个。
+
+## 一览
+
+| mod | 仓库（star） | 绘制位置 | 数字来源 | 重新读取周期 |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | 输入框上方的带 | `$.session.usage`，为空时读桌面应用的 `plan-usage-history.json` | 每轮、每次工具调用之后，每 15 秒检查变化 |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | 带 | `session.measure`、`$.session.usage` | 引擎推送时，倒计时 60 秒 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | 状态栏、`/quota` 面板 | `$.session.usage` | 每轮结束，每 60 秒 |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | 带 | `$.session.usage`、对话记录文件末尾 | 每轮结束，缓存倒计时 1~30 秒 |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | 带、`/burn` 面板 | `$.session.usage` | 每 1 秒，火焰图 80ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | 状态栏、toast | `$.session.usage` | 每次工具调用、每个提示词 |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | 带或输入框下方、详情面板 | `$.session.usage`、git、对话记录文件、`~/.claude/sessions/*.json` | 每 15 秒，远程控制检查 3 秒 |
+
+| mod | 拦截·改写 | 模型调用 | 进程·文件 | 留下的内容 | 级别 | 测试 | 许可证 | 阅读的提交 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | 无（Compact 按钮由人点击） | 无 | 读取应用文件 | `$.store`：最近一次额度、提醒记录 | 2 | 有 | MIT | `dfc3df5` (10-03) |
+| usage-meter | 无 | 无 | 无 | 仅会话状态 | 1 | 有 | MIT | `3719682` (10-05) |
+| quota-meter | 无 | 无 | 无 | `$.store`：额度采样 | 0 | 无 | plugin.json 中写 MIT，没有 LICENSE 文件 | `d4fffd7` (09-15) |
+| token-weather | 无 | 无 | 读取对话记录，执行 `tail` | `$.store`：缓存寿命 | 2 | 有 | MIT | `3719682` (10-05) |
+| burn-meter | 无 | 无 | 无 | `$.store`：累计费用，每个会话一个键 | 1 | 有 | MIT | `e6da26c` (10-03) |
+| budget-guard | 拒绝工具调用、中止回合、提示词发送前确认 | 无 | 无 | 自己的配置行或 `$.store` | 2 | 无 | plugin.json 中写 MIT，没有 LICENSE 文件 | `d4fffd7` (09-15) |
+| hud | 无 | `$.model.fork`（默认每 5 轮一次） | 执行 git，读写文件 | 文件：每日费用账本、`$.store` | 2 | 有 | MIT | `8fb6f67` (10-04) |
+
+级别是目录里的访问范围。0 是仅屏幕·记忆，1 是读取，2 是写入·执行，3 是网络。这是对源码做静态扫描得出的值，可能与实际运行不同。阅读的提交是我们下载的仓库的 HEAD。
+
+## 各 Mod 笔记
+
+### usage-band
+
+- `rateLimits` 为空时，会读取 Claude 桌面应用留下的 `plan-usage-history.json`。代码注释解释说，这是因为桌面会话里额度数字经常是空的。它用这个文件里的采样估算 5 小时窗口的起点和每周重置时间，估算值前面带 `~`。
+- 这是应用的内部文件，格式没有文档。应用一更新，估算可能就停了。
+- 超过 80%、95% 时弹出 toast，并把记录写进 `$.store`，避免同一个窗口响两次。打开的多个聊天会共用这份记录。
+- 上下文超过 70% 时会出现 Compact 按钮。目录把它评为 2 级，原因就是这个 `$.session.compact()` 调用。
+
+### usage-meter
+
+- 钩子只有 `session.start`、`session.measure`、`ui.render` 三个，共 204 行。
+- 额度超过 90% 时，每个窗口弹一次 toast。
+- 绘制带的时候，会把 `next(e)` 的结果原样放在下面。不会与其他 Mod 绘制的带重叠，而是叠在一起。
+
+### quota-meter
+
+- `/quota` 面板会按窗口显示进度条、重置时间、消耗速度，以及按此速度推算的预期。采样存在 `$.store` 里，所以重启后消耗速度也能接续。
+- 在 API 密钥会话里，面板会写明不提供额度。
+- 同一仓库的 context-lens 会像 `/context` 一样把上下文分类显示。每轮用 `breakdown: "summary"` 只做本地估算，只有输入 `/context-lens refresh` 时才调用 token 计数 API。
+
+### token-weather
+
+- 计算提示词缓存变凉前还剩多少时间。每次主线程请求结束，都会重新开始计时。
+- 为了判断缓存寿命是 5 分钟还是 1 小时，它读取对话记录 JSONL 里最后一次响应的 `cache_creation` 字段。路径是自己拼出的 `~/.claude/projects/<路径>/<会话 id>.jsonl`。文件超过 1MB 时会执行 `tail -c`。
+- 这套路径规则不是有文档的 API。注释里写着，一旦对不上就停止判别，沿用最后一个值。在选项里固定为 `5m` 或 `1h` 就不会读文件。
+
+### burn-meter
+
+- 每秒读写一次 `$.session.usage()` 和 `$.store`。带显示期间，每 80ms 重绘一次火焰光栅图，每 50ms 重绘一次金额数字。7 个里定时器最忙。
+- 会把费用换算成墨西哥卷饼和巨无霸的个数来显示。
+- 为了计算累计费用，每个会话会留下一个 `last:<会话 id>` 键。我没有找到清理它的代码。
+
+### budget-guard
+
+- 守护会话费用、5 小时窗口、7 天窗口三个额度。默认值是 5 小时 90%、7 天 95%、费用上限关闭、模式 `block`。
+- 超过额度时，在 `tool.call` 里用 `{ deny }` 拒绝，250ms 后用 `$.turn.abort` 结束回合。注释给出的理由是：模型被拒绝后会换别的工具重试，继续花钱。
+- 发送提示词时，会通过 `$.ui.ask` 询问是否仍要发送。斜杠命令直接放行，这样可以输入 `/guard override`。
+- 拦截钩子没有 `.catch`。钩子因异常结束时，引擎会跳过这个钩子，继续执行调用。所以可能出现超过额度却被放行的情况。
+
+### hud
+
+- 这是把状态栏工具 claude-hud 0.10.0 移植成 Mod。不使用 Node 的 `fs`·`child_process`，而是在 `$.fs`·`$.process.run` 之上叠了一层仿真模块。
+- 启动时会执行 `/usr/bin/env -0`，把进程的全部环境变量填进仿真模块的 `process.env`。我没有找到把这些值发送到外部的代码。
+- 默认在第一轮之后以及每 5 轮，用 `$.model.fork` 把工作概括成一行。它借助提示词缓存读取对话，但会计入用量。把 `summaryEveryTurns` 设为 0 就会关闭。
+- 每日费用账本会写到 `~/.claude/plugins/claude-hud-mod/` 下的文件里。账号显示默认关闭。
+- 用户指定的 shell 命令（`extraCmd`）只有开启 `CLAUDE_HUD_ALLOW_EXTRA_CMD` 环境变量才会执行。
+
+<Aside>
+同名 Mod 存在于多个仓库。目录里仅 `usage-band` 就有 22 个，`token-weather` 有 8 个。请确认安装行里 `--marketplace` 后面的仓库与本表中的仓库一致。
+</Aside>
+
+## 怎么选
+
+- 只想安静地看两个额度和重置时间，选 **usage-meter**。长度短到安装前就能全部读完，也不碰文件和进程。
+- 在桌面应用的 Code 标签页里额度栏是空的，选 **usage-band**。从应用文件估算出的值会带 `~`。
+- 想知道按这个速度什么时候见底，选 **quota-meter** 的 `/quota` 面板。
+- 想看上下文每轮涨了多少、缓存什么时候变凉，选 **token-weather**。想看到分类明细，再配合 Arunjay4213 仓库里的 context-lens。
+- 触到额度时必须真的停下来，选 **budget-guard**。请把"钩子失败就放行"这一点考虑进去。
+- 一直用 claude-hud 作状态栏的人，选 **hud**。不想要用于摘要的模型调用，就把 `summaryEveryTurns` 改成 0。
+- 用 API 密钥时不会有额度数字。以费用和上下文为主的 **burn-meter** 或 **token-weather** 更合适。
+- 在有机密的仓库，或网络策略严格的地方，请避开调用 `$.http.fetch` 的用量 Mod。先在 [Mod 目录](/zh-cn/mods/directory/)里查看访问范围，安装前先过一遍[安全检查](/zh-cn/guide/safety-checklist/)。

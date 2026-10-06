@@ -1,0 +1,186 @@
+---
+title: Mod 测试与调试
+description: 整理 claude plugin validate 和 test 实际检查什么、如何在调试日志里找到拒绝原因、热重载何时生效，依据是亲自运行的输出和 ide-mod 的制作记录。
+sidebar:
+  order: 9
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+当 Mod 看起来什么都没做时，原因通常是引擎已经把它记在某个地方了。本文介绍三个用来查找这些记录的工具。
+
+| 工具 | 何时用 | 看什么 |
+| --- | --- | --- |
+| `claude plugin validate <文件夹>` | 加载到会话之前 | 清单和钩子模块源码，也就是引擎会拒绝的部分 |
+| `claude plugin test <文件夹>` | 每次修改后 | 在引擎上运行 `*.test.ts(x)` |
+| 调试日志 | 在真实会话中 | 钩子被跳过的原因、被拒绝的绘制 |
+
+基准：命令输出是在 Claude Code 2.1.291 上亲自运行的结果。API 说明已对照 2.1.290 的类型声明和参考文档确认。标注为“观察”的条目，是我在 2.1.290 上制作 [ide-mod](/zh-cn/mods/ide-mod/) 时亲身遇到的情况。
+
+## validate：读源码的检查
+
+`validate` 不会运行 Mod。它按引擎加载时相同的方式读取源码并报告。输出的每一行都有固定含义。
+
+| 行 | 含义 |
+| --- | --- |
+| `hooks:` | 已注册的事件和匹配器 |
+| `calls:` | 在源码中找到的 `$` 调用 |
+| `gating hook with .catch:` / `without .catch:` | 位于可以拒绝某些东西的位置的钩子。这是事实报告，不计为警告 |
+| `state reads:` / `state writes:` | `$.state` 的键。因为 `plugin` 和 `key` 是字面量，所以能读出来 |
+| `types … declares` | 清单中 `types` 所指向的契约文件所声明的内容 |
+
+有错误时退出码为 1。`--strict` 会把警告也算作失败，适合 CI；`--json` 会以 JSON 输出同样的内容。JSON 里，可拒绝的钩子会单独放在 `gatingHooks` 数组中。
+
+因为检查是读源码，所以产生了一些规则。下面两个错误，是我故意做出错误的 Mod 后得到的真实输出（路径已缩短）。
+
+```text
+✘ Found 1 error:
+
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 4 `await hello($);`: $ is passed to "hello", imported from "./helpers": $ is followed only into a function declared in this same file, never across an import; …
+
+✘ Validation failed
+```
+
+`$` 只会追踪到同一个文件内的函数。把 `$` 传给其他文件的话，检查器无法知道它在调用什么，所以会拒绝。用到 `$` 的代码请放在钩子模块这一个文件里，外部文件只放纯函数。
+
+```text
+  ❯ modules../register.ts: validate-demo: …/hooks/register.ts, compiled line 7 `on("session.start", async ($, e, next) => next(e));`: on("session.start") is registered twice without a matcher; the first is at …/hooks/register.ts:3; …
+```
+
+没有匹配器、却把同一个事件注册两次，同样是错误。请在一个钩子里完成多件事。
+
+<Aside type="caution">
+  validate 通过并不等于安全保证。它只是读源码生成调用列表，无法证明运行时的行为。
+</Aside>
+
+## test：在引擎上运行的测试
+
+`claude plugin test <文件夹>` 会查找文件夹下的 `*.test.ts` 和 `*.test.tsx`，每个文件都作为 Claude Code 可执行文件的子进程来运行。环境与钩子运行的环境相同，所以没有 Node 的文件、网络和进程访问。Mod 文件夹由引擎的加载器像在会话里一样读取。
+
+测试从 `claude-code/testing` 导入。
+
+| 名称 | 作用 |
+| --- | --- |
+| `test(name, ($, on) => …)` | 一个测试。默认限制 5,000ms，可用 `{ timeoutMs }` 修改 |
+| `test(name, { options }, body)` | 把 `userConfig` 的值当作设置中保存的值传入 |
+| `test(name, { plugins }, body)` | 同时以内联方式加载其他插件 |
+| `describe`, `expect` | 分组与断言。有 `toBe`、`toEqual`、`toMatch`、`toThrow`、`expect.any` 等 |
+| `mock.clock(on, { now })` | 内存时钟。只能通过 `advance`、`set`、`settle`、`sleep` 来拨动 |
+| `mock.store(on, entries)` / `mock.env(on, vars)` | 用内存回答 `$.store` 和 `$.env.get` |
+| `tier('append')` | 在文件开头指定这个 Mod 要加载到哪个层级 |
+
+### `on` 是引擎的位置
+
+测试里的 `$` 就是引擎本身。`$.tool.call(...)`、`$.turn.start(...)`、`$.command.run(...)` 跑的是与会话中引擎调用时相同的链条。用测试的 `on` 挂上的钩子，位于所有插件的下面，扮演引擎的角色。再往下的底层是空的，如果没有钩子应答，就会这样失败。
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+失败消息里，`the engine reported:` 后面会附上这期间被跳过的钩子及原因。上面的例子是因为时钟没有底层，导致我的钩子被跳过。答案就是加一行 `mock.clock(on)`。插件在测试第一次调用 `$` 时加载。底层钩子请在此之前注册。
+
+底层钩子要返回的格式因事件而异。这是在 ide-mod 的测试里摸清的规则（观察）。
+
+- `fs.read`、`fs.stat`、`ui.open`、`session.cwd`、`env.get` 这类 `$` 调用事件，要用 `{ value: … }` 包起来。
+- `tool.call` 返回 `{ result: … }` 或 `{ deny }`。
+- `turn.start`、`turn.complete` 这类事件，直接返回结果类型本身（`{ turnId }`、`{ text }`）。
+- 测试引擎把相对路径按 Mod 文件夹来解析。假文件系统请用绝对路径来建。
+
+### 界面测试
+
+`$.ui.mount({ plugin, surface, component, props })` 会绘制一次并返回句柄。`surface` 没有默认值，必须写成 `terminal`、`desktop`、`vscode`、`mobile` 之一。句柄上可以用 `find`、`findAll`、`drawn`（整棵树）、`press`、`input`、`select`、`redraw`、`unmount`。`key`、`pointer`、`post`、`resize` 只对 `Client` 元素有效。
+
+有两点要注意。
+
+- `mount` 句柄没有向 `Pane` 正文发送按键或滚轮的操作。ide-mod 的滚动处理是在真实界面上确认的（观察）。
+- 加在 `Text` 上的 `key` 不会留在绘制出的树里（在 2.1.291 上确认）。`TextProps` 里没有 `key`。要查找的元素，请包在带 key 的 `Box` 里。
+
+如果绘制被拒绝，`mount` 会带着那个原因 reject。会话里画面变空的原因，可以在测试中提前抓到。下面是我故意挂载三棵错误的树得到的真实消息。
+
+```text
+refuse-demo: ui.render (Pane) refused: Image source.generation must be a whole number when given; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Image source.png does not start as a PNG file does; the engine drew its own
+refuse-demo: ui.render (Pane) refused: Svg source longer than 131072 characters; the engine drew its own
+```
+
+## 读调试日志
+
+```bash
+claude --debug-file ./mod-debug.log      # 파일로 남기기 (디버그 모드도 켜져요)
+claude --debug                           # 디버그 모드
+claude --debug "hooks"                   # 범주 거르기
+```
+
+（注释依次为：保存到文件（同时开启调试模式）、调试模式、按类别筛选。）
+
+我做了一个让 `session.start` 钩子故意用 `JSON.parse('{oops')` 抛出异常的 Mod，用 `--plugin-dir` 加载后运行了 `claude -p "/ping"`。下面是日志 656 行中出现 Mod 名称的行（省略了时间）。
+
+```text
+[DEBUG] --plugin-dir …/debug-demo is one plugin: .claude-plugin at its top marks it
+[DEBUG] hooks module debug-demo@inline loaded (worker, environment 1, tier user); events: session.start,command.run
+[DEBUG] plugin.register: debug-demo (user, debug-demo@inline), judged by core alone: admitted
+[DEBUG] type root of debug-demo at …/debug-demo/.claude-plugin/types: entries claude-code, claude-code-tools, claude-code-mcp; wrote …, tsconfig.json
+[DEBUG] $.command.register (debug-demo): /ping listed
+[ERROR] hook failed: debug-demo: errorKind=SyntaxError errorChars=30 (session.start; skipped; what is below it ran in its place)
+[ERROR] debug-demo: session.start hook skipped: threw SyntaxError: JSON Parse error: Expected '}'
+[DEBUG] debug-demo (user) answered command.run without next() in 0.6ms; nothing beneath it ran for this dispatch
+```
+
+阅读顺序如下。
+
+1. 如果没有 `loaded … events:` 这一行，说明模块没有加载。在 `-p` 运行中，原因还会在 stderr 打印一行。这次运行的 stderr 里打印了 `debug-demo: session.start hook skipped: threw SyntaxError…`。
+2. `hook failed` 一行只有错误种类和消息长度（`errorChars=30`）。按参考文档，文字本身会另外记录，紧接着的下一行就是。
+3. `answered … without next()` 表示我的钩子直接作了回答，所以下面的没有运行。如果其他 Mod 不动，先找这一行。
+
+`type root … wrote` 这一行也值得一看。引擎每次加载 Mod，都会在 Mod 文件夹里写入 `.claude-plugin/types/` 和 `tsconfig.json`。对已经加载过一次的 Mod 文件夹，可以直接运行 `tsc -p <文件夹>`。引擎还会在 `.claude-plugin/types/` 里同时写一个只有 `*` 一行的 `.gitignore`，所以不会被提交到 git。根目录的 `tsconfig.json` 只有一行，用来 `extends` 那个文件夹里的配置。
+
+### “the engine drew its own”
+
+绘制被拒绝时，会以参考文档规定的措辞留下记录。
+
+| 行 | 含义 |
+| --- | --- |
+| `ui.render (<Component>): a hook returned a tree that does not validate` | 调试日志。树不符合该界面的规则 |
+| `<plugin>: ui.render (<Component>) refused: <原因>; the engine drew its own` | 热重载中会话的对话框。同样是拒绝 |
+| `… threw while drawn: <原因>; the engine drew its own` | 通过了验证，但绘制时出错 |
+| `…; nothing was drawn` / `…; the pane was closed` | 引擎本来就没有要画的东西的位置。横条为空，窗格关闭 |
+| `<n> characters of text are drawn up to the first <m>` | 文字超过 10 万字符被截断 |
+
+对话框那一行只会在像 `--plugin-dir` 这样处于热重载状态的文件夹里出现。在其他会话里只会留在调试日志中。绘制时出错的返回值不会重试，从下一个返回值（不同的 props、invalidate、重载）开始重新绘制。
+
+## 热重载
+
+| 加载方式 | 修改何时生效 |
+| --- | --- |
+| `--plugin-dir`、`CLAUDE_CODE_PLUGIN_DIRS` 文件夹 | 交互式会话会监视文件夹。保存后 `register` 会在新环境中重新运行，上一个计时器被丢弃 |
+| 会话 Mod 文件夹（Enable hot reloading） | 以同样的方式监视 |
+| 从文件夹型市场安装 | `/reload-plugins` 会重新读取那个文件夹 |
+| 从 git、npm 等安装 | 用新版本执行 `claude plugin update` 后再 `/reload-plugins` |
+
+模型在回合中修改的内容，会在回合结束时重新读取一次。如果是该 Mod 注册的工具或命令即将运行前，则在那时读取。用户亲手保存时，会在文件夹安静下来之后读取。保存一次是 0.25 秒后，连续保存则是保存停止之后。`claude -p` 总是重新读取。
+
+- `/reload-skills` 不会重新读取 Mod。用户输入过这个命令，画面却没有变化（观察）。请使用 `/reload-plugins`。
+- 会话 Mod 文件夹位于 `~/.claude/dev-mods/<会话 ID>/` 之下。会话重启、ID 改变后，文件夹也会变，在旧文件夹里改的内容不会被读取（观察）。最后一次加载的时间，可以从 `.claude-plugin/types/claude-code/index.d.ts` 的修改时间得知。打算长期使用的 Mod，请放在固定的文件夹里。
+
+## 制作 ide-mod 时遇到的问题
+
+| 症状 | 原因 | 依据 |
+| --- | --- | --- |
+| 整个图片窗格被拒绝 | 在 `Image` 的 `source.generation` 里放了文件修改时间（小数）。必须是整数 | 类型声明 “A whole number”，2.1.291 测试套件复现 |
+| `Image` 被拒绝 | `source.png` 的字节不是 PNG。引擎会检查到 IHDR | 2.1.290 观察，头部检查在 2.1.291 复现 |
+| 桌面端 `Svg` 不显示 | `source` 超过 131,072 个字符 | 参考文档，2.1.291 复现 |
+| WASM 库无法运行 | 钩子环境里没有 `WebAssembly`、`eval`、`new Function`。繁重的工作用 `$.process.run` 放到单独的进程里 | 类型声明 |
+| 没有 `setTimeout` | 钩子模块用 `$.clock.after`、`every`、`sleep` 来等待 | 类型声明 |
+| 绘制过程中写状态失败 | 绘制期间 `$.state.set` 会被拒绝。写入要放在按钮处理函数或其他事件里 | 参考文档 |
+| 在绘制中启动的任务被中断 | 钩子在一次 dispatch 内运行，dispatch 被丢弃时 `next.signal` 会中断。要持续很久的任务，请从 `session.start` 或 `$.clock.after` 计时器里启动 | 参考文档 |
+| 滚动滚轮时，树和文件栏一起动 | 引擎会把整个窗格一起滚动。在 `ui.scroll` 钩子里用 `e.pointer.column` 判断指针在哪一栏上，不调用 `next`、直接以 `{}` 回答，然后把那一栏的行按 `e.by` 移动后重绘 | 类型声明，2.1.290 观察 |
+| 用 `$.process.run` 调用的 Node 脚本输出 0 个字符 | 在链接的文件夹中运行时，`$.plugin.root` 是链接路径，“直接执行”的判断为假。请用 `realpath` 比较 | 2.1.290 观察 |
+
+最后一项还有一点心得。诊断必须用与引擎相同的路径（链接路径）来复现。用真实路径运行的确认，反而把问题掩盖了。
+
+更简短、按症状排列的清单在[故障排查](/zh-cn/guide/troubleshooting/)。把本文的命令用到实际 Mod 上的例子，是[输入框上方的横条](/zh-cn/articles/tutorial-prompt-band/)和 [Bash 守卫](/zh-cn/articles/tutorial-bash-guard/)两篇跟着做。

@@ -1,0 +1,126 @@
+---
+title: "安全 Mod 对比"
+description: "我读了 6 个拦截危险 Bash 命令、遮蔽机密的 Mod，以及 Anthropic 内置的 sec-default 的源码。比较了它们拦截什么、Mod 自身失败时是放行还是拒绝，以及模型实际看到什么。"
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+挑选安全 Mod 时要问两件事：它拦住什么，以及 Mod 自己失败时会怎样。我读了 2 个危险命令类、3 个机密遮蔽类、1 个并发编辑类，以及 Anthropic 内置在 Claude Code 里的 sec-default。只是下载仓库阅读钩子模块，没有安装，也没有运行。
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289。源码于 2026-10-06 阅读，API 行为以 Claude Code 2.1.290 类型文件和参考文档为准。star 数按仓库统计。
+
+候选之一 honmoon-redact 没有放进表里。它把判定交给单独的 Rust 引擎（`honmoon` 二进制文件）或用户指定的 HTTP 地址，所以只看 Mod 源码无法知道它遮蔽什么。默认值是失败时关闭，所以没有二进制文件就启用的话，Read·Bash·Grep·WebFetch 的结果和提示词都会被拦下。
+
+## 失败时放行还是拒绝
+
+引擎的规则是这样的。钩子抛出异常或超出时间预算，只会跳过那一个钩子，链条继续往下走。如果在注册时挂上 `.catch`，就由这个处理器代为回答。所以拦截类 Mod 如果没有 `.catch`，Mod 一出故障，命令就会原样执行。
+
+```tsx title="launch-codes/hooks/register.tsx (节选)"
+on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  // ...
+})
+  // A hook that fails must not let the command through.
+  .catch(($, e) => {
+    const danger = classify(e.command)
+    return danger ? deny(e.command, danger.reason, 'the launch check failed') : { deny: '...' }
+  })
+```
+
+7 个里按这种"失败即关闭"方式写的有 launch-codes、secrets-veil、sec-default 三个。
+
+## 遮蔽的层级与模型所见
+
+处理机密的三个 Mod，动手的层级各不相同。
+
+- **secret-redactor** 会改写提示词、工具结果，以及附在第一条消息上的 CLAUDE.md 之类的上下文。模型看到的是占位符，工具执行时会还原成原来的值。
+- **secrets-veil** 只改写工具结果。没有还原的途径。
+- **recording-mode** 只改写绘制到屏幕上的文字。按参考文档，即使改了行的 `text`，模型读到的内容也不变。模型看到的是真正的密钥。
+
+## 一览
+
+| mod | 仓库（star） | 监听的事件 | 拦截的对象 | 绘制位置 |
+| --- | --- | --- | --- | --- |
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | hamzafer/claude-code-mods (54) | `tool.call` (Bash)、`ui.render` | 递归 `rm`、强制 `git push`、数据库迁移 | 面板，窄时为带 |
+| [launch-codes](https://github.com/OneWave-AI/claude-code-mods/tree/main/launch-codes) | OneWave-AI/claude-code-mods (1) | `tool.call` (Bash)、`command.run`、`ui.render` | `rm -rf`、强制 push、`reset --hard`、SQL `DROP`、`vercel --prod`、`chmod -R 777`、`curl \| sh` 等 | 面板、提问框、警笛声 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | ray-amjad/awesome-claude-code-function-hooks (3) | `prompt.submit`、`tool.call`、`prompt.context` | 厂商密钥、高熵令牌、邮箱、公网 IP | 工具行提示、toast |
+| [secrets-veil](https://github.com/yonatangross/orchestkit/tree/main/mods/secrets-veil) | yonatangross/orchestkit (286) | `session.start`、`tool.call` | 21 个环境变量的值、密钥形态、高熵令牌 | toast、状态栏 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | nateherkai/claude-code-mods (7) | `prompt.submit`、`tool.call`、`ui.render` 7 个组件 | 屏幕上的密钥·个人信息·金额，打开私密文件 | 带上的 ● REC |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | nateherkai/claude-code-mods (7) | `tool.call` (Edit·Write·NotebookEdit)、`prompt.submit`、`session.*` | 对其他聊天 30 分钟内改过的文件的编辑 | 提问框 |
+| [sec-default](https://github.com/anthropics/claude-code/tree/main/mods/sec-default) | anthropics/claude-code（内置） | `classic.*`、`prompt.*`、`tool.check`、`plugin.register` 等 15 个 | 用户 Mod 绕过组织策略 | 一行提示、调试日志 |
+
+| mod | 拦截·改写 | 失败时 | 无界面运行 | 进程·文件 | 留下的内容 | 测试 | 许可证 | 阅读的提交 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| blast-radius | 拒绝 | 放行 | 直接拒绝 | 通过 `bash -c` 执行 `du`·`find`、`git log` | 无 | 有 | MIT | `3719682` (10-05) |
+| launch-codes | 拒绝 | 拒绝 | 提问失败而拒绝 | 无 | 无 | 有 | MIT | `e6da26c` (10-03) |
+| secret-redactor | 改写提示词·结果·上下文，还原工具输入 | 放行 | 照常工作 | 无 | 内存保险库 | 有 | MIT | `12b5fea` (09-11) |
+| secrets-veil | 改写工具结果 | 拒绝（结果被扣留） | 照常工作 | 无 | 无 | 有 | MIT | `b13b64a` (10-05) |
+| recording-mode | 改写屏幕文字，拒绝私密文件，给提示词附加备注 | 放行 | 拒绝照常工作 | 读写文件 | 标志·设置文件 | 无 | MIT | `33a936f` (10-02) |
+| collision-guard | 拒绝编辑 | 放行 | 不询问直接放行 | 读写文件，`git ls-files` | 每个聊天一个账本文件、`$.store` | 无 | MIT | `33a936f` (10-02) |
+| sec-default | 跳过用户阶段，拒绝用户 Mod | 拒绝 | 相同 | 无 | 无 | 有 | Anthropic 商业条款 | `8e60c4c` (10-06) |
+
+## 各 Mod 笔记
+
+### blast-radius
+
+- 会拦截带递归选项的 `rm`、强制 push（`-f`、`--force*`、`+` refspec）、prisma·supabase·drizzle 之类的迁移命令。`rm` 只在它是命令的第一个词，或紧跟在 `sudo` 后面时才会检查。按代码看，`xargs rm -rf` 或 `find -delete` 会漏过去。
+- 拦住之后会测量实际影响。把要删除的对象作为参数传给 `bash -c`，只展开 glob，用 `du`·`find` 统计文件数和大小（最多 5,000 个）。含有 shell 变量的路径不会展开，而是提示你自己确认。强制 push 会用 `git log HEAD..@{u}` 显示会丢失的提交（以最后一次 fetch 为准）。
+- 60 秒内没人点击就会取消。在选项里设为 0 则无限等待。等待期间每 0.25 秒会启动一个 `sleep` 进程。
+
+### launch-codes
+
+- 它有处理引号和反斜杠的分词器，会跳过 `sudo`·`env`·`xargs`·`npx` 这类包装命令去找真正的程序。所以拦截范围比 blast-radius 更广。
+- `rm` 必须同时带 `-r` 和 `-f` 才会拦。`node_modules`、`dist`、`/tmp/` 之下被视为安全，直接放行。
+- 要在 30 秒内把面板上显示的 4 位代码输入到提问框的 Other 栏，再点一次 LAUNCH 才会执行。等待期间会循环播放警笛。
+
+### secret-redactor
+
+- 值存放在模块内存的保险库里，替换成 `[REDACTED-SECRET-1a2b3c4d]` 这样的占位符。同一个值总是对应同一个占位符。不写入磁盘。
+- 工具执行时会把占位符还原成原值（默认开启）。用到密钥的命令可以继续工作。代价是，如果模型把带占位符的请求发到外部，真正的密钥会被一并带出去。
+- 模块重新加载后，保险库会被清空。在那之前生成的占位符就无法再还原成原值。
+- 目录里的级别是 0。级别只统计 `$` 调用，而这个 Mod 只是用 `next()` 改写内容，并不通过 `$` 访问文件或网络。能看到全部提示词和工具结果的 Mod，也可能得到 0 级。
+
+### secrets-veil
+
+- 它逐个按字符串原样读取 `ANTHROPIC_API_KEY`、`GITHUB_TOKEN`、`AWS_SECRET_ACCESS_KEY` 等 21 个名称，把这些值登记到遮蔽表里。公司里使用的其他名称的变量不会被读取。其余交给值的形态和熵检查。
+- 结果超过 800 万字符，或遮蔽耗时超过 4 秒时，会把结果整体扣留。toast 里只写个数，字节数只留在调试日志里。理由是机密的长度本身也是线索。
+- 开启 `SECRETS_VEIL_OFFER_COPY=1` 后，会询问是否仅把被遮蔽的值复制到剪贴板。
+
+### recording-mode
+
+- 输入 `/rec` 会写出 `~/.claude/mods-data/recording.json` 标志文件。这台电脑上的所有会话每 3 秒检查一次这个文件，一起开启。
+- 开启期间，会拒绝打开 `.env`、凭据、Claude 记忆、财务文档、设置文件所写路径的工具调用，以及财务工具。每个提示词还会在模型上下文里附上"不要写姓名·金额"的备注。
+- 它会把工作文件夹以及向上三级文件夹中 `.env`、`.env.local` 的值读进内存，在屏幕上遮蔽。
+- 电话号码·身份证号的模式以美国格式为基准（3-3-4 号码、SSN、州缩写和邮编）。像 `010-1234-5678` 这样的 3-4-4 号码和韩国住民登记号的形态不在默认模式里。如果要录制韩语界面，请填写设置文件里的 `names`、`privatePaths`。
+
+### collision-guard
+
+- 编辑之前，它会检查其他打开的聊天在 30 分钟内是否改过同一个文件。改过的话，会询问继续、移到工作树（仅限 git 追踪的文件）还是取消。
+- 每个聊天会在 `~/.claude/mods-data/collision-guard/<会话 id>.json` 里以明文写入改过的文件路径和第一条提示词的前 80 个字符。用途是在其他聊天的提问框里按名称显示。
+- 在无界面运行时，它不会询问，直接放行编辑。这样设计是为了不让无人值守的任务停下来。
+- 它不会往提示词里附加任何内容，所以不消耗 token。
+
+### sec-default
+
+- 这不是由人安装的 Mod。按 README，在有托管设置的电脑或 Team·Enterprise 组织里，CLI 会把它放在 prepend 阶段的最前面。
+- 它没有自己的策略。对于组织的 classic 钩子、托管 CLAUDE.md、设置、MCP 允许列表这些事件，它用 `next.to(e, "append")` 跳过用户阶段。用户安装的 Mod 无法改动这些事件。
+- 在 `tool.check` 里，如果用户 Mod 放开了 deny 规则，它会去掉用户阶段再运行一次。如果结果是按规则拒绝，就把这个拒绝作为答案。
+- 管理员开启 `allowManagedModsOnly` 后，只会加载组织分发的 Mod 和内置 Mod。
+- 装上它的会话里，每次工具调用都要走一遍 `tool.check` 链。这是 README 明确写出的成本。
+
+<Aside type="caution">
+这里出现的 Mod 全都是看命令字符串或值的形态来判断。改变了形态的命令、不在列表里的机密都会漏过去。它们不能替代权限确认窗口和 settings 里的 deny 规则。
+</Aside>
+
+## 怎么选
+
+- 想在删除之前用数字看到会消失多少个文件，选 **blast-radius**。范围窄，出故障时命令会放行。
+- 担心自己习惯性地批准危险命令，选 **launch-codes**。范围广，失败时会拦截。它会出声，开会时请在知情的前提下开启。
+- 想让模型看不到密钥，同时继续做要用密钥的工作，选 **secret-redactor**。前提是你能接受工具输入里会还原成原值。
+- 必须阻止密钥传给模型本身，选 **secrets-veil**。无法还原，失败时会扣留结果。
+- 录屏或做讲座演示，选 **recording-mode**。请记住它只遮蔽屏幕。
+- 在同一个仓库里开多个聊天窗口，选 **collision-guard**。
+- 公司需要管控用户 Mod 的话，请看托管设置里的 **sec-default** 选项。它不是给个人安装的。
+
+安装前的通用检查见[安装前的安全检查](/zh-cn/guide/safety-checklist/)，亲手做一遍的过程见[跟着做：拦下危险的 Bash 命令](/zh-cn/articles/tutorial-bash-guard/)。

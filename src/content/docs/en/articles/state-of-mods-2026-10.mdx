@@ -1,0 +1,145 @@
+---
+title: State of the mod ecosystem (October 2026)
+description: We recounted all 1,919 entries in the community catalog. Tables cover the dates mods flooded in, how they cluster by repository, stars and licenses, where they draw, and which events they hook.
+sidebar:
+  order: 1
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+As of: community catalog scan of 2026-10-04, Claude Code 2.1.289
+
+The numbers in this article come from recounting `data/mods.json` (CC0) in the [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) catalog with Python. The catalog searches GitHub for mods, runs `claude plugin validate` on each repository, and extracts the hooks and `$` calls from that output. The file was generated at 2026-10-04 08:26 (UTC). Mods created after that are not included.
+
+## What we counted
+
+The catalog has 1,919 entries found in 1,171 repositories. Not all of them are mods you would install.
+
+| Kind | Entries | Meaning |
+| --- | ---: | --- |
+| `mod` | 1,752 | Regular mods |
+| `fixture` | 93 | Test examples in folders like `tests/` and `examples/` |
+| `catalog` | 39 | Entries from repositories that re-bundle other people's mods |
+| `duplicate` | 28 | The same mod as another entry |
+| `builtin` | 4 | Built-in mods in the `anthropics/claude-code` repository |
+| `mirror` | 3 | Copies of built-in mods |
+
+The [mod directory](/en/mods/directory/) on this site lists only entries that are `mod` or `builtin`, not archived, not duplicates, and that passed validation without warnings. What remains is **1,488 mods, 777 repositories, and 690 authors**. Unless stated otherwise, the numbers below are based on these 1,488 mods.
+
+## Three days of flooding
+
+The catalog's `createdAt` is when the repository was created. It is not always the same as the day the mod was uploaded. For example, the 102 repositories created before September 2026 added their mods later.
+
+| Repository creation date (UTC) | Repositories | Mods in those repositories |
+| --- | ---: | ---: |
+| Before September 2026 | 102 | 154 |
+| September 2026 | 108 | 190 |
+| October 1 | 36 | 52 |
+| October 2 | 258 | 453 |
+| October 3 | 228 | 568 |
+| October 4 (until 08:26) | 42 | 68 |
+| October 5 | 3 | 3 |
+
+486 repositories were created on October 2 and 3 alone, which is 63% of all 777. The October 3 figure includes 117 mods from a single repository created that day, [mako-code/gobworks](https://github.com/mako-code/gobworks). [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods), created on September 18, also added 53 mods in a single day.
+
+Claude Code 2.1.287 was published to the npm registry at 2026-10-01 16:59 (UTC). As the [FAQ](/en/faq/) explains, that is the version where function hooks are on by default. Of the 36 repositories created on October 1, 29 were created after 17:00. Repositories created after that time number 560 of 777 (72%), and the mods in them are 1,137 of 1,488 (76%). The timing overlaps, but the catalog does not record why a repository was created, so we cannot name a cause.
+
+## One mod per repository is typical
+
+| Mods per repository | Repositories | Mods | Share of mods |
+| --- | ---: | ---: | ---: |
+| 1 | 626 | 626 | 42.1% |
+| 2-9 | 133 | 429 | 28.8% |
+| 10-17 | 15 | 193 | 13.0% |
+| 50 or more | 3 | 240 | 16.1% |
+
+81% of repositories hold a single mod. At the same time, the top 3 repositories hold 240 mods.
+
+| Repository | Mods | Character |
+| --- | ---: | --- |
+| [mako-code/gobworks](https://github.com/mako-code/gobworks) | 117 | A collection split into groups such as `jev`, `abilities`, `ambient`, and `autopilot` under `mods/` |
+| [whyashthakker/awesome-claude-code-mods](https://github.com/whyashthakker/awesome-claude-code-mods) | 70 | A collection of small tools, one mod per folder |
+| [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods) | 53 | A collection with `gemini-*` integrations and shared parts such as `sidebar` split out |
+
+Mods in large collection repositories sometimes share parts. 36 mods in the KilimcininKorOglu repository call `$.sidebar`, which the repository's own `sidebar` mod adds to `$`. If you install only one of them, that part may be missing, so check the dependencies in the README first.
+
+## Stars are per repository
+
+The catalog's `stars` is the repository's star count. A repository with 117 mods gives all 117 the same number. That is why we counted by the 777 repositories.
+
+| Repository stars | Repositories | Share |
+| --- | ---: | ---: |
+| 0 | 538 | 69.2% |
+| 1-9 | 188 | 24.2% |
+| 10-99 | 36 | 4.6% |
+| 100-999 | 9 | 1.2% |
+| 1,000 or more | 6 | 0.8% |
+
+Of the 6 repositories with 1,000 or more stars, 5 are large projects that do much more than mods: `anthropics/claude-code` (149,303), `ruvnet/RuView` (96,198), `ruvnet/ruflo` (73,820), `anthropics/claude-plugins-official` (37,363), and `kunchenguid/firstmate` (7,488). Among repositories where a mod is the main attraction, [zenbu-labs/terminal-browser](https://github.com/zenbu-labs/terminal-browser) (3,626) is the largest. Conversely, gobworks, with the most mods, had 0 stars at scan time. Most of these repositories were created within three days, so stars had no time to accumulate. Stars do not tell you the quality of a mod.
+
+## One in five repositories has no license
+
+The catalog records the license (SPDX ID) that GitHub detected.
+
+| License | Repositories | Share |
+| --- | ---: | ---: |
+| MIT | 555 | 71.4% |
+| None | 164 | 21.1% |
+| Apache-2.0 | 25 | 3.2% |
+| NOASSERTION | 24 | 3.1% |
+| AGPL-3.0 | 3 | 0.4% |
+| GPL-3.0 and Unlicense | 2 each | 0.3% |
+| GPL-2.0 and MIT-0 | 1 each | 0.1% |
+
+Counted by mod, 324 mods (21.8%) have no license. A repository without a license file falls under the default of copyright law: unless the author grants permission, others have no right to copy the code or redistribute a modified version. Under GitHub's Terms of Service you may view and fork a public repository. Even so, you must not paste that code into your own mod or distribute a modified version. If you need it, open an issue asking the author to add a license. `NOASSERTION` means a license file exists but GitHub could not identify its type. Open the file and check it yourself.
+
+## Where mods draw
+
+1,129 mods (75.9%) hook `ui.render`. The other 359 use only toasts, status lines, and log lines, or show nothing on screen.
+
+| Draw location | Mods | What it is |
+| --- | ---: | --- |
+| `Pane` | 673 | A window that opens to the side or below |
+| `AbovePrompt` | 600 | A band above the input box |
+| `Spinner` | 76 | The working indicator |
+| `PromptHint` | 75 | The hint line below the input box |
+| `SessionMode` | 65 | The mode indicator at the bottom |
+| Transcript rows | 153 | `AssistantMessage` 67, `ToolUse` 59, `UserMessage` 50, `ToolResult` 40, `ToolGroup` 37, `CommandOutput` 33, `TurnDuration` 32, `InfoNotice` 7 |
+| `AskUserQuestion` | 11 | The question dialog |
+| `ToolProgress` | 7 | The tool progress indicator |
+
+363 mods draw only `Pane`, 274 draw only `AbovePrompt`, and 266 draw both. A common layout is a pane that shows details with a one-line summary in the band. The 153 mods that redraw transcript rows change how Claude's replies or tool results look on screen. The permission prompt is not on the list. The type file also states that only the engine draws that dialog.
+
+## Frequently hooked events
+
+The catalog shows 114 event types. A mod hooks a median of 5 events and calls a median of 11 `$` methods.
+
+| Event | Mods | Share | Typical use |
+| --- | ---: | ---: | --- |
+| `session.start` | 1,284 | 86.3% | Register commands and tools, start timers |
+| `ui.render` | 1,129 | 75.9% | Draw on screen |
+| `command.run` | 1,078 | 72.4% | Handle slash commands |
+| `tool.call` | 786 | 52.8% | Inspect, block, or change tool calls |
+| `turn.complete` | 738 | 49.6% | Tally and notify after a turn ends |
+| `prompt.submit` | 474 | 31.9% | Inspect or change the submitted prompt |
+| `turn.start` | 367 | 24.7% | Show that a turn has started |
+| `session.end` | 279 | 18.8% | Clean up and save |
+| `turn.step` | 204 | 13.7% | Model request stream |
+| `ui.close` | 182 | 12.2% | Handle a window closing |
+| `session.measure` | 180 | 12.1% | Receive changes in usage and limit figures |
+| `session.compact` | 144 | 9.7% | When and how compaction happens |
+| `agent.spawn` | 109 | 7.3% | Choose or block the subagent model |
+| `classic.SessionStart` | 103 | 6.9% | Receive a settings hook event as a function |
+
+196 mods hook at least one `classic.*` event. A function hook receives, as is, the input that a settings-file hook (such as `Stop` or `PermissionRequest`) would receive.
+
+<Aside>
+  The catalog numbers come from reading source. They are not the result of running the mods. These numbers cannot tell you how often a hook actually runs or whether the screen renders correctly.
+</Aside>
+
+## How to use this when choosing
+
+- Star counts reflect the repository's name value. To choose a single mod, look at the last commit in that mod's folder and its source.
+- For a mod in a large collection repository, check whether it depends on other mods in the same repository.
+- You can install and try a mod without a license, but you must not take its code and reuse it.
+- Access scope continues in [What mods actually touch](/en/articles/what-mods-touch/), and the causes of validation failures in [Mods that fail validation](/en/articles/validation-failures/).

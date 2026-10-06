@@ -1,0 +1,107 @@
+---
+title: Usage and context mods compared
+description: "I read the source of seven mods that show 5-hour and weekly limits and context usage. This page lays out where each number comes from, how often it refreshes, whether it calls a model, and what it blocks, then gives criteria for choosing."
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Mods that show usage above the input box are the most common kind in the catalog. 105 mods mention 5-hour or weekly limits, rate limits, or quota in their description. I picked 7 of them, downloaded the repos, and read each hook module end to end. I did not install or run any of them.
+
+Basis: community catalog scan of 2026-10-04, Claude Code 2.1.289. I read the sources on 2026-10-06 and checked API descriptions against the Claude Code 2.1.290 type file. Star counts are per repository, so mods in the same repo share the same number.
+
+## Where the numbers come from
+
+The engine hands out the same numbers as the status line through `$.session.usage()`: context window fill, the 5-hour and 7-day limits (`rateLimits`), and session cost. According to the type file, calling it with no arguments costs nothing. The `session.measure` event pushes the same numbers when a main-thread turn ends and whenever a limit moves by 1 percentage point. In sessions that use an API key, `rateLimits` is empty. Limit numbers only appear in subscription sessions.
+
+Of the 105 usage mods in the catalog, 100 call `$.session.usage` and 88 hook `session.measure`. 13 call `$.http.fetch`. I opened 9 of those 13, and all 9 hit `https://api.anthropic.com/api/oauth/usage`. They attach credentials through a handle from `$.session.authorize()`, so the mod never sees the token value. This URL does not appear in the 2.1.290 type file, so assume it can change without notice. If you set `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC`, the engine rejects requests that carry this handle.
+
+None of the 7 below call that URL. None of them call `$.http.fetch`, and only hud calls a model.
+
+## At a glance
+
+| mod | Repo (stars) | Draws in | Number source | Refresh |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | Band above the input | `$.session.usage`, falls back to the desktop app's `plan-usage-history.json` when empty | After turns and tool calls; checks for changes every 15 s |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | Band | `session.measure`, `$.session.usage` | When the engine pushes; countdown every 60 s |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | Status line, `/quota` panel | `$.session.usage` | End of turn, every 60 s |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | Band | `$.session.usage`, tail of the transcript file | End of turn; cache countdown 1 to 30 s |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | Band, `/burn` panel | `$.session.usage` | Every 1 s; flame graphic every 80 ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | Status line, toast | `$.session.usage` | On every tool call and prompt |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | Band or below the input, detail panel | `$.session.usage`, git, transcript file, `~/.claude/sessions/*.json` | Every 15 s; remote-control check every 3 s |
+
+| mod | Blocks / changes | Model calls | Processes / files | What it persists | Tier | Tests | License | Commit read |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | None (the Compact button is pressed by a person) | None | Reads an app file | `$.store`: last limits, notification log | 2 | Yes | MIT | `dfc3df5` (10-03) |
+| usage-meter | None | None | None | Session state only | 1 | Yes | MIT | `3719682` (10-05) |
+| quota-meter | None | None | None | `$.store`: limit samples | 0 | No | MIT in plugin.json, no LICENSE file | `d4fffd7` (09-15) |
+| token-weather | None | None | Reads the transcript, runs `tail` | `$.store`: cache lifetime | 2 | Yes | MIT | `3719682` (10-05) |
+| burn-meter | None | None | None | `$.store`: cumulative cost, one key per session | 1 | Yes | MIT | `e6da26c` (10-03) |
+| budget-guard | Denies tool calls, aborts the turn, confirms before prompts | None | None | Its own config line or `$.store` | 2 | No | MIT in plugin.json, no LICENSE file | `d4fffd7` (09-15) |
+| hud | None | `$.model.fork` (every 5 turns by default) | Runs git, reads and writes files | File: daily cost ledger; `$.store` | 2 | Yes | MIT | `8fb6f67` (10-04) |
+
+Tier is the catalog's access scope: 0 is screen and memory only, 1 is read, 2 is write or execute, 3 is network. The values come from a static scan of the source, so they can differ from what actually runs. Commit read is the HEAD of the repo as I downloaded it.
+
+## Notes per mod
+
+### usage-band
+
+- When `rateLimits` is empty, it reads `plan-usage-history.json`, which the Claude desktop app writes. A code comment explains that limit numbers are often empty in desktop sessions. It estimates the start of the 5-hour window and the weekly reset time from the samples in this file, and prefixes estimated values with `~`.
+- This is an internal app file with no documented format. If the app changes, the estimate may stop working.
+- It shows a toast above 80% and 95%, and records this in `$.store` so the same window does not alert twice. Multiple open chats share this record.
+- A Compact button appears when context goes above 70%. The call to `$.session.compact()` is why the catalog rates it tier 2.
+
+### usage-meter
+
+- It has only three hooks: `session.start`, `session.measure`, and `ui.render`. 204 lines.
+- When a limit goes above 90%, it shows a toast once per window.
+- When drawing its band, it leaves the result of `next(e)` below it unchanged. It stacks with bands drawn by other mods instead of overlapping them.
+
+### quota-meter
+
+- The `/quota` panel shows, for each window, a bar, the reset time, the burn rate, and a projection at that rate. It keeps samples in `$.store`, so the burn rate carries over a restart.
+- In API-key sessions it states in the panel that limits are not delivered.
+- context-lens, from the same repo, shows context broken down like `/context`. Each turn it only makes a local estimate with `breakdown: "summary"`, and it calls the token-counting API only when you run `/context-lens refresh`.
+
+### token-weather
+
+- It counts down the time until the prompt cache goes cold. The clock restarts every time a main-thread request finishes.
+- To tell whether the cache lifetime is 5 minutes or 1 hour, it reads the `cache_creation` field of the last response in the transcript JSONL. It assembles the path `~/.claude/projects/<path>/<session id>.jsonl` itself. If the file is over 1 MB, it runs `tail -c`.
+- This path convention is not a documented API. A comment says that if it breaks, detection stops and the last value is used. If you pin `5m` or `1h` in options, it does not read the file.
+
+### burn-meter
+
+- Every 1 second it reads `$.session.usage()` and reads and writes `$.store`. While the band is visible, it redraws the flame raster every 80 ms and the amount digits every 50 ms. It has the busiest timers of the 7.
+- It converts cost into burrito and Big Mac counts.
+- For cumulative cost it leaves one `last:<session id>` key per session. I did not find code that deletes them.
+
+### budget-guard
+
+- It guards three limits: session cost, the 5-hour window, and the 7-day window. Defaults are 90% for 5 hours, 95% for 7 days, cost limit off, mode `block`.
+- Once over a limit, it denies in `tool.call` with `{ deny }` and ends the turn with `$.turn.abort` 250 ms later. The comment gives the reason: when the model is denied, it retries with another tool and spends money.
+- On prompt submit it asks via `$.ui.ask` whether to send anyway. Slash commands pass through, so you can type `/guard override`.
+- The blocking hook has no `.catch`. If a hook ends with an exception, the engine skips that hook and proceeds with the call. So a call can go through even when you are over the limit.
+
+### hud
+
+- A port of the status-line tool claude-hud 0.10.0 to a mod. Instead of Node's `fs` and `child_process`, it puts shim modules on top of `$.fs` and `$.process.run`.
+- At startup it runs `/usr/bin/env -0` and fills the shim's `process.env` with the whole process environment. I did not find code that sends those values out.
+- By default it summarizes the work in one line with `$.model.fork` after the first turn and every 5 turns. It reads the conversation through the prompt cache, but it still counts toward usage. Setting `summaryEveryTurns` to 0 turns it off.
+- It writes a daily cost ledger as a file under `~/.claude/plugins/claude-hud-mod/`. Account display is off by default.
+- A user-specified shell command (`extraCmd`) runs only if the `CLAUDE_HUD_ALLOW_EXTRA_CMD` environment variable is set.
+
+<Aside>
+The same name exists in several repos. The catalog has 22 mods named `usage-band` alone and 8 named `token-weather`. Check that the repo after `--marketplace` in the install line matches the repo in this table.
+</Aside>
+
+## Which one to pick
+
+- To quietly watch just the two limits and reset times, pick **usage-meter**. It is short enough to read in full before installing, and it touches no files or processes.
+- If the limit cells are empty in the desktop app's Code tab, pick **usage-band**. Values estimated from the app file carry a `~`.
+- To know when you will run out at the current pace, use the `/quota` panel in **quota-meter**.
+- To see how much context grows per turn and when the cache goes cold, use **token-weather**. For a per-category breakdown, also look at context-lens in the Arunjay4213 repo.
+- If it must actually stop when you hit a limit, pick **budget-guard**. Keep in mind that calls pass through when the hook fails.
+- If you used claude-hud as your status line, pick **hud**. If you dislike the summarizing model call, set `summaryEveryTurns` to 0.
+- With an API key, limit numbers do not arrive. **burn-meter** or **token-weather**, which focus on cost and context, fit better.
+- For repos with secrets or strict network policies, avoid usage mods that call `$.http.fetch`. Check the access scope in the [mod directory](/en/mods/directory/) first, and run the [safety checklist](/en/guide/safety-checklist/) before installing.

@@ -1,0 +1,382 @@
+---
+title: "Walkthrough: draw a band above the prompt"
+description: Build a mod in five files that shows the turn count, the elapsed time of the current turn, and the last tool on one line above the prompt. The code is exactly what passed validation and tests.
+sidebar:
+  order: 7
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+You'll build, from scratch, a mod that draws a one-line band (`AbovePrompt`) right above the prompt. Here is how it looks when finished.
+
+```text
+턴 3 · 진행 12초 · 마지막 도구 Bash
+```
+
+(In English: "Turn 3 · running 12s · last tool Bash". The strings are Korean because that is what the tested code prints.)
+
+While a turn is running, the elapsed time grows every second. When the turn ends, the band freezes at `지난 턴 34초` ("last turn 34s"). Typing `/turn-meter` hides or shows the band. If another mod draws a band in the same spot, this one does not erase it.
+
+Baseline: this code passed `claude plugin validate` and `claude plugin test` on Claude Code 2.1.291. The API descriptions were checked against the 2.1.290 type declarations (`claude-code.d.ts`). The code blocks below are the passing files, copied as they are.
+
+## Folder structure
+
+```text title="turn-meter/"
+.claude-plugin/plugin.json   # manifest
+hooks/hooks.json             # where the hook module is
+hooks/register.tsx           # hook module
+types/index.d.ts             # state contract
+tests/band.test.tsx          # tests
+```
+
+Unlike the Pane example in [Build your first mod](/en/guide/build-your-first-mod/), this mod keeps its values in `$.state` instead of module variables. A hot reload wipes module variables, but `$.state` values last until the session ends.
+
+## Build it
+
+<Steps>
+
+1. **Write the manifest.** `types` tells the engine where this mod wrote its state contract.
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "turn-meter",
+     "version": "0.1.0",
+     "description": "입력창 위에 턴 수, 지금 턴의 경과 시간, 마지막 도구를 한 줄로 보여 준다",
+     "author": {
+       "name": "mods.guide"
+     },
+     "types": "./types/index.d.ts"
+   }
+   ```
+
+   The description reads "Shows the turn count, the current turn's elapsed time, and the last tool on one line above the prompt."
+
+2. **Point to the hook module.** The path is relative to `hooks.json`.
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.tsx"] }
+   ```
+
+3. **Write the state contract.** Declare the names and types of the values you'll keep in `$.state` in `PluginState`. The type declarations describe this interface as "empty by default", and your mod adds its own share to it.
+
+   ```ts title="types/index.d.ts"
+   export type TurnMeterTurn = { startedAt: number; endedAt: number | null }
+
+   declare module 'claude-code' {
+     interface PluginState {
+       'turn-meter': {
+         count: number
+         turn: TurnMeterTurn | null
+         now: number
+         lastTool: string | null
+         isHidden: boolean
+       }
+     }
+   }
+   ```
+
+   The validator reads this file and lists the five keys as `declares state: turn-meter.count, …`. Because this mod adds nothing to the `$` object, you also see `declares on $: nothing`. That is not an error.
+
+4. **Write the hook module.** Read the whole code first, then go through it part by part.
+
+   ```tsx title="hooks/register.tsx"
+   import { atom, read, update } from 'claude-code'
+   import type { Register, Timer } from 'claude-code'
+
+   import type { TurnMeterTurn } from '../types'
+
+   const count = atom({ plugin: 'turn-meter', key: 'count' } as const, 0)
+   const turn = atom({ plugin: 'turn-meter', key: 'turn' } as const, null)
+   const now = atom({ plugin: 'turn-meter', key: 'now' } as const, 0)
+   const lastTool = atom({ plugin: 'turn-meter', key: 'lastTool' } as const, null)
+   const isHidden = atom({ plugin: 'turn-meter', key: 'isHidden' } as const, false)
+
+   export function formatSeconds(ms: number): string {
+     const s = Math.max(0, Math.floor(ms / 1000))
+     return s < 60 ? `${s}초` : `${Math.floor(s / 60)}분 ${s % 60}초`
+   }
+
+   export const register: Register = on => {
+     let tick: Timer | undefined
+
+     on('session.start', async ($, e, next) => {
+       await $.command.register({
+         name: 'turn-meter',
+         description: '입력창 위 턴 정보 띠를 켜고 끈다',
+       })
+       return next(e)
+     })
+
+     on('command.run', { command: 'turn-meter' }, async $ => {
+       const hidden = await update($, isHidden, v => !v)
+       return { text: hidden ? 'turn-meter 띠를 숨겼어요.' : 'turn-meter 띠를 다시 보여요.' }
+     })
+
+     on('turn.start', async ($, e, next) => {
+       const startedAt = await $.clock.now()
+       await update($, count, n => n + 1)
+       await update($, turn, () => ({ startedAt, endedAt: null }))
+       await update($, now, () => startedAt)
+       tick?.cancel()
+       tick = $.clock.every(1000, () => {
+         void $.clock.now().then(t => update($, now, () => t))
+       })
+       return next(e)
+     })
+
+     on('tool.call', async ($, e, next) => {
+       if (e.agentId === undefined) await update($, lastTool, () => String(e.tool))
+       return next(e)
+     }).catch(($, e, next) => next(e))
+
+     on('turn.complete', async ($, e, next) => {
+       if (e.agentId === undefined) {
+         tick?.cancel()
+         tick = undefined
+         const endedAt = await $.clock.now()
+         await update($, turn, t => (t === null ? null : { ...t, endedAt }))
+       }
+       return next(e)
+     })
+
+     on('ui.render', { component: 'AbovePrompt' }, async ($, e, next) => {
+       const t: TurnMeterTurn | null = await read($, turn)
+       if (e.props.hasSurvey || t === null || (await read($, isHidden))) return next(e)
+
+       const below = await next(e)
+       const { Box, Text } = $.ui.resolve(e)
+       const n = await read($, count)
+       const tool = await read($, lastTool)
+       const time =
+         t.endedAt === null
+           ? `진행 ${formatSeconds((await read($, now)) - t.startedAt)}`
+           : `지난 턴 ${formatSeconds(t.endedAt - t.startedAt)}`
+
+       return (
+         <Box flexDirection="column" width={e.props.bodyColumns}>
+           <Box key="meter">
+             <Text dimColor wrap="truncate-end">
+               턴 {n} · {time} · 마지막 도구 {tool ?? '없음'}
+             </Text>
+           </Box>
+           {below}
+         </Box>
+       )
+     })
+   }
+   ```
+
+   The Korean strings are user-facing text: `초`/`분` are "seconds"/"minutes", `진행` is "running", `지난 턴` is "last turn", `턴` is "turn", `마지막 도구` is "last tool", and `없음` is "none". The two messages from `/turn-meter` mean "turn-meter band hidden." and "turn-meter band shown again."
+
+</Steps>
+
+## Part by part
+
+**Five state values.** `atom(ref, initial)` is a named value with an initial value. `plugin` and `key` must be literals in the source, because the validator reads the source to build the `state writes:` and `state reads:` lists. You read a value with `read($, atom)` and change it with `update($, atom, fn)`. `update` writes with a version check and retries if someone else wrote first in the meantime.
+
+**The `/turn-meter` command.** `session.start` registers the command with `$.command.register`, and a `command.run` hook catches it with the `{ command: 'turn-meter' }` matcher. `update` returns the new value, so you use it to pick the message. If you return `{ text }` without calling `next`, that text shows up as the command output.
+
+**Turn start and the one-second timer.** `turn.start` reads the time with `$.clock.now()`. Mods have no `setTimeout`, so the one-second refresh also goes through `$.clock.every`. The timer changes only the `now` value. The band read `now` while drawing, so when the value changes the engine redraws the band. You don't need to call `$.ui.invalidate`, because reading `$.state` subscribes the draw to it.
+
+**Last tool.** The `tool.call` hook records only the tool name and passes on with `next(e)`. If `e.agentId` is set, the call came from a subagent, so it is skipped. The trailing `.catch(($, e, next) => next(e))` makes sure the tool still runs if recording fails. The validator treats `tool.call` as a place that can reject something and reports `gating hook with .catch: tool.call`. This hook only observes, so letting the call through on failure is the right choice.
+
+**Turn end.** `turn.complete` also fires for subagent turns. Only for the main turn (no `agentId`) does the hook stop the timer and record the end time.
+
+**Drawing the band.** Three lines matter most.
+
+- If `e.props.hasSurvey` is true, a survey is using the band, so step aside with `next(e)`.
+- If there is something to draw, first get the lower result with `const below = await next(e)`. That is either another mod's band or, if nobody drew one, the engine's own result.
+- Return your line with `{below}` attached underneath. If you return only your own tree without calling `next`, the bands of mods beneath you are not drawn, because `AbovePrompt` has only one instance.
+
+The width follows `e.props.bodyColumns`, which is the width minus the five columns the engine's `[-]` collapse marker takes.
+
+<Aside>
+  The line is wrapped in a `Box` with `key="meter"`. At first the `key` went on the `Text`, but in the 2.1.291 test kit the `ui.drawn()` result dropped the `key` from `Text`, and `find({ key })` could not find it either. In the type declarations, the elements that accept `key` are `Box`, `Button`, `Input`, `Select`, `Code`, `Image`, `Markdown`, and so on; `TextProps` has no `key`. Wrap the text line you want to find in tests in a `Box` that carries the key.
+</Aside>
+
+## Write the tests
+
+```tsx title="tests/band.test.tsx"
+import { describe, expect, mock, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { formatSeconds } from '../hooks/register'
+
+const BAND = { plugin: 'turn-meter', component: 'AbovePrompt' } as const
+const props = {
+  hasSurvey: false,
+  isWorking: true,
+  maxRows: 10,
+  bodyColumns: 80,
+  scroll: { offset: 0, bodyRows: 9 },
+  view: {},
+}
+const SURFACES = ['terminal', 'desktop'] as const
+
+// 엔진 자리: 다른 mod의 띠 하나, 그리고 도구·턴·명령의 바닥 응답
+function engine(on: On) {
+  on('ui.render', { component: 'AbovePrompt' }, ($, e) => {
+    const { Text } = $.ui.resolve(e)
+    return <Text>다른 mod의 띠</Text>
+  })
+  on('tool.call', () => ({ result: 'ok' }) as never)
+  on('turn.start', ($, e) => ({ turnId: e.turnId }))
+  on('turn.complete', ($, e) => ({ text: e.answer }))
+}
+
+const toggle = {
+  command: 'turn-meter',
+  args: '',
+  origin: { kind: 'composer' as const },
+  presentation: { isFullscreen: true, columns: 120 },
+}
+
+describe('formatSeconds', () => {
+  test('초와 분으로 적는다', () => {
+    expect(formatSeconds(0)).toBe('0초')
+    expect(formatSeconds(12_400)).toBe('12초')
+    expect(formatSeconds(75_000)).toBe('1분 15초')
+  })
+})
+
+describe('띠', () => {
+  test('첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다', async ($, on) => {
+    engine(on)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect(await ui.find({ key: 'meter' })).toBeUndefined()
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 1_000_000 })
+    await $.turn.start({ text: '테스트 고쳐 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Bash', command: 'npm test' })
+    await clock.advance(12_000)
+    for (const surface of SURFACES) {
+      const ui = await $.ui.mount({ ...BAND, surface, props })
+      expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 진행 12초 · 마지막 도구 Bash')
+      expect(await ui.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+      await ui.unmount()
+    }
+  })
+
+  test('턴이 끝나면 걸린 시간을 고정한다', async ($, on) => {
+    engine(on)
+    const clock = mock.clock(on, { now: 0 })
+    await $.turn.start({ text: '첫 번째', turnId: 't1' })
+    await clock.advance(5_000)
+    await $.turn.complete({ answer: '끝', durationMs: 5_000, isAborted: false, turnId: 't1', reason: 'answer' } as never)
+    await clock.advance(30_000)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toBe('턴 1 · 지난 턴 5초 · 마지막 도구 없음')
+  })
+
+  test('서브에이전트의 도구 호출은 마지막 도구로 치지 않는다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '조사해 줘', turnId: 't1' })
+    await $.tool.call({ tool: 'Read', file_path: '/tmp/a.txt' })
+    await $.tool.call({ tool: 'Bash', command: 'ls', agentId: 'sub-1' } as never)
+    const ui = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect((await ui.find({ key: 'meter' }))?.text).toMatch(/마지막 도구 Read$/)
+  })
+
+  test('/turn-meter로 숨기고 다시 켠다', async ($, on) => {
+    engine(on)
+    mock.clock(on)
+    await $.turn.start({ text: '아무거나', turnId: 't1' })
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 숨겼어요.')
+    const hidden = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await hidden.find({ key: 'meter' })).toBeUndefined()
+    expect(await hidden.find({ type: 'Text', text: '다른 mod의 띠' })).toBeDefined()
+    await hidden.unmount()
+    expect((await $.command.run(toggle)).text).toBe('turn-meter 띠를 다시 보여요.')
+    const shown = await $.ui.mount({ ...BAND, surface: 'terminal', props })
+    expect(await shown.find({ key: 'meter' })).toBeDefined()
+  })
+})
+```
+
+In the tests, `다른 mod의 띠` means "another mod's band". The test names say, in order: writes seconds and minutes; draws nothing before the first turn and leaves the band below untouched; shows the elapsed time and last tool of a running turn; freezes the duration when the turn ends; ignores subagent tool calls as the last tool; hides and re-enables with `/turn-meter`.
+
+Hooks registered with the test's `on` sit beneath all plugins, in the engine's place. So the `engine()` function does two things.
+
+- **It imitates another mod's band.** The bottom `AbovePrompt` hook draws `다른 mod의 띠`. It checks that your band doesn't erase that line.
+- **It fills the floor.** The test engine raises an error when no hook answers from below. Calling `turn.start` without a floor really does fail like this.
+
+```text
+HooksError: no implementation for turn.start
+
+nothing beneath the plugins answers turn.start: a test answers it with on('turn.start', ...)
+
+the engine reported:
+  turn-meter's turn.start hook was skipped: turn-meter: no implementation for clock.now
+```
+
+The second line is the important one. Without a floor for the clock, your `turn.start` hook gets skipped. That's why every test that deals with turns sets up `mock.clock(on, …)`. This clock moves only when the test moves it with `clock.advance(12_000)`. Advancing 12 seconds runs the one-second timer twelve times and gives `진행 12초`. The test never waits 12 real seconds.
+
+A UI test draws the band once with `$.ui.mount({ plugin, surface, component, props })` and finds elements with `find`. `surface` has no default, so you must write it. Running the same body on `terminal` and `desktop` also checks that you haven't used an element that exists on only one of them.
+
+## Run it
+
+```bash
+claude plugin validate ./turn-meter
+```
+
+```text
+Validating plugin manifest: …/turn-meter/.claude-plugin/plugin.json
+
+  ❯ types ./types/index.d.ts declares on $: nothing (no EngineInterface member)
+  ❯ types ./types/index.d.ts declares state: turn-meter.count, turn-meter.turn, turn-meter.now, turn-meter.lastTool, turn-meter.isHidden
+
+Validating hooks: …/turn-meter/hooks/hooks.json
+
+  ❯ ./register.tsx hooks: session.start, command.run{command=turn-meter}, turn.start, tool.call, turn.complete, ui.render{component=AbovePrompt}
+  ❯ ./register.tsx gating hook with .catch: tool.call
+  ❯ ./register.tsx calls: $.clock.every, $.clock.now, $.command.register, $.state.get, $.state.set, $.ui.resolve
+  ❯ ./register.tsx state writes: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+  ❯ ./register.tsx state reads: turn-meter.count, turn-meter.isHidden, turn-meter.lastTool, turn-meter.now, turn-meter.turn
+
+✔ Validation passed
+```
+
+Only the start of the paths is shortened. On the first run there was one warning that `author` was missing, and it went away once `author` was added to the manifest. The `calls:` line shows that this mod touches no files, network, or processes. That is the "screen and memory only" level in the [safety checklist](/en/guide/safety-checklist/).
+
+```bash
+claude plugin test ./turn-meter
+```
+
+```text
+tests/band.test.tsx:
+(pass) formatSeconds > 초와 분으로 적는다 [1.14ms]
+(pass) 띠 > 첫 턴 전에는 그리지 않고 아래 띠를 그대로 둔다 [28.03ms]
+(pass) 띠 > 진행 중인 턴의 경과 시간과 마지막 도구를 보여 준다 [25.08ms]
+(pass) 띠 > 턴이 끝나면 걸린 시간을 고정한다 [14.53ms]
+(pass) 띠 > 서브에이전트의 도구 호출은 마지막 도구로 치지 않는다 [11.61ms]
+(pass) 띠 > /turn-meter로 숨기고 다시 켠다 [13.68ms]
+
+ 6 pass
+ 0 fail
+Ran 6 tests across 1 file. [0.25s]
+```
+
+## Try it in a session
+
+You can load it for this session only, without installing.
+
+```bash
+claude --plugin-dir ./turn-meter
+```
+
+A session started this way watches the folder and re-reads the hook module when you save a file. If the band doesn't show up, see how to read the debug log in [Testing and debugging](/en/articles/testing-and-debugging/).
+
+## Limits to know
+
+- `AbovePrompt` is drawn only on the terminal and desktop surfaces. VS Code and mobile don't show this band.
+- The one-second timer lives in a module variable. If a hot reload happens in the middle of a turn, the timer from the old environment is discarded, and the elapsed time looks frozen until the next turn starts.
+- The engine decides how fast the band is redrawn. According to the type declarations, redraws run at most 10 times per second, and up to 30 for an expanded band in the terminal. A one-second interval is well within that.
+- The turn count counts `turn.start` of the main loop. A continuation turn that no human prompt triggered also counts as one.

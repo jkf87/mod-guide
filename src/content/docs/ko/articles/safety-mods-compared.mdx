@@ -1,0 +1,126 @@
+---
+title: 안전 mod 비교
+description: 위험한 Bash 명령을 붙잡고 비밀을 가리는 mod 6개와 Anthropic 내장 sec-default의 소스를 읽었어요. 무엇을 막는지, mod가 실패하면 열리는지 닫히는지, 모델이 실제로 무엇을 보는지 비교했어요.
+sidebar:
+  order: 5
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+안전 mod를 고를 때는 두 가지를 물어요. 무엇을 붙잡는가, 그리고 mod 자신이 실패하면 어떻게 되는가. 위험 명령 2개, 비밀 가리기 3개, 동시 편집 1개, 그리고 Anthropic이 Claude Code에 넣어 둔 sec-default를 읽었어요. 저장소를 받아 훅 모듈을 읽기만 했고 설치하거나 실행하지 않았어요.
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289. 소스는 2026-10-06에 읽었고 API 동작은 Claude Code 2.1.290 타입 파일과 참고 문서로 확인했어요. 별 수는 저장소 단위예요.
+
+후보였던 honmoon-redact는 표에서 뺐어요. 판정을 별도 Rust 엔진(`honmoon` 바이너리)이나 사용자가 지정한 HTTP 주소에 맡겨서 mod 소스만으로는 무엇을 가리는지 알 수 없어요. 기본값이 실패 시 닫힘이라 바이너리 없이 켜면 Read·Bash·Grep·WebFetch 결과와 프롬프트가 모두 막혀요.
+
+## 실패할 때 열림과 닫힘
+
+엔진 규칙은 이래요. 훅이 예외를 던지거나 시간 예산을 넘기면 그 훅만 건너뛰고 체인은 계속 가요. 등록에 `.catch`를 달면 그 처리기가 대신 답해요. 그래서 막는 mod에 `.catch`가 없으면 mod가 고장 난 순간 명령이 그대로 실행돼요.
+
+```tsx title="launch-codes/hooks/register.tsx (발췌)"
+on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+  // ...
+})
+  // A hook that fails must not let the command through.
+  .catch(($, e) => {
+    const danger = classify(e.command)
+    return danger ? deny(e.command, danger.reason, 'the launch check failed') : { deny: '...' }
+  })
+```
+
+7개 중 이렇게 닫히는 쪽으로 짠 것은 launch-codes, secrets-veil, sec-default 셋이에요.
+
+## 가리는 층과 모델이 보는 것
+
+비밀을 다루는 세 mod는 손대는 층이 달라요.
+
+- **secret-redactor**는 프롬프트, 도구 결과, 첫 메시지에 붙는 CLAUDE.md 같은 맥락을 바꿔요. 모델은 자리표시자를 보고, 도구가 실행될 때는 원래 값이 돌아가요.
+- **secrets-veil**은 도구 결과만 바꿔요. 되돌리는 길이 없어요.
+- **recording-mode**는 화면에 그리는 글자만 바꿔요. 참고 문서대로 행의 `text`를 바꿔도 모델이 읽은 내용은 그대로예요. 모델은 진짜 키를 봐요.
+
+## 한눈에 보기
+
+| mod | 저장소 (별) | 거는 이벤트 | 붙잡는 것 | 그리는 곳 |
+| --- | --- | --- | --- | --- |
+| [blast-radius](https://github.com/hamzafer/claude-code-mods/tree/main/mods/blast-radius) | hamzafer/claude-code-mods (54) | `tool.call` (Bash), `ui.render` | 재귀 `rm`, 강제 `git push`, DB 마이그레이션 | 패널, 좁으면 띠 |
+| [launch-codes](https://github.com/OneWave-AI/claude-code-mods/tree/main/launch-codes) | OneWave-AI/claude-code-mods (1) | `tool.call` (Bash), `command.run`, `ui.render` | `rm -rf`, 강제 push, `reset --hard`, SQL `DROP`, `vercel --prod`, `chmod -R 777`, `curl \| sh` 등 | 패널, 질문창, 사이렌 소리 |
+| [secret-redactor](https://github.com/ray-amjad/awesome-claude-code-function-hooks/tree/main/plugins/secret-redactor) | ray-amjad/awesome-claude-code-function-hooks (3) | `prompt.submit`, `tool.call`, `prompt.context` | 벤더 키, 고엔트로피 토큰, 이메일, 공인 IP | 도구 행 알림, 토스트 |
+| [secrets-veil](https://github.com/yonatangross/orchestkit/tree/main/mods/secrets-veil) | yonatangross/orchestkit (286) | `session.start`, `tool.call` | 환경 변수 21개의 값, 키 모양, 고엔트로피 토큰 | 토스트, 상태 줄 |
+| [recording-mode](https://github.com/nateherkai/claude-code-mods/tree/main/recording-mode) | nateherkai/claude-code-mods (7) | `prompt.submit`, `tool.call`, `ui.render` 7개 컴포넌트 | 화면의 키·개인정보·금액, 비공개 파일 열기 | 띠의 ● REC |
+| [collision-guard](https://github.com/nateherkai/claude-code-mods/tree/main/collision-guard) | nateherkai/claude-code-mods (7) | `tool.call` (Edit·Write·NotebookEdit), `prompt.submit`, `session.*` | 다른 채팅이 30분 안에 고친 파일의 편집 | 질문창 |
+| [sec-default](https://github.com/anthropics/claude-code/tree/main/mods/sec-default) | anthropics/claude-code (내장) | `classic.*`, `prompt.*`, `tool.check`, `plugin.register` 등 15개 | 사용자 mod가 조직 정책을 우회하는 것 | 한 줄 알림, 디버그 로그 |
+
+| mod | 막기·바꾸기 | 실패하면 | 화면 없는 실행 | 프로세스·파일 | 남기는 것 | 테스트 | 라이선스 | 읽은 커밋 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| blast-radius | 거절 | 열림 | 바로 거절 | `bash -c`로 `du`·`find`, `git log` | 없음 | 있음 | MIT | `3719682` (10-05) |
+| launch-codes | 거절 | 닫힘 | 질문이 실패해 거절 | 없음 | 없음 | 있음 | MIT | `e6da26c` (10-03) |
+| secret-redactor | 프롬프트·결과·맥락 바꿈, 도구 입력 복원 | 열림 | 그대로 동작 | 없음 | 메모리 금고 | 있음 | MIT | `12b5fea` (09-11) |
+| secrets-veil | 도구 결과 바꿈 | 닫힘 (결과 보류) | 그대로 동작 | 없음 | 없음 | 있음 | MIT | `b13b64a` (10-05) |
+| recording-mode | 화면 글자 바꿈, 비공개 파일 거절, 프롬프트에 메모 | 열림 | 거절은 동작 | 파일 읽기·쓰기 | 플래그·설정 파일 | 없음 | MIT | `33a936f` (10-02) |
+| collision-guard | 편집 거절 | 열림 | 묻지 않고 통과 | 파일 읽기·쓰기, `git ls-files` | 채팅별 장부 파일, `$.store` | 없음 | MIT | `33a936f` (10-02) |
+| sec-default | 사용자 단계 건너뛰기, 사용자 mod 거절 | 닫힘 | 같음 | 없음 | 없음 | 있음 | Anthropic 상업 약관 | `8e60c4c` (10-06) |
+
+## mod별 메모
+
+### blast-radius
+
+- `rm`에 재귀 옵션이 있을 때, 강제 push(`-f`, `--force*`, `+` refspec), prisma·supabase·drizzle 같은 마이그레이션 명령을 붙잡아요. `rm`은 명령의 첫 단어이거나 `sudo` 바로 뒤일 때만 봐요. 코드상 `xargs rm -rf`나 `find -delete`는 지나가요.
+- 붙잡으면 실제 영향을 재요. 지울 대상을 `bash -c`에 인자로 넘겨 glob만 펼치고 `du`·`find`로 파일 수와 크기를 세요(최대 5,000개). 셸 변수가 든 경로는 펼치지 않고 직접 확인하라고 적어요. 강제 push는 `git log HEAD..@{u}`로 잃을 커밋을 보여 줘요(마지막 fetch 기준).
+- 60초 안에 아무도 누르지 않으면 취소해요. 옵션에서 0으로 하면 무한히 기다려요. 기다리는 동안 0.25초마다 `sleep` 프로세스를 하나씩 띄워요.
+
+### launch-codes
+
+- 따옴표와 백슬래시를 처리하는 토크나이저가 있고 `sudo`·`env`·`xargs`·`npx` 같은 감싸는 명령을 건너뛰어 실제 프로그램을 찾아요. 그래서 blast-radius보다 붙잡는 범위가 넓어요.
+- `rm`은 `-r`과 `-f`가 둘 다 있어야 잡아요. `node_modules`, `dist`, `/tmp/` 아래는 안전하다고 보고 통과시켜요.
+- 패널에 뜬 4자 코드를 질문창의 Other 칸에 30초 안에 쳐야 하고, 한 번 더 LAUNCH를 눌러야 실행돼요. 기다리는 동안 사이렌을 반복 재생해요.
+
+### secret-redactor
+
+- 값은 모듈 메모리의 금고에 두고 `[REDACTED-SECRET-1a2b3c4d]` 같은 자리표시자로 바꿔요. 같은 값은 늘 같은 자리표시자가 돼요. 디스크에는 쓰지 않아요.
+- 도구가 실행될 때 자리표시자를 원래 값으로 되돌려요(기본값 켜짐). 키를 쓰는 명령은 계속 동작해요. 대신 모델이 자리표시자를 넣은 요청을 바깥으로 보내면 진짜 키가 실려 나가요.
+- 금고는 모듈이 다시 로드되면 비어요. 그 전에 만든 자리표시자는 원래 값으로 돌아가지 않아요.
+- 카탈로그 단계는 0이에요. 단계는 `$` 호출만 세는데, 이 mod는 `next()`로 내용을 바꿀 뿐 `$`로 파일이나 네트워크를 부르지 않아요. 프롬프트와 도구 결과를 전부 보는 mod도 0단계가 나올 수 있어요.
+
+### secrets-veil
+
+- `ANTHROPIC_API_KEY`, `GITHUB_TOKEN`, `AWS_SECRET_ACCESS_KEY` 등 21개 이름을 하나씩 문자열 그대로 읽어 그 값을 가림 표에 올려요. 회사에서 쓰는 다른 이름의 변수는 읽지 않아요. 값 모양과 엔트로피 검사가 나머지를 맡아요.
+- 결과가 800만 자를 넘거나 가리는 데 4초를 넘기면 결과를 통째로 보류해요. 토스트에는 개수만 쓰고 바이트 수는 디버그 로그에만 남겨요. 비밀의 길이도 단서라는 이유예요.
+- `SECRETS_VEIL_OFFER_COPY=1`을 켜면 가린 값을 클립보드로만 복사해 줄지 물어요.
+
+### recording-mode
+
+- `/rec`를 치면 `~/.claude/mods-data/recording.json` 플래그 파일을 써요. 이 컴퓨터의 모든 세션이 3초마다 이 파일을 확인해서 같이 켜져요.
+- 켜져 있는 동안 `.env`, 자격 증명, Claude 메모리, 재무 문서, 설정 파일에 적은 경로를 여는 도구 호출과 재무 도구를 거절해요. 프롬프트마다 이름·금액을 쓰지 말라는 메모를 모델 맥락에 붙여요.
+- 작업 폴더와 위로 세 단계 폴더의 `.env`, `.env.local` 값을 메모리에 읽어 와서 화면에서 가려요.
+- 전화번호·주민번호 패턴은 미국 형식(3-3-4 번호, SSN, 주 약자와 우편번호) 기준이에요. `010-1234-5678` 같은 3-4-4 번호와 주민등록번호 모양은 기본 패턴에 없어요. 한국어 화면을 녹화한다면 설정 파일의 `names`, `privatePaths`를 채워요.
+
+### collision-guard
+
+- 편집 직전에 다른 열린 채팅이 30분 안에 같은 파일을 고쳤는지 봐요. 고쳤으면 진행, 워크트리로 옮기기(git이 추적하는 파일일 때만), 취소를 물어요.
+- 채팅마다 `~/.claude/mods-data/collision-guard/<세션 id>.json`에 고친 파일 경로와 첫 프롬프트 앞 80자를 평문으로 써요. 다른 채팅의 질문창에 이름으로 보여 주려는 용도예요.
+- 화면 없는 실행에서는 묻지 않고 편집을 통과시켜요. 무인 작업을 멈추지 않으려는 설계예요.
+- 프롬프트에 아무것도 붙이지 않아서 토큰을 쓰지 않아요.
+
+### sec-default
+
+- 사람이 설치하는 mod가 아니에요. README에 따르면 관리형 설정이 있는 컴퓨터나 Team·Enterprise 조직에서 CLI가 prepend 단계 맨 앞에 앉혀요.
+- 자기 정책은 없어요. 조직의 classic 훅, 관리형 CLAUDE.md, 설정, MCP 허용 목록 이벤트에서 `next.to(e, "append")`로 사용자 단계를 건너뛰어요. 사용자가 설치한 mod가 이 이벤트들을 바꾸지 못해요.
+- `tool.check`에서 사용자 mod가 deny 규칙을 풀어 주면 사용자 단계를 빼고 한 번 더 돌려요. 그 결과가 규칙에 의한 거절이면 그 거절을 답으로 써요.
+- 관리자가 `allowManagedModsOnly`를 켜면 조직이 배포한 mod와 내장 mod만 로드돼요.
+- 이게 앉은 세션은 모든 도구 호출이 `tool.check` 체인을 돌아요. README가 비용으로 밝혀 둔 부분이에요.
+
+<Aside type="caution">
+여기 나온 mod는 모두 명령 문자열이나 값의 모양을 보고 판단해요. 모양을 바꾼 명령, 목록에 없는 비밀은 지나가요. 권한 확인창과 settings의 deny 규칙을 대신하지 못해요.
+</Aside>
+
+## 어떤 걸 고를까
+
+- 지우기 전에 몇 개 파일이 사라지는지 숫자로 보고 싶으면 **blast-radius**. 범위가 좁고, 고장 나면 명령이 통과해요.
+- 위험한 명령을 습관처럼 승인하는 게 걱정이면 **launch-codes**. 범위가 넓고 실패하면 막아요. 소리가 나니 회의 중에는 알고 켜요.
+- 키를 모델에 보이지 않으면서 키를 쓰는 작업은 계속하고 싶으면 **secret-redactor**. 도구 입력에 원래 값이 돌아간다는 점을 받아들일 수 있을 때 써요.
+- 키가 모델에 가는 것 자체를 막아야 하면 **secrets-veil**. 되돌릴 수 없고 실패하면 결과를 보류해요.
+- 화면을 녹화하거나 강의 시연을 하면 **recording-mode**. 화면만 가린다는 점을 기억해요.
+- 같은 저장소에 채팅 창을 여러 개 띄우면 **collision-guard**.
+- 회사에서 사용자 mod를 통제해야 하면 관리형 설정의 **sec-default** 옵션을 봐요. 개인이 설치할 대상은 아니에요.
+
+설치 전 공통 점검은 [설치 전 안전 점검](/ko/guide/safety-checklist/)에, 직접 만들어 보는 과정은 [위험한 Bash 명령 붙잡기](/ko/articles/tutorial-bash-guard/)에 있어요.

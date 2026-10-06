@@ -49,7 +49,7 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 
 ## Portée d'accès
 
-Ce mod lit des fichiers (explorateur et lecteur) et exécute Node.js ainsi qu'un programme de conversion d'images pour dessiner les documents. Le résumé en une ligne du tableau appelle brièvement haiku et peut être désactivé avec `s`. Il n'envoie aucune donnée par le réseau. Son code source tient dans un seul fichier, `hooks/register.tsx`, que vous pouvez donc lire entièrement avant d'installer.
+Ce mod lit des fichiers (explorateur et lecteur) et exécute Node.js ainsi qu'un programme de conversion d'images pour dessiner les documents. Toutes les 20 secondes, le résumé en une ligne du tableau envoie l'activité récente des agents à haiku pour la résumer. Il est activé par défaut et `s` le désactive. Hormis cet appel au modèle (l'API d'Anthropic, sur votre compte), il n'envoie aucune donnée par le réseau. Son code source tient dans un seul fichier, `hooks/register.tsx`, que vous pouvez donc lire entièrement avant d'installer.
 
 <Aside>
 Les function hooks sont une API en accès anticipé (early access). Ce mod a été développé et testé sur la version 2.1.290. Les textes affichés à l'écran sont en coréen.

@@ -1,0 +1,223 @@
+---
+title: 내 mod 배포하기
+description: marketplace.json 한 장으로 설치 한 줄을 만들고, 예약된 이름·버전·라이선스를 맞춘 뒤 커뮤니티 카탈로그에 올리는 순서. 실제 배포한 ide-mod와 카탈로그 1,919건에서 뽑은 숫자로 정리했어요.
+sidebar:
+  order: 10
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+내 컴퓨터에서 돌던 mod를 다른 사람이 한 줄로 설치하게 만드는 과정이에요. 필요한 파일은 하나 더 늘어날 뿐이지만, 이름 하나 잘못 지어서 설치도 카탈로그 등록도 막히는 경우가 꽤 있어요. 예시는 이 사이트 운영자가 직접 올린 [ide-mod](https://github.com/jkf87/ide-mod)(MIT)와 커뮤니티 카탈로그 데이터예요.
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289. 검증기 출력은 Claude Code 2.1.290·2.1.291에서 직접 돌린 결과예요.
+
+## 배포 전 체크리스트
+
+- [ ] `plugin.json`의 `name`이 예약어 규칙에 걸리지 않는다
+- [ ] `.claude-plugin/marketplace.json`이 있고 항목 이름이 `plugin.json`의 `name`과 같다
+- [ ] `version`과 `license`가 `plugin.json`에 있다
+- [ ] `claude plugin validate .`가 경고 없이 `✔ Validation passed`로 끝난다
+- [ ] `claude plugin test .`가 통과한다 ([테스트와 디버깅](/ko/articles/testing-and-debugging/))
+- [ ] 저장소가 공개돼 있고 `LICENSE` 파일이 있다
+- [ ] README에 설치 한 줄과 접근 범위가 적혀 있다
+
+## 저장소 구조
+
+### mod 하나짜리 저장소
+
+mod 폴더가 곧 저장소 루트예요. ide-mod가 git에 올린 파일은 이래요(`vendor/pdfjs/cmaps` 글꼴 표는 생략).
+
+```text title="jkf87/ide-mod"
+.claude-plugin/marketplace.json
+.claude-plugin/plugin.json
+.gitignore
+LICENSE
+README.md
+bin/grid.mjs            # Node로 돌리는 보조 스크립트
+bin/pdf-view.mjs
+bin/rhwp-view.mjs
+hooks/hooks.json
+hooks/register.tsx
+tests/ide.test.tsx
+types/index.d.ts        # 이 mod가 선언한 상태의 타입
+vendor/pdfjs/LICENSE    # 함께 싣는 라이브러리의 라이선스
+vendor/rhwp/LICENSE
+```
+
+`.gitignore`에는 `.claude-plugin/types/`와 `tsconfig.json`이 들어 있어요. 둘 다 Claude Code가 폴더를 로드할 때 깔아 주는 파일이라 저장소에 둘 이유가 없어요. 엔진 버전이 바뀌면 다시 써지기도 해요.
+
+### 여러 mod를 담은 저장소
+
+[hamzafer/claude-code-mods](https://github.com/hamzafer/claude-code-mods)처럼 `mods/<이름>/` 아래 mod를 하나씩 두고, 루트의 마켓플레이스 파일이 각 폴더를 가리켜요.
+
+```json title=".claude-plugin/marketplace.json (hamzafer/claude-code-mods, 앞 2개)"
+{
+  "name": "claude-code-mods",
+  "owner": { "name": "hamzafer" },
+  "plugins": [
+    { "name": "agent-radar", "version": "0.1.2", "source": "./mods/agent-radar" },
+    { "name": "blast-radius", "version": "0.2.2", "source": "./mods/blast-radius" }
+  ]
+}
+```
+
+카탈로그 디렉터리의 777개 저장소 가운데 626개가 mod 하나짜리, 151개가 여러 mod를 담은 저장소예요. 여러 mod 저장소에 든 mod가 862개로 전체 1,488개의 절반을 넘어요.
+
+## marketplace.json 쓰기
+
+mod 하나짜리라면 `source`를 `"./"`로 두면 끝이에요. ide-mod의 파일 전체예요.
+
+```json title=".claude-plugin/marketplace.json"
+{
+  "name": "ide-mod",
+  "owner": { "name": "jkf87" },
+  "plugins": [{ "name": "ide-mod", "source": "./" }],
+  "description": "Claude Code 안의 IDE 창 모드: 에이전트 보드 + 파일 트리 + 탭 에디터"
+}
+```
+
+`description`을 빼도 동작해요. 대신 검증기가 `No marketplace description provided` 경고를 내요. `plugin.json`에 `author`가 없을 때도 경고가 붙어요.
+
+항목에 `version`을 적었다면 `plugin.json`과 같아야 해요. 다르게 적어 보니 검증기가 이렇게 알려 줬어요.
+
+```text
+❯ plugins[0].version: Entry declares version "0.2.0" but .claude-plugin/plugin.json says "0.1.0".
+  At install time, plugin.json wins (calculatePluginVersion precedence) — the entry version is silently ignored.
+```
+
+버전은 `plugin.json` 한 곳에만 적는 편이 실수가 적어요.
+
+## 설치 한 줄 시험하기
+
+다른 사람에게 줄 설치 명령은 이 한 줄이에요. `<mod>`는 `plugin.json`의 `name`, 뒤는 GitHub의 `owner/repo`예요.
+
+```text
+/plugin install ide-mod --marketplace jkf87/ide-mod
+```
+
+<Steps>
+
+1. 저장소를 push하고 터미널의 Claude Code 세션에서 위 줄을 입력해요.
+
+2. `Add marketplace?`에 `y`, 범위 선택에서 Enter를 눌러요. `userConfig`가 있으면 옵션 화면이 하나 더 나와요.
+
+3. `Installed <mod>. Plugin is now active.`가 뜨면 성공이에요. hooks 모듈만 있는 mod는 다시 불러오지 않아도 그 세션에서 바로 돌아요.
+
+</Steps>
+
+실패 메시지는 두 가지예요. 저장소에 마켓플레이스 파일이 없으면 질문 화면에 `Marketplace file not found at`과 경로가 떠요. 이름이 틀리면 `Plugin "<mod>" not found in marketplace "<marketplace>"`가 나와요. 이 명령은 터미널 전용이에요. 데스크톱 앱의 Code 탭에서는 쓸 수 없다고 답해요.
+
+카탈로그 디렉터리의 mod 1,488개 중 277개(180개 저장소)는 저장소 어디에도 마켓플레이스 파일이 없었어요. 이런 mod는 쓰는 사람이 소스를 내려받아 `--plugin-dir`로 띄워야 해요. 한 줄 설치를 기대하기 어려워요.
+
+## 이름 규칙: `claude-`로 시작하면 막혀요
+
+`plugin.json`에 `claude-tally`라는 이름을 넣고 검증해 보면 이렇게 떨어져요.
+
+```text
+✘ name: Plugin name "claude-tally" is reserved: it passes as one of Anthropic's own.
+  A third party's plugin name cannot start with "claude-", "anthropic-", "anthropics-", or "cc-plugin-",
+  be "claude", "anthropic", "anthropics", "claude-code", or "claude-mods",
+  or put "official" beside "claude" or "anthropic". Name it for what it does.
+```
+
+카탈로그에서도 이 규칙에 걸린 사례가 적지 않아요.
+
+| 항목 | 건수 |
+| --- | --- |
+| 이름 예약어로 검증에 떨어진 mod | 19개 (실제 mod 15, 중복·시험용 4) |
+| 검증에 실패한 marketplace.json | 716개 중 15개 |
+| 그 15개 파일에 찍힌 오류 | 25건, 전부 예약어 오류 |
+
+예를 들면 `claude-stats`, `claude-queue`, `claude-games`, `anthropic-pr-review` 같은 이름이에요. 규칙은 플러그인 이름에만 걸려요. 저장소 이름이 `claude-stats-mod`인 것은 문제없고, `claudesama`처럼 하이픈 없이 붙인 이름도 통과했어요. 2.1.291에서 마켓플레이스 `name`을 `claude-tally-market`으로 바꿔 봤을 때도 오류는 없었어요.
+
+이미 배포한 이름이 걸렸다면 세 곳을 같이 고쳐요. `plugin.json`의 `name`, 마켓플레이스 항목의 `name`, README의 설치 줄이에요. 카탈로그 기여 문서도 같은 순서를 권해요.
+
+## 버전과 라이선스
+
+`version`은 `0.4.2`처럼 세 자리로 적고 릴리스마다 올려요. ide-mod는 `plugin.json`을 고친 커밋 10개마다 버전을 올려 `0.1.0`에서 `0.4.2`까지 왔고, GitHub 릴리스는 `v0.4.0`과 `v0.4.2` 두 개를 냈어요. `claude plugin tag`를 쓰면 `plugin.json`과 마켓플레이스 항목의 버전이 맞는지 확인한 뒤 태그를 만들어 줘요.
+
+```bash
+claude plugin tag --dry-run .
+# Tag:     ide-mod--v0.4.2
+# ✔ Dry run — would create tag ide-mod--v0.4.2 at HEAD
+```
+
+라이선스가 없는 mod가 생각보다 많아요. 디렉터리 1,488개 중 324개(777개 저장소 중 164개)는 라이선스 정보가 비어 있었고, 44개는 `NOASSERTION`(파일은 있지만 종류를 알아보지 못함)이었어요. [choosealicense.com](https://choosealicense.com/no-permission/)의 설명대로 라이선스가 없으면 저작자가 저작권을 독점해요. 공개 저장소라도 다른 사람이 복사·수정·배포할 권리는 생기지 않아요. 회사에서 쓰려는 사람은 법무 검토에서 바로 막혀요.
+
+다른 사람의 코드를 함께 싣는다면 그 라이선스도 챙겨요. ide-mod는 rhwp(MIT)와 pdf.js(Apache-2.0)를 `vendor/` 아래 각자의 `LICENSE` 파일과 함께 두고, README의 License 절에 두 라이브러리와 라이선스를 적었어요.
+
+## 옵션은 userConfig로
+
+설치하는 사람마다 바꿀 값은 `plugin.json`의 `userConfig`에 선언해요. 설치 때 옵션 화면이 뜨고, 비밀이 아닌 필드는 `/config` 메뉴에도 줄로 나와요.
+
+```json title=".claude-plugin/plugin.json (일부)"
+"userConfig": {
+  "style": { "title": "표시 방식", "type": "string", "options": ["short", "full"], "default": "short" },
+  "apiKey": { "title": "API 키", "type": "string", "sensitive": true, "required": false }
+}
+```
+
+`options`를 준 문자열 필드는 그 값만 고르는 선택창이 돼요. `sensitive` 필드는 settings.json 대신 보안 저장소에 들어가요. 값이 없는 `required` 필드가 있으면 모듈이 로드되지 않아요. 검증기는 `default`가 `options`에 없으면 `default must be one of the options`로, 모르는 키를 넣으면 `--strict`에서 `Unrecognized key`로 잡아 줬어요.
+
+## 커뮤니티 카탈로그에 올라가는 방법
+
+[awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods)의 `contributing.md`와 스캐너 코드(`tools/`)를 읽고 확인한 내용이에요.
+
+| 경로 | 조건 | 주기 |
+| --- | --- | --- |
+| 코드 검색 | 저장소에 `CLAUDE_CODE_ENABLE_FUNCTION_HOOKS` 문자열이 있거나, `hooks/hooks.json`에 `modules` 키가 있음 | 매일 |
+| 최근 저장소 검색 | 토픽 `claude-code-mod`·`claude-code-mods`·`claude-mods`·`function-hooks`·`claude-code-plugin`, 또는 이름·설명에 "claude mod(s)" | 3시간마다 |
+| PR | `data/seeds.txt`에 `owner/repo` 한 줄 추가 | 병합 후 자동 게시 |
+
+가장 빠른 길은 저장소에 `claude-code-mod` 토픽을 다는 거예요. 기여 문서는 이 토픽이 있으면 보통 다음 push 뒤 몇 시간 안에 잡힌다고 적어 뒀어요. ide-mod도 `claude-code`, `claude-code-mod`, `hwp` 토픽을 달았어요. 10월 6일에 공개해서 10월 4일 스캔에는 아직 없어요.
+
+자동 게시에서 빠지는 경우도 정해져 있어요. 클론 실패, 검증 실패, 실패한 마켓플레이스, UI 호환성 경고, 이미 있는 mod의 사본으로 보이는 경우예요. 예약어 이름은 플러그인 검증과 마켓플레이스 검증에서 두 번 걸려요.
+
+등록돼도 디렉터리 숫자에 들지 않는 분류가 있어요.
+
+| kind | 건수 | 판정 기준 |
+| --- | --- | --- |
+| `fixture` | 93 | 경로에 `test`, `fixtures`, `examples`, `templates`, `docs`, `bench`, `probe` 같은 폴더가 있거나 설명에 "test fixture" 등이 있음 |
+| `catalog` | 39 | 남의 mod를 모아 다시 담은 저장소 (`data/catalogs.txt`) |
+| `duplicate` | 28 | 확인된 사본이나 이름을 바꾼 저장소 |
+| `mirror` | 3 | Anthropic 내장 mod(`diff`, `sec-default`, `telemetry`)를 복사한 것 |
+
+진짜 mod를 `examples/` 아래 두면 시험용으로 분류돼요. 폴더를 옮기거나 `data/fixture-exceptions.txt`에 id를 넣는 PR을 보내요.
+
+<Aside type="note">
+  이 사이트의 [mod 디렉터리](/ko/mods/directory/)는 검증 결과가 `passed`인 mod만 보여 줘요. 스캐너는 `✔ Validation passed with warnings`를 `warnings`로 따로 기록해요. `author`나 마켓플레이스 `description`이 빠져서 경고가 붙으면 카탈로그에는 올라가도 여기 디렉터리에는 빠져요. 그런 mod가 252개였어요.
+</Aside>
+
+## 릴리스와 업데이트
+
+<Steps>
+
+1. `plugin.json`의 `version`을 올려요. 마켓플레이스 항목에도 버전을 적었다면 같이 올려요.
+
+2. `claude plugin validate .`와 `claude plugin test .`를 다시 돌려요.
+
+3. 커밋하고 push해요. 필요하면 `claude plugin tag --push .`로 태그를 붙이고 GitHub 릴리스를 만들어요.
+
+</Steps>
+
+설치한 사람은 마켓플레이스를 새로 받은 뒤 플러그인을 업데이트해요.
+
+```bash
+claude plugin marketplace update ide-mod
+claude plugin update ide-mod@ide-mod
+```
+
+`claude plugin update --help`는 다시 시작해야 적용된다고 안내해요. 저장소에서 설치한 mod는 설치할 때 만든 사본으로 돌아서, 작성자가 고친 내용은 새 버전이나 커밋으로만 전해져요. 자세한 관리 명령은 [설치하고 관리하기](/ko/guide/install-and-manage/#업데이트)에 있어요.
+
+## README에 꼭 쓸 것
+
+- **설치 한 줄**을 코드 블록으로. 그 뒤에 `y`를 누르고 범위를 고른다는 설명까지.
+- **만들고 시험한 Claude Code 버전.** 함수 훅은 early access API라 버전마다 달라질 수 있어요. ide-mod는 "2.1.290에서 만들고 시험했어요"라고 적었어요.
+- **접근 범위.** 무엇을 읽고, 무엇을 실행하고, 어디로 보내는지. `claude plugin validate .`의 `calls:` 줄을 그대로 옮기면 빠뜨리지 않아요. ide-mod는 `$.fs.read`로 파일을 읽고, `$.process.run`으로 `node bin/*.mjs`와 macOS `open`을 실행하고, `$.model.complete`로 모델을 불러요.
+- **검증기가 못 보는 부분.** `calls:` 줄은 훅 모듈이 `$`에서 부르는 것만 보여 줘요. 실행한 프로그램이 하는 일은 따로 적어야 해요. ide-mod의 보조 스크립트는 다시 `pdftoppm`, `rsvg-convert`, `resvg`, `qlmanage` 중 있는 것을 불러요. 훅 모듈과 보조 스크립트 어디에도 네트워크 호출은 없어요.
+- **한계.** 지원하지 않는 터미널, 파일 크기 제한, 화면 언어 같은 것.
+- **함께 실은 코드의 라이선스.**
+
+설치하는 쪽이 무엇을 확인하는지는 [설치 전 안전 점검](/ko/guide/safety-checklist/)에 있어요. 그 목록에 미리 답해 두면 써 보는 사람이 소스를 덜 뒤져도 돼요. 카탈로그는 mod마다 접근 범위 배지와 검증 배지도 만들어 줘요. 기여 문서의 `badges/` 경로를 README에 붙이면 돼요.
+
+검증에서 자주 떨어지는 다른 이유는 [검증에 떨어지는 mod](/ko/articles/validation-failures/)에 모아 뒀어요.

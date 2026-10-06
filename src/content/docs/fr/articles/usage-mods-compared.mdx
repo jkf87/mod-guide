@@ -1,0 +1,107 @@
+---
+title: Comparatif des mods d'usage et de contexte
+description: "Nous avons lu les sources de 7 mods qui affichent les limites de 5 heures et hebdomadaires ainsi que le contexte. Origine des chiffres, fréquence de relecture, appels au modèle et actions bloquées sont réunis dans des tableaux, avec des critères pour choisir."
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+Les mods qui affichent l'usage au-dessus de la zone de saisie sont le type le plus courant du catalogue. Rien que les limites de 5 heures et hebdomadaires, les rate limits et les quotas apparaissent dans la description de 105 mods. Nous en avons choisi 7, récupéré les dépôts et lu les modules de hooks jusqu'au bout. Nous n'avons rien installé ni exécuté.
+
+Référence : scan du catalogue communautaire du 2026-10-04, Claude Code 2.1.289. Les sources ont été lues le 2026-10-06 et les descriptions d'API vérifiées dans le fichier de types de Claude Code 2.1.290. Le nombre d'étoiles est celui du dépôt, donc les mods d'un même dépôt reçoivent le même chiffre.
+
+## D'où viennent les chiffres
+
+Le moteur fournit les mêmes chiffres que la ligne d'état via `$.session.usage()`. On y trouve le remplissage de la fenêtre de contexte, les limites de 5 heures et de 7 jours (`rateLimits`) et le coût de la session. D'après la description du fichier de types, un appel sans argument ne coûte rien. L'événement `session.measure` pousse les mêmes chiffres à la fin d'un tour du fil principal et chaque fois qu'une limite bouge de 1 point de pourcentage. Pour une session qui utilise une clé API, `rateLimits` est vide : les chiffres de limite n'existent que pour les sessions par abonnement.
+
+Sur les 105 mods d'usage du catalogue, 100 appellent `$.session.usage` et 88 s'abonnent à `session.measure`. 13 appellent `$.http.fetch`. Nous en avons ouvert 9 : les 9 appelaient `https://api.anthropic.com/api/oauth/usage`. Les identifiants sont joints via un handle fourni par `$.session.authorize()`, donc le mod ne voit jamais la valeur du jeton. Cette adresse ne figure pas dans le fichier de types 2.1.290 ; considérez qu'elle peut changer sans préavis. Si `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` est activé, le moteur refuse les requêtes qui portent ce handle.
+
+Les 7 mods ci-dessous n'appellent pas cette adresse. Aucun n'appelle `$.http.fetch`, et seul hud appelle un modèle.
+
+## En un coup d'œil
+
+| mod | dépôt (étoiles) | où il dessine | origine des chiffres | fréquence de relecture |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | bande au-dessus de la saisie | `$.session.usage`, sinon `plan-usage-history.json` de l'app de bureau | après un tour ou un appel d'outil, détection de changement toutes les 15 s |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | bande | `session.measure`, `$.session.usage` | quand le moteur pousse les chiffres, compte à rebours de 60 s |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | ligne d'état, panneau `/quota` | `$.session.usage` | fin de tour, toutes les 60 s |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | bande | `$.session.usage`, fin du fichier de transcript | fin de tour, compte à rebours du cache de 1 à 30 s |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | bande, panneau `/burn` | `$.session.usage` | toutes les secondes, dessin de la flamme toutes les 80 ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | ligne d'état, toast | `$.session.usage` | à chaque appel d'outil et à chaque prompt |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | bande ou sous la saisie, panneau détaillé | `$.session.usage`, git, fichier de transcript, `~/.claude/sessions/*.json` | toutes les 15 s, vérification du contrôle à distance toutes les 3 s |
+
+| mod | bloquer / modifier | appel au modèle | processus / fichiers | ce qu'il conserve | niveau | tests | licence | commit lu |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | aucun (le bouton Compact est cliqué par l'utilisateur) | aucun | lecture d'un fichier de l'app | `$.store` : dernière limite, historique des alertes | 2 | oui | MIT | `dfc3df5` (10-03) |
+| usage-meter | aucun | aucun | aucun | état de session uniquement | 1 | oui | MIT | `3719682` (10-05) |
+| quota-meter | aucun | aucun | aucun | `$.store` : échantillons de limite | 0 | non | MIT dans plugin.json, pas de fichier LICENSE | `d4fffd7` (09-15) |
+| token-weather | aucun | aucun | lecture du transcript, exécution de `tail` | `$.store` : durée de vie du cache | 2 | oui | MIT | `3719682` (10-05) |
+| burn-meter | aucun | aucun | aucun | `$.store` : coût cumulé, une clé par session | 1 | oui | MIT | `e6da26c` (10-03) |
+| budget-guard | refus d'appel d'outil, arrêt du tour, confirmation avant le prompt | aucun | aucun | sa propre ligne de configuration ou `$.store` | 2 | non | MIT dans plugin.json, pas de fichier LICENSE | `d4fffd7` (09-15) |
+| hud | aucun | `$.model.fork` (tous les 5 tours par défaut) | exécution de git, lecture et écriture de fichiers | fichier : registre des coûts quotidiens, `$.store` | 2 | oui | MIT | `8fb6f67` (10-04) |
+
+Le niveau est la portée d'accès du catalogue : 0 pour l'écran et la mémoire seuls, 1 pour la lecture, 2 pour l'écriture et l'exécution, 3 pour le réseau. Il a été attribué par un balayage statique des sources et peut différer de l'exécution réelle. Le commit lu est le HEAD du dépôt que nous avons récupéré.
+
+## Notes par mod
+
+### usage-band
+
+- Quand `rateLimits` est vide, il lit `plan-usage-history.json`, que laisse l'app de bureau Claude. Un commentaire du code explique que les chiffres de limite sont souvent vides dans les sessions de bureau. À partir des échantillons de ce fichier, il estime le début de la fenêtre de 5 heures et l'heure de réinitialisation hebdomadaire, et préfixe les valeurs estimées d'un `~`.
+- C'est un fichier interne de l'app, dont le format n'est pas documenté. Si l'app change, l'estimation peut s'arrêter.
+- Il affiche un toast au-delà de 80 % et de 95 %, et l'enregistre dans `$.store` pour ne pas sonner deux fois dans la même fenêtre. Plusieurs chats ouverts écrivent dans cet enregistrement en commun.
+- Au-delà de 70 % de contexte, un bouton Compact apparaît. C'est l'appel à `$.session.compact()` qui explique le niveau 2 du catalogue.
+
+### usage-meter
+
+- Il n'y a que trois hooks : `session.start`, `session.measure` et `ui.render`. Le module fait 204 lignes.
+- Au-delà de 90 % de la limite, il affiche un toast une fois par fenêtre.
+- Quand il dessine la bande, il place le résultat de `next(e)` tel quel en dessous. Les bandes dessinées par d'autres mods s'empilent donc sans se chevaucher.
+
+### quota-meter
+
+- Le panneau `/quota` montre, pour chaque fenêtre, une barre, l'heure de réinitialisation, la vitesse de consommation et la projection à ce rythme. Les échantillons sont gardés dans `$.store`, donc la vitesse de consommation se poursuit après un redémarrage.
+- Pour une session par clé API, le panneau indique que les limites n'arrivent pas.
+- context-lens, du même dépôt, classe le contexte comme le fait `/context`. À chaque tour, il se contente d'une estimation locale avec `breakdown: "summary"` ; il n'appelle l'API de comptage de tokens que lorsque vous tapez `/context-lens refresh`.
+
+### token-weather
+
+- Il compte le temps restant avant que le cache de prompt refroidisse, et relance l'horloge à chaque fin de requête du fil principal.
+- Pour savoir si la durée de vie du cache est de 5 minutes ou d'1 heure, il lit le champ `cache_creation` de la dernière réponse dans le JSONL du transcript. Il construit lui-même le chemin `~/.claude/projects/<chemin>/<id de session>.jsonl`. Si le fichier dépasse 1 Mo, il exécute `tail -c`.
+- Cette règle de chemin n'est pas une API documentée. Un commentaire précise qu'en cas de décalage, il arrête la détection et réutilise la dernière valeur. Si vous fixez `5m` ou `1h` dans les options, il ne lit plus le fichier.
+
+### burn-meter
+
+- Chaque seconde, il lit et écrit `$.session.usage()` et `$.store`. Tant que la bande est affichée, il redessine le raster de la flamme toutes les 80 ms et le montant toutes les 50 ms. C'est le mod aux minuteurs les plus chargés des 7.
+- Il convertit le coût en nombre de burritos et de Big Mac.
+- Pour le calcul du coût cumulé, il laisse une clé `last:<id de session>` par session. Nous n'avons pas trouvé de code qui les supprime.
+
+### budget-guard
+
+- Il surveille trois limites : coût de la session, fenêtre de 5 heures et fenêtre de 7 jours. Par défaut : 90 % sur 5 heures, 95 % sur 7 jours, limite de coût désactivée, mode `block`.
+- Au-delà d'une limite, il refuse avec `{ deny }` dans `tool.call` puis termine le tour par `$.turn.abort` 250 ms plus tard. Selon le commentaire, la raison est que, face à un refus, le modèle réessaie avec un autre outil et dépense encore.
+- À l'envoi d'un prompt, il demande via `$.ui.ask` s'il faut l'envoyer quand même. Les commandes slash passent sans question, de sorte que vous pouvez taper `/guard override`.
+- Le hook bloquant n'a pas de `.catch`. Si le hook se termine par une exception, le moteur l'ignore et poursuit l'appel. Il peut donc arriver qu'un appel passe alors que la limite est dépassée.
+
+### hud
+
+- C'est un portage en mod de claude-hud 0.10.0, un outil de ligne d'état. À la place de `fs` et `child_process` de Node, il superpose des modules d'émulation au-dessus de `$.fs` et `$.process.run`.
+- Au démarrage, il exécute `/usr/bin/env -0` et remplit `process.env` du module d'émulation avec toutes les variables d'environnement du processus. Nous n'avons trouvé aucun code qui envoie ces valeurs à l'extérieur.
+- Par défaut, après le premier tour puis tous les 5 tours, il résume le travail en une ligne avec `$.model.fork`. Il lit la conversation via le cache de prompt, mais cela compte dans l'usage. Avec `summaryEveryTurns` à 0, c'est désactivé.
+- Il écrit un registre des coûts quotidiens dans des fichiers sous `~/.claude/plugins/claude-hud-mod/`. L'affichage du compte est désactivé par défaut.
+- La commande shell définie par l'utilisateur (`extraCmd`) ne s'exécute que si la variable d'environnement `CLAUDE_HUD_ALLOW_EXTRA_CMD` est activée.
+
+<Aside>
+Un même nom existe dans plusieurs dépôts. Le catalogue compte à lui seul 22 `usage-band` et 8 `token-weather`. Vérifiez que le dépôt indiqué après `--marketplace` dans la ligne d'installation est bien celui de ce tableau.
+</Aside>
+
+## Lequel choisir
+
+- Pour regarder discrètement deux limites et leur heure de réinitialisation, **usage-meter**. Il est assez court pour être lu en entier avant l'installation et ne touche ni aux fichiers ni aux processus.
+- Si les champs de limite sont vides dans l'onglet Code de l'app de bureau, **usage-band**. Les valeurs estimées à partir des fichiers de l'app sont préfixées d'un `~`.
+- Pour savoir quand vous serez à sec à ce rythme, le panneau `/quota` de **quota-meter**.
+- Pour voir de combien le contexte grossit à chaque tour et quand le cache refroidit, **token-weather**. Pour le détail par catégorie, regardez aussi context-lens, du dépôt d'Arunjay4213.
+- Si vous devez vraiment vous arrêter en atteignant une limite, **budget-guard**. Gardez en tête qu'un hook en échec laisse passer.
+- Si vous utilisiez claude-hud comme ligne d'état, **hud**. Si l'appel au modèle pour les résumés vous déplaît, mettez `summaryEveryTurns` à 0.
+- Avec une clé API, les chiffres de limite n'arrivent pas. **burn-meter** ou **token-weather**, centrés sur le coût et le contexte, conviennent mieux.
+- Pour un dépôt contenant des secrets ou un environnement à politique réseau stricte, évitez les mods d'usage qui appellent `$.http.fetch`. Regardez d'abord la portée d'accès dans le [répertoire des mods](/fr/mods/directory/), et passez par la [vérification de sécurité](/fr/guide/safety-checklist/) avant d'installer.

@@ -1,0 +1,107 @@
+---
+title: 使用量・コンテキストModの比較
+description: 5時間・週次の上限とコンテキストを表示するMod 7個のソースを直接読みました。数値の出どころ、再読み込みの周期、モデル呼び出し、ブロックする動作を表にして、選ぶ基準をまとめました。
+sidebar:
+  order: 4
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+入力欄の上に使用量を表示するModは、カタログで最もよく見かける種類です。説明に5時間・週次の上限、rate limit、quotaが含まれるModだけで105個あります。そのうち7個を選んでリポジトリを取得し、フックモジュールを最後まで読みました。インストールや実行はしていません。
+
+基準: コミュニティカタログ 2026-10-04 スキャン、Claude Code 2.1.289。ソースは2026-10-06に読み、APIの説明はClaude Code 2.1.290の型ファイルで確認しました。スター数はリポジトリ単位なので、同じリポジトリのModは同じ数字になります。
+
+## 数値の出どころ
+
+エンジンはステータスラインと同じ数値を `$.session.usage()` で返します。コンテキストウィンドウの使用率、5時間・7日の上限(`rateLimits`)、セッションコストが入っています。型ファイルの説明では、引数なしで呼べばコストはかかりません。`session.measure` イベントは、メインスレッドのターンが終わったときと上限が1%p動いたときに、同じ数値を送ってくれます。APIキーで使うセッションでは `rateLimits` が空です。上限の数値はサブスクリプションのセッションでしか出ません。
+
+カタログの使用量Mod 105個のうち、100個が `$.session.usage` を呼び、88個が `session.measure` をフックしています。13個は `$.http.fetch` を呼びます。その13個のうち9個を開いて確認したところ、9個すべてが `https://api.anthropic.com/api/oauth/usage` を呼んでいました。認証情報は `$.session.authorize()` が返すハンドルに載せて送るので、Modがトークンの値を見ることはありません。このアドレスは2.1.290の型ファイルに出てきません。予告なく変わる可能性があると見て使ってください。`CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` を有効にすると、このハンドルを載せたリクエストはエンジンが拒否します。
+
+以下の7個はこのアドレスを呼びません。`$.http.fetch` を呼ぶModは1つもなく、モデルを呼ぶのはhudだけです。
+
+## 一覧
+
+| Mod | リポジトリ (スター) | 描画する場所 | 数値の出どころ | 再読み込みの周期 |
+| --- | --- | --- | --- | --- |
+| [usage-band](https://github.com/KhadeerBasha1232/claude-usage-mod/tree/main/plugins/usage-band) | KhadeerBasha1232/claude-usage-mod (8) | 入力欄上のバンド | `$.session.usage`、空ならデスクトップアプリの `plan-usage-history.json` | ターン・ツール呼び出しの後、15秒ごとに変更を確認 |
+| [usage-meter](https://github.com/hamzafer/claude-code-mods/tree/main/mods/usage-meter) | hamzafer/claude-code-mods (54) | バンド | `session.measure`、`$.session.usage` | エンジンが送ってきたとき、カウントダウンは60秒 |
+| [quota-meter](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/quota-meter) | Arunjay4213/claude-mods (4) | ステータスライン、`/quota` パネル | `$.session.usage` | ターン終了時、60秒ごと |
+| [token-weather](https://github.com/hamzafer/claude-code-mods/tree/main/mods/token-weather) | hamzafer/claude-code-mods (54) | バンド | `$.session.usage`、会話記録ファイルの末尾 | ターン終了時、キャッシュのカウントダウン 1〜30秒 |
+| [burn-meter](https://github.com/OneWave-AI/claude-code-mods/tree/main/burn-meter) | OneWave-AI/claude-code-mods (1) | バンド、`/burn` パネル | `$.session.usage` | 1秒ごと、炎のアニメーションは80ms |
+| [budget-guard](https://github.com/Arunjay4213/claude-mods/tree/main/plugins/budget-guard) | Arunjay4213/claude-mods (4) | ステータスライン、トースト | `$.session.usage` | ツール呼び出し・プロンプトごと |
+| [hud](https://github.com/hoobnn/hoobnn-agent-mods/tree/main/claude-code/hud) | hoobnn/hoobnn-agent-mods (2) | バンドまたは入力欄の下、詳細パネル | `$.session.usage`、git、会話記録ファイル、`~/.claude/sessions/*.json` | 15秒ごと、リモート操作の確認は3秒 |
+
+| Mod | ブロック・変更 | モデル呼び出し | プロセス・ファイル | 残すもの | 段階 | テスト | ライセンス | 読んだコミット |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| usage-band | なし (Compactボタンは人が押す) | なし | アプリファイルの読み取り | `$.store`: 直近の上限、通知の記録 | 2 | あり | MIT | `dfc3df5` (10-03) |
+| usage-meter | なし | なし | なし | セッション状態のみ | 1 | あり | MIT | `3719682` (10-05) |
+| quota-meter | なし | なし | なし | `$.store`: 上限のサンプル | 0 | なし | plugin.jsonにMIT、LICENSEファイルなし | `d4fffd7` (09-15) |
+| token-weather | なし | なし | 会話記録の読み取り、`tail` の実行 | `$.store`: キャッシュの寿命 | 2 | あり | MIT | `3719682` (10-05) |
+| burn-meter | なし | なし | なし | `$.store`: 累積コスト、セッションごとにキー1つ | 1 | あり | MIT | `e6da26c` (10-03) |
+| budget-guard | ツール呼び出しの拒否、ターンの中断、プロンプト前の確認 | なし | なし | 自身の設定行または `$.store` | 2 | なし | plugin.jsonにMIT、LICENSEファイルなし | `d4fffd7` (09-15) |
+| hud | なし | `$.model.fork` (デフォルトは5ターンごと) | gitの実行、ファイルの読み書き | ファイル: 日別コスト台帳、`$.store` | 2 | あり | MIT | `8fb6f67` (10-04) |
+
+段階はカタログのアクセス範囲です。0は画面・記憶のみ、1は読み取り、2は書き込み・実行、3はネットワークです。ソースを静的にスキャンして付けた値なので、実際の動作と異なる場合があります。読んだコミットは、こちらが取得したリポジトリのHEADです。
+
+## Mod別メモ
+
+### usage-band
+
+- `rateLimits` が空のときは、Claudeデスクトップアプリが残す `plan-usage-history.json` を読みます。コードのコメントによると、デスクトップのセッションでは上限の数値が空になりやすいためです。このファイルのサンプルから5時間ウィンドウの開始と週次リセットの時刻を推定し、推定値には `~` を付けます。
+- アプリの内部ファイルなので、形式は文書化されていません。アプリが変わると推定が止まる可能性があります。
+- 80%・95%を超えるとトーストを出し、同じウィンドウで二度鳴らないように `$.store` に記録します。開いている複数のチャットがこの記録を共有します。
+- コンテキストが70%を超えるとCompactボタンが現れます。カタログが2段階とした理由は、この `$.session.compact()` の呼び出しです。
+
+### usage-meter
+
+- フックは `session.start`、`session.measure`、`ui.render` の3つだけで、204行です。
+- 上限が90%を超えると、ウィンドウごとに1回トーストを出します。
+- バンドを描くときは `next(e)` の結果をそのまま下に置きます。他のModが描いたバンドと重ならず、積み重なります。
+
+### quota-meter
+
+- `/quota` パネルに、ウィンドウごとのバー、リセット時刻、消費速度、この速度で進んだ場合の予測を表示します。サンプルを `$.store` に保存するので、再起動しても消費速度が引き継がれます。
+- APIキーのセッションでは上限が届かないことを、パネルに書いて知らせます。
+- 同じリポジトリのcontext-lensは、コンテキストを `/context` のように分類して表示します。ターンごとに `breakdown: "summary"` でローカル推定だけを行い、`/context-lens refresh` を実行したときだけトークンカウントAPIを呼びます。
+
+### token-weather
+
+- プロンプトキャッシュが冷めるまでの残り時間を数えます。メインスレッドのリクエストが終わるたびに、時計を再スタートします。
+- キャッシュの寿命が5分か1時間かを知るために、会話記録JSONLの最後の応答から `cache_creation` フィールドを読みます。パスは `~/.claude/projects/<パス>/<セッションid>.jsonl` を自前で組み立てます。ファイルが1MBを超えると `tail -c` を実行します。
+- このパス規則は文書化されたAPIではありません。ずれた場合は判別を止めて最後の値を使うと、コメントに書かれています。オプションで `5m` か `1h` に固定すれば、ファイルは読みません。
+
+### burn-meter
+
+- 1秒ごとに `$.session.usage()` と `$.store` を読み書きします。バンドが表示されている間は、80msごとに炎のラスター、50msごとに金額の数字を再描画します。7個の中でタイマーが最も忙しいModです。
+- コストをブリトーとビッグマックの個数に換算して表示します。
+- 累積コストの計算用に、`last:<セッションid>` というキーをセッションごとに1つ残します。削除するコードは見つかりませんでした。
+
+### budget-guard
+
+- セッションコスト、5時間ウィンドウ、7日ウィンドウの3つの上限を守ります。デフォルトは5時間が90%、7日が95%、コスト上限はオフ、モードは `block` です。
+- 上限を超えると `tool.call` で `{ deny }` を返して拒否し、250ms後に `$.turn.abort` でターンを終了します。コメントによると、モデルは拒否されると別のツールで再試行してコストを使うためです。
+- プロンプトを送るときは `$.ui.ask` で、それでも送るかを尋ねます。スラッシュコマンドはそのまま通すので、`/guard override` を入力できます。
+- ブロックするフックに `.catch` がありません。フックが例外で終わると、エンジンはそのフックをスキップして呼び出しを進めます。上限を超えているのに通ってしまう場合があり得ます。
+
+### hud
+
+- ステータスラインツールのclaude-hud 0.10.0をModに移植したものです。Nodeの `fs`・`child_process` の代わりに、`$.fs`・`$.process.run` の上にエミュレーション用モジュールを載せています。
+- 起動時に `/usr/bin/env -0` を実行し、プロセスの環境変数すべてをエミュレーションモジュールの `process.env` に入れます。その値を外へ送るコードは見つかりませんでした。
+- デフォルトでは、最初のターンの後と5ターンごとに `$.model.fork` で作業を1行に要約します。プロンプトキャッシュで会話を読みますが、使用量には計上されます。`summaryEveryTurns` を0にするとオフになります。
+- 日別コスト台帳を `~/.claude/plugins/claude-hud-mod/` 以下のファイルに書きます。アカウント表示はデフォルトでオフです。
+- ユーザーが指定するシェルコマンド(`extraCmd`)は、環境変数 `CLAUDE_HUD_ALLOW_EXTRA_CMD` を有効にしたときだけ実行されます。
+
+<Aside>
+同じ名前のModが複数のリポジトリにあります。カタログには `usage-band` だけで22個、`token-weather` が8個あります。インストール行の `--marketplace` の後ろにあるリポジトリが、この表のリポジトリと同じか確認してください。
+</Aside>
+
+## どれを選ぶか
+
+- 2つの上限とリセット時刻だけを静かに見たいなら **usage-meter**。インストール前に全部読める長さで、ファイルやプロセスには触れません。
+- デスクトップアプリのCodeタブで上限の欄が空になるなら **usage-band**。アプリファイルから推定した値には `~` が付きます。
+- このペースだといつ底をつくか知りたいなら **quota-meter** の `/quota` パネル。
+- コンテキストがターンごとにどれだけ増え、キャッシュがいつ冷めるかを見るなら **token-weather**。分類別の内訳まで見るなら、Arunjay4213のリポジトリにあるcontext-lensも合わせて確認してください。
+- 上限に達したら実際に止めたいなら **budget-guard**。フックが失敗すると通ってしまう点は考慮してください。
+- claude-hudをステータスラインとして使っていた人は **hud**。要約のためのモデル呼び出しが嫌なら、`summaryEveryTurns` を0に変えます。
+- APIキーで使うと上限の数値は届きません。コストとコンテキスト中心の **burn-meter** か **token-weather** が合います。
+- 機密のあるリポジトリや、ネットワークポリシーが厳しい環境では、`$.http.fetch` を呼ぶ使用量Modは避けてください。[Modディレクトリ](/ja/mods/directory/)でアクセス範囲を先に確認し、インストール前には[安全チェック](/ja/guide/safety-checklist/)を通してください。

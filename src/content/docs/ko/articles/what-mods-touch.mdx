@@ -1,0 +1,149 @@
+---
+title: mod는 실제로 무엇에 손대나
+description: 디렉터리 mod 1,488개의 소스 스캔으로 본 접근 범위. 프로세스를 실행하는 594개, 모든 프롬프트를 보는 474개, 바깥으로 요청하는 195개가 어디에 닿는지 정리했어요.
+sidebar:
+  order: 2
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+기준: 커뮤니티 카탈로그 2026-10-04 스캔, Claude Code 2.1.289
+
+[mod 디렉터리](/ko/mods/directory/)에 실린 1,488개가 어떤 API를 부르고 어떤 이벤트를 받는지 셌어요. 데이터는 [awesome-claude-code-mods](https://github.com/karanb192/awesome-claude-code-mods) 카탈로그예요. 각 API의 뜻은 Claude Code 2.1.290이 내려 주는 타입 파일 `claude-code.d.ts`에서 확인했어요.
+
+## 숫자를 읽기 전에
+
+카탈로그는 mod를 실행하지 않아요. `claude plugin validate`가 소스를 읽고 내놓는 `calls:` 줄과 `hooks:` 줄을 모아 규칙표로 등급을 매겨요. 그래서 다음은 알 수 없어요.
+
+- `$.http.fetch`가 어느 주소로 무엇을 보내는지
+- `$.process.run`이 어떤 프로그램을 실행하는지. 타입 파일은 "what a command of its own reaches is its own"이라고 적어요. 실행한 `curl`이나 `gh`가 네트워크에 나가도 카탈로그는 네트워크로 세지 않아요.
+- 훅이 실제로 몇 번 도는지, 기본으로 켜져 있는지
+
+등급은 "할 수 있는 일"의 윗선이에요. 하는 일의 증거는 아니에요.
+
+## 네 단계 접근 범위
+
+카탈로그는 mod가 부르는 `$` 호출 가운데 가장 넓은 것으로 단계를 정해요.
+
+| 단계 | 기준 호출 | mod | 비율 |
+| --- | --- | ---: | ---: |
+| 0 화면·기억 | `$.ui.*`, `$.store.*`, `$.audio.*` | 173 | 11.6% |
+| 1 읽기 | `$.fs.read`, `$.env.get`, `$.settings.read`, `$.session.messages` | 338 | 22.7% |
+| 2 쓰기·실행 | `$.process.run`, `$.fs.write`, `$.config.set`, `$.prompt.submit`, `$.model.*` | 782 | 52.6% |
+| 3 네트워크 | `$.http.fetch`, `$.mcp.call` | 195 | 13.1% |
+
+절반 넘게 2단계예요. 2단계만으로는 mod를 가려낼 수 없다는 뜻이에요.
+
+1단계에는 거품이 있어요. 카탈로그 규칙표에 `$.state`가 없어서, 모르는 호출로 보고 1단계로 올려요. `$.state`는 세션 동안 호스트가 들고 있는 값이고 파일이나 비밀에 닿지 않아요. 1단계 338개 중 178개가 `$.state` 때문에 올라간 경우예요. 이것을 빼면 0단계는 351개(23.6%)가 돼요.
+
+## 어떤 능력을 몇 개가 쓰나
+
+| 표시 | mod | 비율 | 붙는 호출 |
+| --- | ---: | ---: | --- |
+| 상태 저장 | 611 | 41.1% | `$.store.*` |
+| 프로세스 실행 | 594 | 39.9% | `$.process.run` |
+| 파일 읽기 | 563 | 37.8% | `$.fs.read`·`list`·`stat`·`exists` |
+| 환경 변수 읽기 | 522 | 35.1% | `$.env.get` |
+| Claude 조종 | 494 | 33.2% | `$.prompt.submit`, `$.model.*`, `$.tool.register`, `$.command.run`, `$.session.compact`, `$.turn.abort`, `$.agent.spawn` |
+| 파일 쓰기 | 252 | 16.9% | `$.fs.write` |
+| 네트워크 | 170 | 11.4% | `$.http.fetch` |
+| 대화 기록 읽기 | 159 | 10.7% | `$.session.messages` |
+| 입력창 쓰기 | 123 | 8.3% | `$.prompt.fill`·`suggest` |
+| 설정 읽기 | 88 | 5.9% | `$.settings.read` |
+| 소리 | 70 | 4.7% | `$.audio.*` |
+| 설정 바꾸기 | 37 | 2.5% | `$.config.set` |
+| MCP 서버 호출 | 30 | 2.0% | `$.mcp.call` |
+| 환경 변수 쓰기 | 21 | 1.4% | `$.env.set` |
+
+## 네임스페이스별로 보면
+
+타입 파일의 `CoreEngineInterface`가 `$`의 기본 이름표예요. 각 줄의 설명은 타입 파일의 주석을 옮긴 것이에요.
+
+| `$` 이름 | mod | 많이 쓰는 메서드 | 타입 파일이 말하는 범위 |
+| --- | ---: | --- | --- |
+| `ui` | 1,401 | `resolve` 1,090, `toast` 712, `open` 654 | 화면, 창, 토스트, 클립보드 |
+| `command` | 1,092 | `register` 1,068 | 슬래시 명령 목록과 실행 |
+| `clock` | 1,045 | `now` 785, `every` 617 | 시간과 타이머 |
+| `session` | 863 | `usage` 327, `cwd` 300, `messages` 144 | 실행 중인 세션을 데이터로 읽기, 압축, 다른 세션에 메시지 보내기 |
+| `state` | 828 | `get` 827, `set` 823 | 세션 동안 호스트가 들고 있는 값 |
+| `store` | 611 | `get` 609, `set` 607 | 사용자 설정 폴더 아래 이 mod 전용 JSON 파일 |
+| `process` | 608 | `run` 594, `spawn` 49 | 세션과 같은 사용자 권한으로 호스트 명령 실행 |
+| `fs` | 595 | `read` 474, `exists` 299, `write` 252 | 엔진 프로세스가 닿는 파일 시스템. 절대 경로는 그대로 써요 |
+| `env` | 526 | `get` 522, `set` 21 | 이 프로세스의 환경 변수. Bash·MCP 서버·실행한 명령이 물려받아요 |
+| `prompt` | 276 | `submit` 179, `fill` 111 | 사용자 턴으로 프롬프트 보내기, 입력창 읽고 쓰기 |
+| `model` | 206 | `complete` 159, `fork` 71 | 세션의 클라이언트와 자격 증명으로 모델 호출 |
+| `tool` | 172 | `register` 126, `call` 29 | 모델이 쓰는 도구 목록과 실행 |
+| `http` | 170 | `fetch` 170 | 호스트를 거친 네트워크 요청 |
+| `agent` | 102 | `list` 97, `spawn` 16 | 서브에이전트 |
+| `settings` | 88 | `read` 88 | 설정 파일과 관리 정책. `env`까지 거르지 않고 그대로 넘겨요 |
+| `config` | 75 | `list` 54, `set` 37 | `/config` 메뉴의 모든 행 |
+| `mcp` | 30 | `call` 30 | 연결된 MCP 서버의 도구 호출 |
+
+세 줄은 특히 봐 둘 만해요.
+
+- `$.settings.read`는 설정 파일의 `env` 블록과 도우미 명령을 거르지 않고 넘겨요. 설정에 API 키를 넣어 두었다면 그 값도 함께 읽혀요.
+- `$.env.get`은 변수 이름을 문자열 리터럴로만 받아요. 그래서 `claude plugin validate` 출력의 `env reads:` 줄에 mod가 읽는 변수 이름이 다 나와요. 설치 전에 그 줄을 보면 어떤 키를 읽는지 알 수 있어요.
+- `$.model.*`은 세션의 자격 증명을 그대로 써요. 206개 mod가 내 요금제나 API 키로 모델을 불러요. 그중 152개는 `turn.complete`도 걸어서 턴이 끝날 때마다 부를 수 있는 구조예요.
+
+기본 이름표에 없는 이름도 보여요. 13개 mod가 `engine.create` 이벤트로 `$`에 새 이름을 더해요. [KilimcininKorOglu/claude-code-mods](https://github.com/KilimcininKorOglu/claude-code-mods)의 [`sidebar`](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/sidebar)가 더한 `$.sidebar`를 같은 저장소 mod 36개가 부르고, [lemomo-ai/lemo-mod](https://github.com/lemomo-ai/lemo-mod)의 `$.lemo`를 16개가 불러요. 이런 mod는 이름을 더해 주는 mod가 함께 깔려 있어야 제대로 돌아요.
+
+## 도구 호출을 보는 mod
+
+`tool.call`은 엔진이 도구를 실행하기 직전에 불려요. 타입 파일에 따르면 훅은 `{ deny }`로 거절하거나, `{ result }`로 실행 없이 답하거나, 입력을 바꿔 `next`에 넘길 수 있어요. 786개 mod(52.8%)가 이 이벤트를 걸어요.
+
+| 매처 | mod |
+| --- | ---: |
+| 도구 이름 없음 (모든 도구 호출) | 464 |
+| `Bash`가 들어간 매처 | 168 |
+| `Write` | 111 |
+| `Edit` | 109 |
+| `NotebookEdit` | 54 |
+| `Read` | 34 |
+| `PowerShell` | 30 |
+| `AskUserQuestion` | 23 |
+| `Agent` | 19 |
+| `ExitPlanMode` | 15 |
+
+`Edit|Write|NotebookEdit`처럼 묶은 매처는 이름마다 셌어요. 매처가 변수라 스캐너가 읽지 못한 경우도 17개 있어요. 464개는 매처 없이 걸어서 모든 도구 호출의 입력과 결과를 봐요. 그 자리로 Bash 명령, 편집할 파일 내용, 웹 요청 주소가 다 지나가요. 도구 실행 여부를 결정하는 `tool.check`를 거는 mod도 64개 있어요.
+
+## 프롬프트를 보는 mod
+
+`prompt.submit`은 프롬프트를 보낸 직후, 턴이 시작되기 전에 불려요. 훅은 글을 바꿔 넘기거나 `{ drop }`으로 멈출 수 있어요. 이 이벤트를 거는 mod가 474개(31.9%)이고, 그중 472개는 매처가 없어서 모든 프롬프트를 봐요. 반대 방향도 있어요. `$.prompt.submit`으로 사람이 친 것처럼 프롬프트를 보내는 mod가 179개예요.
+
+모든 프롬프트나 모든 도구 호출을 보는 mod는 729개예요. 그중 95개는 네트워크 단계예요.
+
+## 네트워크 mod 195개는 어디로 보내나
+
+3단계 195개 중 170개는 `$.http.fetch`를, 25개는 `$.mcp.call`만 써요. 주소는 정적 스캔으로 알 수 없어서, 카탈로그의 설명문을 키워드로 묶어 대략 나눠 봤어요.
+
+| 묶음 | mod | 예 |
+| --- | ---: | --- |
+| 판단 모델 서비스 (Jev·TypeSafe·Laya 등) | 52 | 편집마다 보안 점검, 압축 시점 판단, 모델 고르기 |
+| 업무 서비스 | 27 | GitHub PR, Linear, Jira, Slack, Gmail, 캘린더, Home Assistant |
+| 여가 | 29 | 음악, 가사, 게임, 경기 점수, 주가 |
+| 사용량·한도 표시 | 19 | 5시간·주간 한도 막대 |
+| 다른 모델·에이전트 | 18 | Gemini, Codex, OpenAI 음성 |
+| 패키지·보안 검사 | 6 | 레지스트리·OSV.dev 조회 |
+| 기타 | 44 | 로컬 데몬, 브라우저, 메모리 저장소 등 |
+
+키워드 분류라 경계가 겹치고, 기타에는 `localhost`의 로컬 서버와만 통신하는 mod도 섞여 있어요. 그래도 두 가지는 분명해요.
+
+첫째, 네트워크 mod의 4분의 1 이상이 판단 모델에 내용을 보내요. 대부분 호스팅 서비스이고, Laya나 ollama처럼 내 컴퓨터의 로컬 모델을 쓰는 경우도 몇 개 있어요. 예를 들어 [jev-seclint](https://github.com/mako-code/gobworks/tree/main/mods/jev/jev-seclint)는 `Edit|Write|NotebookEdit` 호출마다 파일 경로와 편집 전후 코드 조각을 `api.typesafe.ai`로 보내요. 소스의 `register.tsx`에서 직접 확인했어요. 코드가 바깥 서비스로 나간다는 뜻이에요.
+
+둘째, 다른 모델 제공자로 대화를 넘기는 mod가 있어요. [gemini-review](https://github.com/KilimcininKorOglu/claude-code-mods/tree/main/plugins/gemini-review)는 설명에 "from the staged diff and the conversation"이라고 적고, 모델이 실행하는 `git commit`마다 Gemini에게 검토를 맡겨요.
+
+네트워크 mod 195개 중 115개는 환경 변수도 읽어요. 대부분 서비스 API 키를 읽는 용도예요. 46개는 대화 기록까지 읽어요.
+
+<Aside type="caution">
+  여기 숫자는 소스에서 찾은 호출이에요. 네트워크 단계가 아니어도 `$.process.run`으로 실행한 프로그램은 네트워크에 나갈 수 있어요. 반대로 네트워크 단계라도 키를 넣어야 요청을 보내는 mod가 있어요. jev-seclint는 `TYPESAFE_API_KEY`가 없으면 꺼져요.
+</Aside>
+
+## 설치 전에 보는 순서
+
+1. [디렉터리](/ko/mods/directory/)에서 단계와 표시를 봐요. 2단계는 흔하니 표시를 함께 봐요.
+2. "모든 프롬프트"나 "모든 도구 호출"을 보면서 네트워크 단계인 mod는 소스에서 `$.http.fetch`가 무엇을 보내는지 찾아요.
+3. `claude plugin validate`를 돌려 `env reads:` 줄로 어떤 키를 읽는지 봐요.
+4. `$.model.*`을 부르면 어느 이벤트에서 부르는지 봐요. 턴마다 부르면 사용량이 그만큼 늘어요.
+5. 판단 규칙은 [설치 전 안전 점검](/ko/guide/safety-checklist/)을 따라요.
+
+같은 데이터로 본 생태계 전체 모습은 [mod 생태계 현황](/ko/articles/state-of-mods-2026-10/)에 있어요.

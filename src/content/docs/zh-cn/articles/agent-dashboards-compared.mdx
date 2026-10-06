@@ -1,0 +1,113 @@
+---
+title: "Agent 仪表盘 Mod 对比"
+description: "我读了 7 个以面板展示子 agent 和工具调用的 Mod 的源码。用表格比较了数据来源、轮询周期、模型调用和外部程序依赖，本站运营者做的 ide-mod 也按同一标准列入。"
+sidebar:
+  order: 6
+---
+
+import { Aside } from '@astrojs/starlight/components'
+
+同时启动多个子 agent 后，光看 transcript 很难跟上谁在做什么。所以出现了好几个把 agent 树画在侧边面板里的 Mod。我挑了 7 个，下载仓库并阅读了钩子模块。没有安装，也没有运行。
+
+<Aside>
+7 个里的 [ide-mod](/zh-cn/mods/ide-mod/) 是本站运营者做的 Mod。我用与其他 6 个相同的项目、相同的方式记录了它，弱点也如实写下了代码里看到的样子。
+</Aside>
+
+基准：社区目录 2026-10-04 扫描，Claude Code 2.1.289。源码于 2026-10-06 阅读，API 说明以 Claude Code 2.1.290 类型文件为准。ide-mod 于 2026-10-06 首次公开，不在目录里。star 数按仓库统计。
+
+## 都用同样的材料来画
+
+7 个都用很少的几个事件来构建树。在 `agent.spawn` 里诞生 agent，通过 `tool.call` 的 `agentId` 得知谁现在在做什么，通过 `turn.complete` 或 `turn.step` 得知结束和 token。再加上定期调用 `$.agent.list()` 来校准状态。
+
+只靠 `$.agent.list()` 是不够的。按类型文件的说明，引擎清理任务后，对应 agent 会从列表里消失，而工作流里的 agent 一开始就不在列表里。所以大家都用事件另外保存自己的状态。差别在于除此之外还额外读什么、还额外做什么。
+
+## 一览
+
+| mod | 仓库（star） | 绘制位置 | 数据来源 | 重新读取周期 |
+| --- | --- | --- | --- | --- |
+| [agent-flow](https://github.com/Charlie0113-T/claude-agent-flow) | Charlie0113-T/claude-agent-flow (8) | 侧边面板、状态栏、`/flow text` | 事件、权限等待（classic 钩子）、`$.agent.list` | 仅工作时每 2 秒 |
+| [agentpane](https://github.com/xuanji86/claude-agentpane) | xuanji86/claude-agentpane (2) | 侧边面板，折叠时为带上的标签、状态栏 | 事件、各 agent 的 token、`$.session.messages` | 1 秒 |
+| [cctop](https://github.com/tomstagl/cctop/tree/main/plugin) | tomstagl/cctop (2) | 侧边面板 `/cctop-pane` | 单独的 `cctop` 程序、事件、`$.session.usage` | 面板打开时，工作中 2 秒，空闲时 10 秒 |
+| [flightdeck](https://github.com/scasella/claude-flightdeck) | scasella/claude-flightdeck (1) | 侧边面板、状态栏 | 15 种事件、权限判定、`$.session.usage` | 仅在事件到来时 |
+| [agent-shell-watch](https://github.com/apolenkov/agent-shell-watch) | apolenkov/agent-shell-watch (0) | 侧边面板、状态栏 | 事件、Bash 输出文件、Codex·Pi 会话文件 | 1~2 秒，外部文件至少 30 秒 |
+| [mission-control](https://github.com/hamzafer/claude-code-mods/tree/main/mods/mission-control) | hamzafer/claude-code-mods (54) | 面板（树·代码地图）、带上一行 | 事件、被改动文件的内容 | 工作中 1 秒 |
+| [ide-mod](https://github.com/jkf87/ide-mod) | jkf87/ide-mod（目录之外） | 面板（看板·资源管理器·查看器）、带上的字幕、状态栏 | 事件、`$.agent.list`、文件树 | 5 秒，摘要 20 秒 |
+
+| mod | 拦截·改写 | 模型调用 | 进程·文件 | 留下的内容 | 级别 | 代码行数 | 测试 | 许可证 | 阅读的提交 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| agent-flow | 无 | 无 | 无 | `$.store`：面板是否展开 | 0 | 1,850 | 有 | Apache-2.0 | `d87b255` (10-04) |
+| agentpane | 无（Stop 按钮 → `TaskStop`） | 无 | 无 | 仅会话状态 | 2 | 1,229 | 有 | MIT | `17be889` (10-04) |
+| cctop | 无（按钮只填充输入框） | 无 | 执行 `cctop query`，写显示文件 | `$.store`、`~/.cctop/pane/` | 2 | 3,395 | 有 | MIT | `6ceafc3` (10-01) |
+| flightdeck | 无 | 无 | 无 | 仅会话状态 | 1 | 1,709 | 有 | MIT | `f31daca` (10-02) |
+| agent-shell-watch | 无（stop → `TaskStop`） | 无 | 执行 `tail`，读取外部会话文件 | `$.store`：查看状态 | 2 | 4,199 | 有 | MIT（目录无法判别） | `b529d60` (10-05) |
+| mission-control | 无 | haiku，每个含编辑的回合一次 | 读取文件，启动无头 Chrome | `$TMPDIR` 图片文件 | 2 | 678 | 有 | MIT | `3719682` (10-05) |
+| ide-mod | 无 | haiku，看板可见时每 20 秒一次 | 读取文件，`node` 辅助脚本，`open` | `$.store`：请求记录 40 个会话 | 目录之外 | 2,295 | 有 | MIT | `db51e75` (10-06) |
+
+级别是目录里的访问范围（0 屏幕·记忆，1 读取，2 写入·执行，3 网络）。这是对源码做静态扫描得出的值，可能与运行结果不同。代码行数是钩子模块及其所用文件的行数，不含测试和下载内置的外部库。请把它当作安装前估算阅读量的数字。
+
+## 各 Mod 笔记
+
+### agent-flow
+
+- `$` 调用只有时钟、存储、屏幕、命令注册、`$.agent.list`。不使用文件·进程·模型·网络，所以在目录里是 0 级。
+- 它接收 `classic.PermissionRequest` 和权限通知，把正在等待权限确认的 agent 单独标出来。
+- 2 秒校对和 1 秒重绘的定时器，只在有 agent 在工作时才会启动。
+- 第一个子 agent 启动时，如果终端有 144 列以上，会自动打开一次面板。人关掉之后不会再打开。
+
+### agentpane
+
+- 点击某个 agent，会用 `$.session.messages({ agentId })` 读取该 agent 的对话，以与 Claude Code 相同的样式显示。
+- 用 `turn.step` 的用量收集各 agent 的 token 以及实际的模型·effort。
+- 点击 Stop 并再确认一次后，会通过 `$.tool.call` 调用 `TaskStop`。这就是目录给它评 2 级的原因。
+- 每秒调用一次 `$.agent.list`，即使没有 agent 也调用。最后一个 agent 结束 10 秒后会折叠面板。如果只连着桌面应用，则不会自动打开。
+
+### cctop
+
+- Mod 只是界面，数字由单独的 Rust 程序 `cctop` 产生。需要另外通过 Homebrew 或 cargo 安装。Mod 会执行 `cctop query <项目> --session <id>` 获取 JSON。
+- 注释里写着面板关闭时定时器和执行都会停止，代码也确实如此。
+- 教练画面里的按钮只用 `$.prompt.fill` 把命令填进输入框，不会发送。
+- 所有钩子都带有 `.catch`，失败时会交还给原来的流程。
+- 二进制文件我没有全部读完。只确认了 Cargo 依赖里没有 HTTP 客户端，以及可选功能 OpenTelemetry 接收器只绑定 `127.0.0.1`。
+
+### flightdeck
+
+- 15 个钩子里，除了自己的命令和面板绘制，其余都只做观察。它在 `tool.check` 里读取判定，把允许·询问·拒绝堆叠到 GATE 面板里，判定本身原样交下去。
+- 与正则（默认 `advisor|architect`）匹配的 agent 类型会被单独归为 architect，显示什么时候咨询过。
+- 不使用 `$.store`、文件、进程。会话结束后记录就消失了。
+- 默认在会话开始时打开面板。
+
+### agent-shell-watch
+
+- 重心在 Bash 调用和后台任务，而不是 agent。如果用 Bash 启动 `codex`、`pi`、`devin` 这类其他 agent CLI，它会显示耗时、输出最后一次变化的时间和判定。
+- 用 `tail -c` 读取输出文件的末尾。额度和用量从 `~/.codex/sessions/` 与 `~/.pi/agent/sessions/` 的会话文件读取。只有存在运行中的 runner，或打开了对应视图时才读，间隔至少 30 秒。
+- 测试文件有 30 个，是 7 个里最多的。代码也最长。
+
+### mission-control
+
+- 主回合里有 Edit·Write 时，回合结束会通过 `$.model.complete` 调用 haiku。它发送改动内容的一部分（Edit 是替换前后的字符串各 300 字符，Write 是前 400 字符，每个文件最多 1,500 字符），为每个文件获得一行说明。即使面板是关闭的也会调用，没有关闭它的选项。
+- 代码地图会生成 SVG，用无头 Chrome 截成 PNG。Chrome 路径固定为 `/Applications/Google Chrome.app/...`，所以在 macOS 之外画不出代码地图。它使用单独的临时配置文件。
+- 为了在代码地图里画出 import 关系，它会读取 Claude 碰过的代码文件，在前 20 万字符里查找 import。
+
+### ide-mod
+
+- 看板上的一行摘要通过 `$.model.complete` 调用 haiku。只在看板于 30 秒内绘制过时才调用，每 20 秒一次，每次最多 3 个工作中的 agent。发送的内容是角色、负责的任务、最近 12 次工具调用的一行摘要。默认开启，按 `s` 关闭，连续失败三次会自动关闭。
+- HWP·PDF 查看器用 `node` 执行 `bin/` 下的脚本，这些脚本再去调用 `pdftoppm`、`qlmanage`、`sips`。这些脚本在 `$` 之外运行，所以 `claude plugin validate` 的 `calls:` 行和目录这样的静态扫描看不到其内部行为。我亲自读过，它只做本地转换，没有网络调用。
+- `open`、`qlmanage`、`sips` 是 macOS 命令。在其他操作系统上，预览功能无法工作。
+- 每个会话的请求记录会存进 `$.store`，只保留最近 40 个会话。修改韩语稿件文件时会运行文体检查。界面文案只有韩语。
+- 钩子模块是单个文件 1,493 行，比 6 个里任何一个 Mod 都更集中在一个文件里。
+
+<Aside type="caution">
+会调用模型的仪表盘有 mission-control 和 ide-mod 两个。两者都用会话的账号调用 Anthropic API，并计入用量。发送的内容里含有工具输入和被修改代码的一部分。
+</Aside>
+
+## 怎么选
+
+- 需要一棵什么都不读、不执行的树，选 **agent-flow**。等待权限确认的 agent 会单独显示。
+- 想在面板里打开子 agent 的对话并让它停下，选 **agentpane**。
+- 想在一个画面里看到权限判定、上下文、咨询记录，又不想保存，选 **flightdeck**。
+- 想像 btop 那样深入查看上下文·费用·工具耗时，并且不介意另外安装程序，选 **cctop**。
+- 用 Bash 运行 Codex 或 Pi 等其他 CLI 来分工，选 **agent-shell-watch**。
+- 想用地图查看 Claude 碰过的文件和 import 关系的 macOS 用户，选 **mission-control**。请把每次编辑都会调用 haiku 这一点考虑进去。
+- 想在同一个窗口里看 HWP·HWPX·PDF，并且韩语界面用着顺手，选 **ide-mod**。在 macOS 上运行得最好。
+
+无论选哪个 Mod，安装前都请先过一遍[安装前的安全检查](/zh-cn/guide/safety-checklist/)，其他候选请到 [Mod 目录](/zh-cn/mods/directory/)里找。

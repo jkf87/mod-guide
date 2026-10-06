@@ -1,0 +1,353 @@
+---
+title: "Pas à pas : intercepter les commandes Bash dangereuses"
+description: Créez, avec 31 tests, un mod qui inspecte dans un hook tool.call les commandes Bash que Claude s'apprête à exécuter, bloque celles qui sont irréversibles et demande confirmation à l'utilisateur pour celles qui peuvent être de faux positifs.
+sidebar:
+  order: 8
+---
+
+import { Aside, Steps } from '@astrojs/starlight/components'
+
+Vous allez créer un mod qui intercepte le moment où Claude s'apprête à exécuter `rm -rf ~` ou `curl … | sh`. Le verdict suit trois voies.
+
+| Verdict | Commande | Raison |
+| --- | --- | --- |
+| Bloquer | `rm -r` ou `rm -rf` sur `/`, `/*`, `~`, `$HOME` | Irréversible, et presque aucun faux positif |
+| Bloquer | Push de `--force`, `-f`, `--force-with-lease` ou `+main` sur `main` ou `master` | Efface aussi les commits des autres |
+| Bloquer | Passer directement la sortie de `curl` ou `wget` à `sh` ou `bash`, `bash <(curl …)` | Exécute un script que personne n'a lu |
+| Demander | `git reset --hard` | Les modifications non validées disparaissent, mais l'usage volontaire est fréquent |
+| Demander | Commande contenant `DROP TABLE` | Une recherche comme `grep "DROP TABLE" migrations/` est aussi interceptée |
+
+Version de référence : code qui a passé `claude plugin validate` et `claude plugin test` sur Claude Code 2.1.291. L'API a été recoupée avec la déclaration de types 2.1.290 (`claude-code.d.ts`).
+
+## Ce qu'un hook tool.call peut renvoyer
+
+Avant de construire, voici ce que j'ai vérifié dans la déclaration de types. Selon la référence, une réponse mal formée compte comme un échec du hook. Quand un hook de garde échoue, l'outil s'exécute quand même.
+
+- La réponse d'un hook `tool.call` est un unique `ToolCallResult`. `{ deny: 'raison' }` refuse l'appel, et le modèle reçoit ce texte comme résultat d'erreur. `{ result }` répond à la place de l'outil. `next(e)` passe la main aux hooks du dessous et au moteur (boîte de confirmation des permissions, exécution de l'outil).
+- `tool.call` n'a pas de réponse `ask`. `ask` existe à deux endroits. Le premier est `{ decision: 'ask' }` dans le hook `tool.check`, qui s'en remet au décideur du mode en cours. La déclaration de types décrit ce décideur comme « the dialog, the auto-mode classifier, a headless host » : en mode automatique, c'est donc le classificateur qui peut répondre à la place de l'utilisateur. Le second est `{ ask: 'raison' }` dans `classic.PreToolUse`, un événement de hook de configuration.
+- La fonction pour interroger directement l'utilisateur est `$.ui.ask(question, options)`. Elle ouvre la boîte de dialogue AskUserQuestion du moteur et renvoie le libellé choisi. Si la fenêtre est fermée, ou s'il n'y a personne à qui demander (comme avec `claude -p`), elle est rejetée (reject).
+
+Ce mod utilise `$.ui.ask` pour qu'une personne voie forcément la question. Le `.catch` ci-dessous reçoit le rejet et le transforme en refus. D'après la déclaration de types, dans une exécution avec `-p`, toutes les commandes à confirmer sont bloquées. Ce chemin n'a pas été essayé directement en session ; il n'a été vérifié dans les tests que par la fermeture de la fenêtre.
+
+## Construction
+
+<Steps>
+
+1. **Écrivez le manifeste et l'emplacement des hooks.**
+
+   ```json title=".claude-plugin/plugin.json"
+   {
+     "name": "bash-guard",
+     "version": "0.1.0",
+     "description": "되돌릴 수 없는 Bash 명령을 막고, 오탐이 있을 수 있는 명령은 사람에게 묻는다",
+     "author": { "name": "mods.guide" }
+   }
+   ```
+
+   La description signifie : « Bloque les commandes Bash irréversibles et demande à l'utilisateur pour celles qui peuvent être de faux positifs ».
+
+   ```json title="hooks/hooks.json"
+   { "modules": ["./register.ts"] }
+   ```
+
+2. **Écrivez le module de hooks.** La fonction de verdict `judge` et l'enregistrement des hooks tiennent dans un seul fichier.
+
+   ```ts title="hooks/register.ts"
+   import type { Register } from 'claude-code'
+
+   export type Verdict = { kind: 'deny' | 'ask'; reason: string }
+
+   const SEPARATORS = /;|&&|\|\||\||\n/
+   const PIPE_TO_SHELL = /\b(curl|wget)\b[^|;&]*\|\s*(sudo\s+)?(ba|z|da|k)?sh\b/
+   const SHELL_FROM_URL = /\b(ba|z)?sh\s+(-c\s+["']?\$\(|<\()\s*(curl|wget)\b/
+   const DROP_TABLE = /\bdrop\s+table\b/i
+   const DANGEROUS_RM_TARGETS = new Set(['/', '/*', '~', '~/', '~/*', '$HOME', '$HOME/', '$HOME/*', '${HOME}', '${HOME}/'])
+   const PROTECTED_BRANCHES = new Set(['main', 'master'])
+
+   // 명령 한 토막의 단어들. 따옴표는 벗기고, 앞에 붙은 sudo·env 대입은 건너뛴다.
+   function words(segment: string): string[] {
+     const all = segment.trim().split(/\s+/).filter(w => w !== '').map(w => w.replace(/^["']|["']$/g, ''))
+     let i = 0
+     while (i < all.length && (all[i] === 'sudo' || /^[A-Za-z_][A-Za-z0-9_]*=/.test(all[i] ?? ''))) i += 1
+     return all.slice(i)
+   }
+
+   function isRecursive(flag: string): boolean {
+     if (flag === '--recursive') return true
+     return /^-[a-zA-Z]+$/.test(flag) && /[rR]/.test(flag)
+   }
+
+   function rmHitsRoot(w: string[]): boolean {
+     if (w[0] !== 'rm') return false
+     const flags = w.slice(1).filter(x => x.startsWith('-'))
+     const targets = w.slice(1).filter(x => !x.startsWith('-'))
+     return flags.some(isRecursive) && targets.some(t => DANGEROUS_RM_TARGETS.has(t))
+   }
+
+   function forcePushToProtected(w: string[]): boolean {
+     if (w[0] !== 'git' || !w.includes('push')) return false
+     const rest = w.slice(w.indexOf('push') + 1)
+     const forced = rest.some(x => x === '--force' || x === '-f' || x.startsWith('--force-with-lease'))
+     const refs = rest.filter(x => !x.startsWith('-'))
+     const branch = (ref: string) => ref.replace(/^\+/, '').split(':').pop() ?? ''
+     const plusRef = refs.some(r => r.startsWith('+') && PROTECTED_BRANCHES.has(branch(r)))
+     return plusRef || (forced && refs.some(r => PROTECTED_BRANCHES.has(branch(r))))
+   }
+
+   function hardReset(w: string[]): boolean {
+     return w[0] === 'git' && w.includes('reset') && w.includes('--hard')
+   }
+
+   export function judge(command: string): Verdict | undefined {
+     if (PIPE_TO_SHELL.test(command) || SHELL_FROM_URL.test(command)) {
+       return { kind: 'deny', reason: '내려받은 스크립트를 바로 셸로 실행하는 명령이에요.' }
+     }
+     const segments = command.split(SEPARATORS).map(words)
+     if (segments.some(rmHitsRoot)) {
+       return { kind: 'deny', reason: '루트(/)나 홈(~)을 통째로 지우는 rm이에요.' }
+     }
+     if (segments.some(forcePushToProtected)) {
+       return { kind: 'deny', reason: 'main·master 브랜치에 강제 푸시하는 명령이에요.' }
+     }
+     if (segments.some(hardReset)) {
+       return { kind: 'ask', reason: 'git reset --hard는 커밋하지 않은 변경을 지워요.' }
+     }
+     if (DROP_TABLE.test(command)) {
+       return { kind: 'ask', reason: 'DROP TABLE이 들어 있어요.' }
+     }
+     return undefined
+   }
+
+   export const register: Register = on => {
+     on('tool.call', { tool: 'Bash' }, async ($, e, next) => {
+       const verdict = judge(e.command)
+       if (verdict === undefined) return next(e)
+       if (verdict.kind === 'deny') return { deny: `${$.plugin.name}: ${verdict.reason}` }
+
+       const answer = await $.ui.ask(`${verdict.reason} 그래도 실행할까요?`, {
+         header: 'bash-guard',
+         options: ['실행', '취소'],
+       })
+       return answer === '실행' ? next(e) : { deny: `${$.plugin.name}: 사람이 취소했어요. ${verdict.reason}` }
+     }).catch(($, e, next) =>
+       next.called ? next(e) : { deny: `${$.plugin.name}: 확인하지 못해서 막았어요.` },
+     )
+   }
+   ```
+
+   Les messages en coréen sont des textes affichés. Les raisons de refus signifient, dans l'ordre : « Cette commande exécute directement dans le shell un script téléchargé. », « C'est un rm qui efface entièrement la racine (/) ou le répertoire personnel (~). », « Cette commande force un push sur la branche main ou master. », « git reset --hard efface les modifications non validées. » et « Contient DROP TABLE. ». La question est « … Voulez-vous l'exécuter quand même ? » avec les choix `실행` (exécuter) et `취소` (annuler). Les autres messages signifient « annulé par l'utilisateur » et « n'a pas pu être vérifié, donc bloqué ».
+
+</Steps>
+
+## Explication partie par partie
+
+**Le verdict est isolé dans une fonction pure.** `judge(command)` ne reçoit qu'une chaîne et renvoie un verdict. Comme elle n'utilise pas `$`, un test peut l'appeler directement et essayer des dizaines de motifs. Le validateur ne suit `$` que dans les fonctions du même fichier. Le code qui utilise `$` reste donc dans `register.ts`, et seules des fonctions pures sont exportées.
+
+**On découpe la commande en tronçons.** On sépare sur `;`, `&&`, `||`, `|` et les sauts de ligne, puis on regarde le premier mot de chaque tronçon. Les `sudo` initiaux et les affectations de variables d'environnement comme `X=1` sont sautés. Ainsi `echo "rm -rf /"` passe, car son premier mot est `echo`, tandis que `cd /tmp && rm -rf ~/` est arrêté au deuxième tronçon. La vérification des pipes (`curl … | sh`) se fait sur la chaîne entière avant le découpage, car couper sur le pipe séparerait l'avant et l'après.
+
+**Pour rm, on regarde ensemble le drapeau récursif et la cible.** On ne bloque que si l'un de `-rf`, `-fr`, `-r -f` ou `--recursive` est présent et que la cible est de la famille `/`, `/*`, `~`, `~/`, `$HOME`. `rm -rf ./build` ou `rm -rf ~/projects/app/node_modules` s'exécutent normalement. À l'inverse, une suppression récursive est bloquée même sans `-f`.
+
+**Pour push, on regarde ensemble le drapeau de force et la branche.** `git push origin main` est un push ordinaire et passe ; `git push --force origin feature/login` passe aussi, car `feature/login` n'est pas dans la liste des branches protégées. Une référence `+main` est un push forcé même sans drapeau, donc elle est bloquée. Ce qui suit les deux-points, comme dans `HEAD:main`, est lu comme la branche.
+
+**En cas de refus, indiquez la raison.** Le texte de `{ deny }` arrive au modèle comme résultat d'erreur de l'outil. En préfixant avec `$.plugin.name`, le modèle comme l'utilisateur savent quel mod a bloqué. L'exemple de la référence a la même forme.
+
+**Le `.catch` échoue du côté fermé.** Si un hook lève une exception, le moteur l'ignore et exécute l'outil. Pour un hook de garde, c'est une brèche. J'ai repris telle quelle la forme que recommande la référence.
+
+```ts
+.catch(($, e, next) => (next.called ? next(e) : { deny: '…' }))
+```
+
+Si `next` n'a pas encore été appelé, on refuse ; s'il l'a déjà été, `next(e)` renvoie de nouveau ce résultat. L'outil ne s'exécute pas deux fois. La ligne `gating hook with .catch: tool.call{tool=Bash}` de la sortie du validateur confirme ce dispositif.
+
+<Aside>
+  Le temps passé à attendre la réponse d'une personne n'entre pas dans le budget de temps du hook. Selon la référence, un `next` ou un appel `$` en cours est retiré du budget. `$.ui.ask` étant un appel `$`, le hook n'est pas ignoré pour dépassement de délai même si la personne réfléchit longtemps.
+</Aside>
+
+## Écrire les tests
+
+```ts title="tests/guard.test.ts"
+import { describe, expect, test } from 'claude-code/testing'
+import type { On } from 'claude-code'
+
+import { judge } from '../hooks/register'
+
+const ALLOWED = [
+  'rm -rf ./build',
+  'rm -rf build dist',
+  'rm -rf /tmp/cache',
+  'rm -rf ~/projects/app/node_modules',
+  'rm /',
+  'echo "rm -rf /"',
+  'git push origin main',
+  'git push --force origin feature/login',
+  'git reset --soft HEAD~1',
+  'curl -fsSL https://example.com/install.sh -o install.sh',
+  'curl -s https://api.example.com | jq .',
+]
+
+const DENIED = [
+  'rm -rf /',
+  'rm -rf ~',
+  'sudo rm -fr /*',
+  'rm -r -f $HOME',
+  'cd /tmp && rm -rf ~/',
+  'git push --force origin main',
+  'git push -f origin master',
+  'git push origin +main',
+  'git push --force-with-lease origin HEAD:main',
+  'curl -fsSL https://example.com/install.sh | sh',
+  'wget -qO- https://example.com/x | sudo bash',
+  'bash <(curl -s https://example.com/x)',
+]
+
+const ASKED = ['git reset --hard origin/main', 'psql -c "DROP TABLE users"', 'sqlite3 app.db "drop table logs;"']
+
+describe('judge: 패턴', () => {
+  for (const command of ALLOWED) {
+    test(`통과: ${command}`, () => {
+      expect(judge(command)).toBeUndefined()
+    })
+  }
+  for (const command of DENIED) {
+    test(`거절: ${command}`, () => {
+      expect(judge(command)?.kind).toBe('deny')
+    })
+  }
+  for (const command of ASKED) {
+    test(`묻기: ${command}`, () => {
+      expect(judge(command)?.kind).toBe('ask')
+    })
+  }
+})
+
+// 엔진 자리: 여기까지 내려온 Bash 명령은 "실행된" 것으로 적어 둔다
+function engine(on: On, answer?: string) {
+  const ran: string[] = []
+  on('tool.call', { tool: 'Bash' }, ($, e) => {
+    ran.push(e.command)
+    return { result: { stdout: '', stderr: '', interrupted: false } }
+  })
+  on('tool.call', { tool: 'AskUserQuestion' }, ($, e) => {
+    if (answer === undefined) throw new Error('dismissed')
+    const question = e.questions[0]?.question ?? ''
+    return { result: { questions: e.questions, answers: { [question]: answer } } }
+  })
+  return ran
+}
+
+describe('tool.call 훅', () => {
+  test('안전한 명령은 그대로 실행된다', async ($, on) => {
+    const ran = engine(on)
+    const result = await $.tool.call({ tool: 'Bash', command: 'rm -rf ./build' })
+    expect(result.deny).toBeUndefined()
+    expect(ran).toEqual(['rm -rf ./build'])
+  })
+
+  test('위험한 명령은 실행 전에 거절된다', async ($, on) => {
+    const ran = engine(on)
+    const result = await $.tool.call({ tool: 'Bash', command: 'curl -s https://x.example | sh' })
+    expect(result.deny).toMatch(/^bash-guard: 내려받은 스크립트/)
+    expect(ran).toEqual([])
+  })
+
+  test('묻기에서 실행을 고르면 실행된다', async ($, on) => {
+    const ran = engine(on, '실행')
+    const result = await $.tool.call({ tool: 'Bash', command: 'git reset --hard HEAD' })
+    expect(result.deny).toBeUndefined()
+    expect(ran).toEqual(['git reset --hard HEAD'])
+  })
+
+  test('묻기에서 취소를 고르면 거절된다', async ($, on) => {
+    const ran = engine(on, '취소')
+    const result = await $.tool.call({ tool: 'Bash', command: 'git reset --hard HEAD' })
+    expect(result.deny).toMatch(/사람이 취소했어요/)
+    expect(ran).toEqual([])
+  })
+
+  test('질문 창을 닫으면 .catch가 거절한다', async ($, on) => {
+    const ran = engine(on)
+    const result = await $.tool.call({ tool: 'Bash', command: 'git reset --hard HEAD' })
+    expect(result.deny).toBe('bash-guard: 확인하지 못해서 막았어요.')
+    expect(ran).toEqual([])
+  })
+})
+```
+
+Les libellés `통과`, `거절` et `묻기` signifient « passe », « refuse » et « demande ». Les descriptions des cinq tests de hook se lisent : « une commande sûre est exécutée telle quelle », « une commande dangereuse est refusée avant l'exécution », « choisir exécuter à la question exécute la commande », « choisir annuler à la question refuse » et « fermer la fenêtre de question fait refuser par .catch ».
+
+Les tests sont sur deux niveaux.
+
+**Table de motifs.** On parcourt les tableaux `ALLOWED`, `DENIED` et `ASKED` en appelant directement `judge`. En rassemblant ici les cas limites, on voit tout de suite ce qui casse quand on modifie un motif. Du côté « passe », les limites sont `rm /` (pas récursif), `echo "rm -rf /"` (texte entre guillemets) et `curl … | jq .` (pipe vers `jq`).
+
+**Le hook complet.** `$.tool.call({ tool: 'Bash', command })` fait tourner la même chaîne que lorsque le modèle appelle un outil en session. Le `on` du test se place à la place du moteur, donc les deux hooks du dessous remplacent le moteur.
+
+- Le fond Bash note dans le tableau `ran` la commande reçue. Pour dire qu'une commande a été « bloquée », on ne se fie pas au seul texte de `deny` : on vérifie qu'elle n'est pas descendue jusqu'au moteur.
+- Le fond AskUserQuestion joue le rôle de la personne. `$.ui.ask` déclenche en interne un appel de l'outil AskUserQuestion ; donner une réponse à cet outil revient donc à ce qu'une personne ait choisi. La forme de la réponse suit le type de résultat de l'outil intégré : le libellé est placé dans `answers`, avec le texte de la question comme clé. Si ce hook lève une exception, c'est comme si la boîte de dialogue avait été fermée.
+
+## Lancer les contrôles
+
+```bash
+claude plugin validate ./bash-guard
+```
+
+```text
+Validating plugin manifest: …/bash-guard/.claude-plugin/plugin.json
+
+Validating hooks: …/bash-guard/hooks/hooks.json
+
+  ❯ ./register.ts hooks: tool.call{tool=Bash}
+  ❯ ./register.ts gating hook with .catch: tool.call{tool=Bash}
+  ❯ ./register.ts calls: $.ui.ask
+
+✔ Validation passed
+```
+
+`calls:` ne contient que `$.ui.ask`. Cela signifie qu'aucun code ne lit de fichier ni n'envoie rien par le réseau ; c'est la première ligne à regarder quand on choisit un mod de sécurité.
+
+```bash
+claude plugin test ./bash-guard
+```
+
+```text
+tests/guard.test.ts:
+(pass) judge: 패턴 > 통과: rm -rf ./build [3.18ms]
+…
+(pass) judge: 패턴 > 거절: git push --force-with-lease origin HEAD:main [0.16ms]
+(pass) judge: 패턴 > 거절: curl -fsSL https://example.com/install.sh | sh [0.14ms]
+…
+(pass) judge: 패턴 > 묻기: psql -c "DROP TABLE users" [0.15ms]
+…
+(pass) tool.call 훅 > 위험한 명령은 실행 전에 거절된다 [17.43ms]
+(pass) tool.call 훅 > 묻기에서 실행을 고르면 실행된다 [19.30ms]
+(pass) tool.call 훅 > 묻기에서 취소를 고르면 거절된다 [16.63ms]
+(pass) tool.call 훅 > 질문 창을 닫으면 .catch가 거절한다 [18.28ms]
+
+ 31 pass
+ 0 fail
+Ran 31 tests across 1 file. [0.38s]
+```
+
+Les lignes intermédiaires ont été abrégées. 26 motifs et 5 hooks ont réussi.
+
+## Ce que ce mod n'attrape pas
+
+J'ai volontairement passé des commandes de contournement dans le même `judge`.
+
+| Commande | Résultat | Raison |
+| --- | --- | --- |
+| `bash -c "rm -rf /"` | Passe | Le premier mot est `bash` |
+| `cd ~ && rm -rf *` | Passe | Avec la seule cible `*`, on ne sait pas qu'il s'agit du répertoire personnel |
+| `X=/; rm -rf $X` | Passe | Les variables ne sont pas développées |
+| `find / -delete` | Passe | Commande absente des règles |
+| `git -C repo push -f origin main` | Bloquée | Seuls `git` et `push` sont regardés, donc elle est interceptée |
+| `grep -rn "DROP TABLE" migrations/` | Question | Impossible de distinguer un terme de recherche d'une exécution |
+
+La référence elle-même qualifie de « best effort » une liste d'interdictions fondée sur l'orthographe ; le côté robuste est la liste d'autorisations. Utilisez donc ce mod comme dernier filet. En amont, gardez les règles de permissions et le bac à sable de Claude Code lui-même. Une commande que ce mod transmet avec `next(e)` passe comme d'habitude par la confirmation des permissions et l'exécution de l'outil. Les points à vérifier avant l'installation figurent dans le [contrôle de sécurité](/fr/guide/safety-checklist/), et une comparaison de mods communautaires qui font un travail similaire dans [Comparatif des mods de sécurité](/fr/articles/safety-mods-compared/).
+
+## L'essayer dans une session
+
+```bash
+claude --plugin-dir ./bash-guard
+```
+
+Une fois le mod activé, commencez par demander à Claude une tâche ordinaire, comme « supprime le dossier de build », pour vérifier qu'elle passe. Les hooks en échec et les résultats refusés sont consignés dans le journal de débogage. La façon de le lire est dans [Tests et débogage](/fr/articles/testing-and-debugging/).
