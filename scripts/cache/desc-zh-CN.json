@@ -2699,5 +2699,10 @@
  "Dispatch Pilot：一个在 Claude 之外的决策模型（Jev 或 Clef，二选一）在你每次发消息时决定主 agent 这一轮的 effort，每一步都按这一档发出，一轮进行中每隔几步再判断一次；也为主 agent 派出的每个 agent 和 Workflow 脚本里的每个 agent 按 Artificial Analysis 的基准选模型和 effort（sonnet 和 opus 至少 medium）。主 agent 的模型从不改变，prompt…": "Dispatch Pilot：一个在 Claude 之外的决策模型（Jev 或 Clef，二选一）在你每次发消息时决定主 agent 这一轮的 effort，每一步都按这一档发出，一轮进行中每隔几步再判断一次；也为主 agent 派出的每个 agent 和 Workflow 脚本里的每个 agent 按 Artificial Analysis 的基准选模型和 effort（sonnet 和 opus 至少 medium）。主 agent 的模型从不改变，prompt…",
  "Gives every subagent a themed name in the task tree (display only; the agent is not told its name).": "为任务树中的每个子 agent 取一个契合主题的名字（仅用于显示，不会告知 agent 它的名字）。",
  "A workspace pane for Claude Code: agents and worktrees, checkpoints, notes, changes and memory files in one tabbed pane": "Claude Code 的工作区窗格：agent 与 worktree、检查点、笔记、变更和记忆文件，集中在一个带标签页的窗格中",
- "Renders display math ($$…$$, \\[…\\], equation/align/gather/multline) in Claude Code's terminal as images, with MathJax bundled: nothing to install": "在 Claude Code 终端中将行间公式（$$…$$、\\[…\\]、equation/align/gather/multline）渲染为图片，已内置 MathJax：无需安装任何东西"
+ "Renders display math ($$…$$, \\[…\\], equation/align/gather/multline) in Claude Code's terminal as images, with MathJax bundled: nothing to install": "在 Claude Code 终端中将行间公式（$$…$$、\\[…\\]、equation/align/gather/multline）渲染为图片，已内置 MathJax：无需安装任何东西",
+ "Fuzzy-pick a model + effort combo, with favorites, aliases and recents: /pick": "通过模糊搜索选择模型与 effort 组合，支持收藏、别名和最近使用：/pick",
+ "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.": "在 Claude Code 提示符上方显示实时股票行情条：Claude 工作时即可查看台股和美股报价。",
+ "Follow your Codex CLI session live in a Claude Code pane; relay the current exchange to Claude, or Claude's answer to Codex, one keypress and one confirmation at a time.": "在 Claude Code 面板中实时跟随你的 Codex CLI 会话；只需按一次键并确认一次，即可把当前对话转发给 Claude，或把 Claude 的回答转发给 Codex。",
+ "One sentence: what the mod does and how you use it.": "用一句话说明这个 Mod 的功能和用法。",
+ "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "把提示词作为会话草稿保存起来。在提示词末尾输入 ;; 即可保存而不发送，之后用 /drafts 将其放回输入框。"
 }

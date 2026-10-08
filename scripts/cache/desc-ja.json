@@ -2699,5 +2699,10 @@
  "Dispatch Pilot：一个在 Claude 之外的决策模型（Jev 或 Clef，二选一）在你每次发消息时决定主 agent 这一轮的 effort，每一步都按这一档发出，一轮进行中每隔几步再判断一次；也为主 agent 派出的每个 agent 和 Workflow 脚本里的每个 agent 按 Artificial Analysis 的基准选模型和 effort（sonnet 和 opus 至少 medium）。主 agent 的模型从不改变，prompt…": "Dispatch Pilot：Claude の外にある判断モデル（Jev か Clef のどちらか）が、メッセージを送るたびにメインエージェントのそのターンの effort を決め、すべてのステップをその設定で実行します。ターンの途中でも数ステップごとに再判断します。また、メインエージェントが起動する各エージェントと Workflow スクリプト内の各エージェントについて、Artificial Analysis のベンチマークに基づいてモデルと effort を選びます（sonnet と opus は最低でも medium）。メインエージェントのモデルは変わらず、prompt…",
  "Gives every subagent a themed name in the task tree (display only; the agent is not told its name).": "タスクツリー内のすべてのサブエージェントにテーマに沿った名前を付けます（表示のみで、エージェント自身には名前は伝えられません）。",
  "A workspace pane for Claude Code: agents and worktrees, checkpoints, notes, changes and memory files in one tabbed pane": "Claude Code 用のワークスペースペイン：エージェントとワークツリー、チェックポイント、ノート、変更、メモリファイルをひとつのタブ付きペインにまとめます",
- "Renders display math ($$…$$, \\[…\\], equation/align/gather/multline) in Claude Code's terminal as images, with MathJax bundled: nothing to install": "Claude Code のターミナルでディスプレイ数式（$$…$$、\\[…\\]、equation/align/gather/multline）を画像として表示します。MathJax を同梱しているので、インストール不要です"
+ "Renders display math ($$…$$, \\[…\\], equation/align/gather/multline) in Claude Code's terminal as images, with MathJax bundled: nothing to install": "Claude Code のターミナルでディスプレイ数式（$$…$$、\\[…\\]、equation/align/gather/multline）を画像として表示します。MathJax を同梱しているので、インストール不要です",
+ "Fuzzy-pick a model + effort combo, with favorites, aliases and recents: /pick": "モデルとeffortの組み合わせをあいまい検索で選べます。お気に入り・エイリアス・最近の履歴に対応: /pick",
+ "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.": "Claude Codeのプロンプト上にリアルタイム株価バンドを表示します。Claudeの作業中に台湾と米国の株価をチェックできます。",
+ "Follow your Codex CLI session live in a Claude Code pane; relay the current exchange to Claude, or Claude's answer to Codex, one keypress and one confirmation at a time.": "Claude CodeのペインでCodex CLIセッションをリアルタイムに追えます。現在のやり取りをClaudeへ、またはClaudeの回答をCodexへ、キー1回と確認1回で中継します。",
+ "One sentence: what the mod does and how you use it.": "このModが何をするか、どう使うかを1文で説明します。",
+ "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "プロンプトをセッションの下書きとして取っておけます。プロンプトの末尾に;;を付けると送信せずに保存され、/draftsで入力欄に戻せます。"
 }
