@@ -1,18 +1,18 @@
 ---
 title: ide-mod
-description: A mod that opens an agent board, file explorer, and HWP, HWPX, and PDF viewers in one pane inside Claude Code.
+description: A mod that opens an agent board, a file explorer, HWP, HWPX, and PDF viewers, system status, and Claude, Codex, and Antigravity usage limits in one pane inside Claude Code.
 sidebar:
   order: 3
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components'
 
-[ide-mod](https://github.com/jkf87/ide-mod) is a mod published by the author of this guide. The **agent board** sits at the top of the pane, and a **file tree with tabbed editor** sits below it.
+[ide-mod](https://github.com/jkf87/ide-mod) is a mod published by the author of this guide. The top of the pane holds **system status and the agent board**, and the bottom holds a **file tree and tabbed editor**. Above the prompt, a **Claude, Codex, and Antigravity usage band** appears. The pane opens by itself when you start a new session.
 
 ```text
-에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+시스템  메모리 ███████░ 27.0GB/32.0GB · 압력 경고  스왑 22.9GB  디스크 ████████ 94% · 남은 102GB
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남   세션 3132694c  i: 핸드오프
 ● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
-  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
 ├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
 └─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
 ──────────────────────────────────────────────────────────────
@@ -20,11 +20,15 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 ▾ src/                        │  1 import { login } from './auth'
     ▾ auth/                ●  │  2
         login.ts           ●  │  3 export const answer = 42
+
+Claude       5시간 █░░░░░░░░░   9% 3시간 후   주간 ██████░░░░  64% 2일 23시간 후
+Codex        주간 ███░░░░░░░  27% 5일 13시간 후
+Antigravity  Gemini 5시간 ░░░░░░░░░░   3% 2시간 53분 후   Gemini 주간 █░░░░░░░░░   6%
 ```
 
-![ide-mod demo: IDE pane, code and HWPX document view, subagent board, request history](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
+The mod's UI text is in Korean, as in the mockup above.
 
-The UI text in this mockup is Korean, as it appears in the real mod. Roughly: "Agents" (header), "Main" (the main agent), "Summary" (a one-line summary), "working" and "done", "tools 14" (14 tool calls), "Fix the login bug" (the main task), "Investigating the auth flow by splitting it across subagents" (the summary), "Find auth code", and "Write tests".
+![ide-mod demo: IDE pane, code and HWPX document view, subagent board, request history](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
 
 ## Install
 
@@ -38,26 +42,49 @@ The UI text in this mockup is Korean, as it appears in the real mod. Roughly: "A
 
 2. When asked whether to add the marketplace, answer `y` and choose user as the scope.
 
-3. Open the pane with `/ide`. If you don't see it, run `/reload-plugins`.
+3. The IDE pane opens by itself in a new session. In the current session, open it with `/ide`. If you don't see it, run `/reload-plugins`.
 
 </Steps>
 
+When a new version comes out, run `/reload-plugins` in the terminal, or `claude plugin update ide-mod@ide-mod` in the desktop app, then open a new session. The desktop app reads the copy it made at install time, so the update only takes effect once it has pulled it.
+
 ## What it does
 
-- **Agent board**: Shows the main agent and subagents as a tree of who launched whom. It displays the model, effort, assigned task, current activity, and elapsed time. Human-readable task descriptions are green, and current activity is yellow.
+- **Agent board**: Shows the main agent and subagents as a tree of who launched whom. It displays the model, effort, assigned task, current activity, and elapsed time. Tasks a person assigned are green, and current activity is yellow. Every 20 seconds, haiku adds a one-line summary for each agent.
+- **System status** (top of the board): Shows memory use and memory pressure, swap, and disk usage on one line. It turns yellow or red when pressure is at warning or critical, or when swap or disk is nearly full. Press `z` to see the 6 apps using the most memory.
+- **Usage band** (above the prompt): Shows Claude's 5-hour, weekly, and per-model weekly limits plus context usage, Codex limits, and Antigravity's Gemini and Claude/GPT limits, one line per source. Above 70% it turns yellow, above 90% red. `/limits compact` makes it one line, and `/limits off` hides it.
 - **Explorer**: A folder tree and up to 8 tabs. It has syntax highlighting, Markdown rendering, and a `●` mark on files Claude edited.
 - **HWP, HWPX, and PDF viewer**: Draws pages with [rhwp](https://github.com/edwardkim/rhwp) and [pdf.js](https://github.com/mozilla/pdf.js). In terminals without graphics, it shows a text grid that keeps table borders and alignment. In kitty and Ghostty-family terminals, it shows actual page images.
-- **Request history** (`q`): Keeps the requests you sent this session, along with their status. It stays even after you reopen the session.
+- **Request history** (`q`): Collects the requests you sent this session, in full. Background task notifications and messages from other sessions are left out. It stays even after you reopen the session, and `c` copies everything.
+- **Handoff** (`i`): The board shows the session ID. Press `i` to see the other Claude sessions that are open, plus a handoff text (session ID, transcript path, the `claude --resume` command, and the requests you sent). Select a session to send it there directly, or press `c` to copy it and paste it into another agent such as Codex. You can also send it with `/handoff <session name> [note]`.
 - **Lecture captions** (`/lecture`): Shows what Claude is doing above the prompt in plain sentences.
 - **Style gate** (`/style-gate`): Counts AI-sounding patterns in a Korean manuscript and rules pass, warn, or stop.
 
+## Commands
+
+| Command | What it does |
+|---|---|
+| `/ide [path]` | Opens the IDE pane |
+| `/ide auto on\|off` | Sets whether the pane opens by itself in every new session (on by default) |
+| `/open <path>` | Opens a folder or file in the pane |
+| `/limits [full\|compact\|off\|refresh]` | Changes the look of the usage band or refetches it |
+| `/handoff [session name] [note]` | Shows the handoff text or sends it to another session |
+| `/lecture [on\|off]` | Lecture captions |
+| `/style-gate [file\|on\|off]` | Style gate |
+
 ## Access scope
 
-This mod reads files (explorer and viewers), and it runs Node.js and an image conversion program to draw documents. Every 20 seconds the board's one-line summary sends recent agent activity to haiku to summarise it. It is on by default and `s` turns it off. Apart from that model call (Anthropic's API, on your account), it sends no data over the network. The source is a single file, `hooks/register.tsx`, so you can read all of it before installing.
+Here is what this mod can reach, following the [safety checklist](/en/guide/safety-checklist/).
+
+- **File reading**: The explorer and document viewers read files in the working folder. Handoff looks up the path of the session transcript file.
+- **Running programs**: To draw documents it runs Node.js and an image conversion program; for the system line it runs `sysctl`, `vm_stat`, `df`, and `ps`; for usage limits it runs `codex app-server` and `agy`. Codex and Antigravity ask their own services for usage with their own logins.
+- **Network**: Every minute it fetches Claude usage limits from Anthropic's usage API. It uses the session's credential handle, so the mod never sees the token. Every 20 seconds the board summary sends each agent's recent activity to haiku (`s` turns it off). Both use the Anthropic API on your account. It sends no data anywhere else.
+- **Other sessions**: Handoff reads the list of open sessions and sends a message only to the session you select. If the two sessions have different permission modes, the receiving side must approve before it is delivered.
+- Usage limits and system status are fetched only while the band or pane is on screen.
 
 <Aside>
-Function hooks are an early access API. This mod was built and tested on 2.1.290. Its UI text is in Korean.
+Function hooks are an early access API. This mod was built and tested on Claude Code 2.1.290 to 2.1.294. Its UI text is in Korean.
 </Aside>
 
-- Repository and releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- Repository and releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases) (currently v0.7.1)
 - License: MIT (includes rhwp under MIT and pdf.js under Apache-2.0)

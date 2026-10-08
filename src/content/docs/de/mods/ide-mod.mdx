@@ -1,18 +1,18 @@
 ---
 title: ide-mod
-description: Eine Mod, die Agent-Board, Datei-Explorer und HWP-, HWPX- und PDF-Viewer in einem Fenster in Claude Code öffnet.
+description: Eine Mod, die Agent-Board, Datei-Explorer, HWP-, HWPX- und PDF-Viewer, Systemstatus sowie die Nutzungslimits von Claude, Codex und Antigravity in einem Fenster in Claude Code öffnet.
 sidebar:
   order: 3
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components'
 
-[ide-mod](https://github.com/jkf87/ide-mod) ist eine Mod, die der Autor dieses Guides veröffentlicht hat. Oben im Fenster sitzt das **Agent-Board**, unten der **Dateibaum mit Tab-Editor**.
+[ide-mod](https://github.com/jkf87/ide-mod) ist eine Mod, die der Autor dieses Guides veröffentlicht hat. Oben im Fenster sitzen der **Systemstatus und das Agent-Board**, unten der **Dateibaum mit Tab-Editor**. Über dem Eingabefeld erscheint ein **Band mit den Nutzungslimits von Claude, Codex und Antigravity**. Beim Öffnen einer neuen Session öffnet sich das Fenster von selbst.
 
 ```text
-에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+시스템  메모리 ███████░ 27.0GB/32.0GB · 압력 경고  스왑 22.9GB  디스크 ████████ 94% · 남은 102GB
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남   세션 3132694c  i: 핸드오프
 ● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
-  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
 ├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
 └─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
 ──────────────────────────────────────────────────────────────
@@ -20,11 +20,15 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 ▾ src/                        │  1 import { login } from './auth'
     ▾ auth/                ●  │  2
         login.ts           ●  │  3 export const answer = 42
+
+Claude       5시간 █░░░░░░░░░   9% 3시간 후   주간 ██████░░░░  64% 2일 23시간 후
+Codex        주간 ███░░░░░░░  27% 5일 13시간 후
+Antigravity  Gemini 5시간 ░░░░░░░░░░   3% 2시간 53분 후   Gemini 주간 █░░░░░░░░░   6%
 ```
 
-![ide-mod-Demo: IDE-Bereich, Code- und HWPX-Dokumentansicht, Subagenten-Board, Anfrageverlauf](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
-
 Die Oberfläche der Mod ist auf Koreanisch, deshalb zeigt der Ausschnitt oben koreanische Texte.
+
+![ide-mod-Demo: IDE-Bereich, Code- und HWPX-Dokumentansicht, Subagenten-Board, Anfrageverlauf](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
 
 ## Installation
 
@@ -38,26 +42,49 @@ Die Oberfläche der Mod ist auf Koreanisch, deshalb zeigt der Ausschnitt oben ko
 
 2. Fragt Claude Code, ob der Marketplace hinzugefügt werden soll, antworte mit `y` und wähle als Bereich user.
 
-3. Öffne das Fenster mit `/ide`. Ist es nicht zu sehen, führe `/reload-plugins` aus.
+3. In einer neuen Session öffnet sich das IDE-Fenster von selbst. In der aktuellen Session öffnest du es mit `/ide`. Ist es nicht zu sehen, führe `/reload-plugins` aus.
 
 </Steps>
 
+Gibt es eine neue Version, führe im Terminal `/reload-plugins` aus, in der Desktop-App `claude plugin update ide-mod@ide-mod`, und öffne dann eine neue Session. Die Desktop-App liest die Kopie, die bei der Installation angelegt wurde, deshalb wirkt das Update erst, wenn sie es geholt hat.
+
 ## Was sie kann
 
-- **Agent-Board:** Zeigt den Hauptagent und die Subagents als Baum, wer wen gestartet hat. Es zeigt Modell, effort, zugewiesene Aufgabe, aktuelle Tätigkeit und verstrichene Zeit. Die von Menschen lesbare Aufgabenbeschreibung ist grün, die aktuelle Tätigkeit gelb eingefärbt.
+- **Agent-Board:** Zeigt den Hauptagent und die Subagents als Baum, wer wen gestartet hat. Es zeigt Modell, effort, zugewiesene Aufgabe, aktuelle Tätigkeit und verstrichene Zeit. Aufgaben, die ein Mensch vergeben hat, sind grün, die aktuelle Tätigkeit ist gelb eingefärbt. Alle 20 Sekunden hängt haiku an jeden Agent eine einzeilige Zusammenfassung.
+- **Systemstatus** (ganz oben im Board): Zeigt Speicherauslastung und Speicherdruck, Swap und Festplattenbelegung in einer Zeile. Ist der Druck bei Warnung oder kritisch oder sind Swap oder Festplatte stark gefüllt, wechselt die Farbe zu Gelb oder Rot. Mit `z` siehst du die 6 Apps, die am meisten Speicher belegen.
+- **Limit-Band** (über dem Eingabefeld): Zeigt pro Quelle eine Zeile: Claudes 5-Stunden-, Wochen- und modellbezogene Wochenlimits samt Kontextauslastung, die Codex-Limits sowie die Gemini- und Claude/GPT-Limits von Antigravity. Über 70 % wird es gelb, über 90 % rot. `/limits compact` macht daraus eine Zeile, `/limits off` blendet es aus.
 - **Explorer:** Ordnerbaum und bis zu 8 Tabs. Syntax-Highlighting, Markdown-Rendering und eine Markierung `●` für Dateien, die Claude geändert hat.
 - **HWP-, HWPX- und PDF-Viewer:** Zeichnet Seiten mit [rhwp](https://github.com/edwardkim/rhwp) und [pdf.js](https://github.com/mozilla/pdf.js). In Terminals ohne Grafik zeigt er ein Zeichenraster, das Tabellenränder und Ausrichtung erhält, in Terminals der kitty- und Ghostty-Familie zeigt er die Seite als echtes Bild.
-- **Anfrageverlauf** (`q`): Sammelt die in dieser Session gesendeten Anfragen samt Status. Er bleibt auch nach dem erneuten Öffnen der Session erhalten.
+- **Anfrageverlauf** (`q`): Sammelt die in dieser Session von dir gesendeten Anfragen im vollen Wortlaut. Benachrichtigungen über Hintergrundaufgaben und Nachrichten anderer Sessions bleiben außen vor. Er bleibt auch nach dem erneuten Öffnen der Session erhalten, und mit `c` kopierst du alles.
+- **Handoff** (`i`): Im Board steht die Session-ID. Mit `i` siehst du die anderen gerade geöffneten Claude-Sessions und einen Handoff-Text (Session-ID, Pfad des Gesprächsprotokolls, der Befehl `claude --resume`, deine gesendeten Anfragen). Wählst du eine Session aus, geht der Text direkt dorthin; mit `c` kopierst du ihn und fügst ihn in einen anderen Agent wie Codex ein. Auch `/handoff <Session-Name> [Notiz]` sendet ihn.
 - **Vorlesungsuntertitel** (`/lecture`): Zeigt über dem Eingabefeld in einfachen Sätzen, was Claude gerade tut.
 - **Stil-Gate** (`/style-gate`): Zählt KI-typische Muster in koreanischen Texten und urteilt mit bestanden, Warnung oder Abbruch.
 
+## Befehle
+
+| Befehl | Was er tut |
+|---|---|
+| `/ide [Pfad]` | Öffnet das IDE-Fenster |
+| `/ide auto on\|off` | Legt fest, ob sich das Fenster in jeder neuen Session von selbst öffnet (standardmäßig an) |
+| `/open <Pfad>` | Öffnet einen Ordner oder eine Datei im Fenster |
+| `/limits [full\|compact\|off\|refresh]` | Ändert das Aussehen des Limit-Bands oder lädt es neu |
+| `/handoff [Session-Name] [Notiz]` | Zeigt den Handoff-Text oder sendet ihn an eine andere Session |
+| `/lecture [on\|off]` | Vorlesungsuntertitel |
+| `/style-gate [Datei\|on\|off]` | Stil-Gate |
+
 ## Zugriffsumfang
 
-Die Mod liest Dateien (Explorer und Viewer) und startet zum Zeichnen von Dokumenten Node.js und ein Bildkonvertierungsprogramm. Für die einzeilige Zusammenfassung im Board schickt sie alle 20 Sekunden die jüngste Agentenaktivität an haiku. Das ist standardmäßig an, mit `s` schaltest du es aus. Abgesehen von diesem Modellaufruf (Anthropic-API, über dein Konto) sendet sie keine Daten über das Netzwerk. Der Quellcode besteht aus einer einzigen Datei, `hooks/register.tsx`, du kannst ihn also vor der Installation komplett lesen.
+Nach der [Sicherheits-Checkliste](/de/guide/safety-checklist/) steht hier, worauf diese Mod zugreift.
+
+- **Dateien lesen:** Explorer und Dokument-Viewer lesen Dateien im Arbeitsordner. Der Handoff sucht den Pfad der Gesprächsprotokoll-Datei der Session.
+- **Programme starten:** Zum Zeichnen von Dokumenten startet sie Node.js und ein Bildkonvertierungsprogramm, für die Systemzeile `sysctl`, `vm_stat`, `df` und `ps`, für die Nutzungslimits `codex app-server` und `agy`. Codex und Antigravity fragen mit ihrem eigenen Login bei ihrem eigenen Dienst die Nutzung ab.
+- **Netzwerk:** Die Claude-Nutzungslimits holt sie jede Minute von der Nutzungs-API von Anthropic. Dafür dient das Credential-Handle der Session, der Token bleibt für die Mod unsichtbar. Die Board-Zusammenfassung schickt alle 20 Sekunden die jüngste Aktivität der Agents an haiku (mit `s` abschaltbar). Beides läuft über die Anthropic-API auf deinem Konto. Andere Daten gehen nirgendwohin.
+- **Andere Sessions:** Der Handoff liest die Liste der geöffneten Sessions und sendet nur an die ausgewählte Session eine Nachricht. Haben die beiden Sessions unterschiedliche Berechtigungsmodi, muss die empfangende Seite zustimmen, damit sie ankommt.
+- Nutzungslimits und Systemstatus werden nur geholt, solange das Band oder das Fenster auf dem Bildschirm zu sehen ist.
 
 <Aside>
-Function hooks sind eine Early-Access-API. Die Mod wurde mit 2.1.290 gebaut und getestet. Die Texte der Oberfläche sind auf Koreanisch.
+Function hooks sind eine Early-Access-API. Die Mod wurde mit Claude Code 2.1.290 bis 2.1.294 gebaut und getestet. Die Texte der Oberfläche sind auf Koreanisch.
 </Aside>
 
-- Repository und Releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- Repository und Releases: [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases) (aktuell v0.7.1)
 - Lizenz: MIT (rhwp MIT, pdf.js Apache-2.0 enthalten)

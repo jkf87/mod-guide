@@ -1,18 +1,18 @@
 ---
 title: ide-mod
-description: 在 Claude Code 里用一个窗口展示代理看板、文件浏览器、HWP·HWPX·PDF 查看器的 Mod。
+description: 在 Claude Code 里用一个窗口展示代理看板、文件浏览器、HWP·HWPX·PDF 查看器、系统状态，以及 Claude·Codex·Antigravity 使用额度的 Mod。
 sidebar:
   order: 3
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components'
 
-[ide-mod](https://github.com/jkf87/ide-mod) 是本指南的作者公开的 Mod。窗口上方是**代理看板**，下方是**文件树和标签页编辑器**。
+[ide-mod](https://github.com/jkf87/ide-mod) 是本指南的作者公开的 Mod。窗口上方是**系统状态和代理看板**，下方是**文件树和标签页编辑器**。输入框上方会显示 **Claude·Codex·Antigravity 使用额度条**。新开会话时，窗口会自动打开。
 
 ```text
-에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+시스템  메모리 ███████░ 27.0GB/32.0GB · 압력 경고  스왑 22.9GB  디스크 ████████ 94% · 남은 102GB
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남   세션 3132694c  i: 핸드오프
 ● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
-  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
 ├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
 └─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
 ──────────────────────────────────────────────────────────────
@@ -20,11 +20,15 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 ▾ src/                        │  1 import { login } from './auth'
     ▾ auth/                ●  │  2
         login.ts           ●  │  3 export const answer = 42
+
+Claude       5시간 █░░░░░░░░░   9% 3시간 후   주간 ██████░░░░  64% 2일 23시간 후
+Codex        주간 ███░░░░░░░  27% 5일 13시간 후
+Antigravity  Gemini 5시간 ░░░░░░░░░░   3% 2시간 53분 후   Gemini 주간 █░░░░░░░░░   6%
 ```
 
-![ide-mod 演示：IDE 窗格、代码与 HWPX 文档视图、子智能体看板、请求记录](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
-
 上面是 ide-mod 的真实界面，界面文字为韩语。
+
+![ide-mod 演示：IDE 窗格、代码与 HWPX 文档视图、子智能体看板、请求记录](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
 
 ## 安装
 
@@ -38,26 +42,49 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 
 2. 被问到是否添加插件市场时选 `y`，范围选 user。
 
-3. 用 `/ide` 打开窗口。看不到的话，运行 `/reload-plugins`。
+3. 新开会话时 IDE 窗口会自动打开。在当前会话里用 `/ide` 打开。看不到的话，运行 `/reload-plugins`。
 
 </Steps>
 
+有新版本时，在终端里运行 `/reload-plugins`，在桌面应用里运行 `claude plugin update ide-mod@ide-mod`，然后新开一个会话。桌面应用读取的是安装时生成的副本，必须把更新拉取下来才会生效。
+
 ## 它能做什么
 
-- **代理看板**：用树状结构显示主代理和子代理，以及谁启动了谁。会显示模型、effort、负责的任务、正在做的事和已用时间，其中便于人阅读的任务说明用绿色，正在做的事用黄色。
+- **代理看板**：用树状结构显示主代理和子代理，以及谁启动了谁。会显示模型、effort、负责的任务、正在做的事和已用时间，人交给它的任务用绿色，正在做的事用黄色。每 20 秒由 haiku 给每个代理加一行摘要。
+- **系统状态**（看板最上面）：用一行显示内存用量和内存压力、交换空间、磁盘使用率。压力为警告或危险，或者交换空间、磁盘快满时，会变成黄色或红色。按 `z` 会列出最占内存的 6 个应用。
+- **使用额度条**（输入框上方）：按来源各占一行，显示 Claude 的 5 小时、每周和各模型每周额度以及上下文使用率，Codex 的额度，Antigravity 的 Gemini 和 Claude/GPT 额度。超过 70% 变黄，超过 90% 变红。`/limits compact` 切成一行，`/limits off` 隐藏。
 - **浏览器**：文件夹树和最多 8 个标签页。语法高亮、Markdown 渲染，被 Claude 修改过的文件会带 `●` 标记。
 - **HWP·HWPX·PDF 查看器**：用 [rhwp](https://github.com/edwardkim/rhwp) 和 [pdf.js](https://github.com/mozilla/pdf.js) 绘制页面。在没有图形能力的终端里，也会用保留表格边框和对齐的字符网格来显示，在 kitty、Ghostty 系列终端里则会显示真实的页面图片。
-- **请求记录**（`q`）：连同状态一起记下本次会话中发送过的请求。重新打开会话后仍会保留。
+- **请求记录**（`q`）：把本次会话中你发送的请求原文收集起来。后台任务通知和其他会话的消息不会收进来。重新打开会话后仍会保留，按 `c` 可以全部复制。
+- **交接**（`i`）：看板上会显示会话 ID。按 `i` 会列出当前打开的其他 Claude 会话，以及交接文本（会话 ID、对话记录路径、`claude --resume` 命令、用户发送的请求）。选中某个会话就直接发给它，也可以按 `c` 复制后粘贴给 Codex 等其他代理。也可以用 `/handoff <会话名称> [备注]` 发送。
 - **讲课字幕**（`/lecture`）：用简单的句子在输入框上方显示 Claude 正在做的事。
 - **文风关卡**（`/style-gate`）：统计韩语稿件中的 AI 痕迹模式，判定通过、警告或中止。
 
+## 命令
+
+| 命令 | 作用 |
+|---|---|
+| `/ide [路径]` | 打开 IDE 窗口 |
+| `/ide auto on\|off` | 设置是否每次新会话都自动打开窗口（默认开启） |
+| `/open <路径>` | 在窗口中打开文件夹或文件 |
+| `/limits [full\|compact\|off\|refresh]` | 切换使用额度条的样式，或重新获取 |
+| `/handoff [会话名称] [备注]` | 显示交接文本，或发送给其他会话 |
+| `/lecture [on\|off]` | 讲课字幕 |
+| `/style-gate [文件\|on\|off]` | 文风关卡 |
+
 ## 访问范围
 
-这个 Mod 会读取文件（浏览器、查看器），并为了绘制文档而运行 Node.js 和图像转换程序。看板的一行摘要每 20 秒把智能体的近期活动发给 haiku 做摘要，默认开启，可以用 `s` 关掉。除了这次模型调用（用你自己账户的 Anthropic API），它不会通过网络发送数据。源码只有 `hooks/register.tsx` 一个文件，安装前可以全部读完。
+按照[安全检查清单](/zh-cn/guide/safety-checklist/)，列出这个 Mod 能触及的范围。
+
+- **读取文件**：浏览器和文档查看器会读取工作文件夹里的文件。交接会查找会话对话记录文件的路径。
+- **运行程序**：为了绘制文档，会运行 Node.js 和图像转换程序；为了系统状态行，会运行 `sysctl`、`vm_stat`、`df`、`ps`；为了使用额度，会运行 `codex app-server` 和 `agy`。Codex 和 Antigravity 用各自的登录向自己的服务查询用量。
+- **网络**：每分钟从 Anthropic 用量 API 获取一次 Claude 使用额度。它使用会话的凭据句柄，所以 Mod 看不到令牌。看板摘要每 20 秒把各代理的近期活动发给 haiku（按 `s` 可关闭）。两者用的都是你自己账户的 Anthropic API。除此之外不会向其他地方发送数据。
+- **其他会话**：交接会读取已打开的会话列表，只向你选中的会话发送消息。如果两个会话的权限模式不同，需要接收方批准后才会送达。
+- 使用额度和系统状态只在额度条或窗口显示在屏幕上时才会获取。
 
 <Aside>
-函数钩子 (function hooks) 是 early access API。本 Mod 是在 2.1.290 上制作和测试的。界面文字为韩语。
+函数钩子 (function hooks) 是 early access API。本 Mod 是在 Claude Code 2.1.290~2.1.294 上制作和测试的。界面文字为韩语。
 </Aside>
 
-- 仓库与发布：[github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- 仓库与发布：[github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)（当前 v0.7.1）
 - 许可证：MIT（包含 rhwp MIT、pdf.js Apache-2.0）

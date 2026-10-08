@@ -1,18 +1,18 @@
 ---
 title: ide-mod
-description: Un mod qui ouvre dans Claude Code, en un seul volet, un tableau des agents, un explorateur de fichiers et un lecteur HWP, HWPX et PDF.
+description: Un mod qui ouvre dans Claude Code, en un seul volet, un tableau des agents, un explorateur de fichiers, des lecteurs HWP, HWPX et PDF, l'état du système et les limites d'usage de Claude, Codex et Antigravity.
 sidebar:
   order: 3
 ---
 
 import { Aside, Steps } from '@astrojs/starlight/components'
 
-[ide-mod](https://github.com/jkf87/ide-mod) est un mod publié par l'auteur de ce guide. Le **tableau des agents** occupe le haut du volet, et l'**arborescence de fichiers avec éditeur à onglets** le bas.
+[ide-mod](https://github.com/jkf87/ide-mod) est un mod publié par l'auteur de ce guide. Le haut du volet affiche l'**état du système et le tableau des agents**, et le bas l'**arborescence de fichiers avec éditeur à onglets**. Au-dessus de la zone de saisie, une **bande des limites d'usage de Claude, Codex et Antigravity** apparaît. Le volet s'ouvre tout seul à chaque nouvelle session.
 
 ```text
-에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남
+시스템  메모리 ███████░ 27.0GB/32.0GB · 압력 경고  스왑 22.9GB  디스크 ████████ 94% · 남은 102GB
+에이전트 ● opus 5.5 1M · xhigh · 서브 1개 작업 중 / 1개 끝남   세션 3132694c  i: 핸드오프
 ● 메인  opus 5.5 1M · xhigh  작업 중 3m12s · 도구 14  로그인 버그 고쳐줘
-  요약 인증 흐름을 서브에이전트에 나눠 조사하는 중
 ├─ ● Explore  haiku 4.5  작업 중 34s · 도구 6  인증 코드 찾기
 └─ ✓ general-purpose  sonnet 5.5 · medium  완료 1m02s  테스트 작성
 ──────────────────────────────────────────────────────────────
@@ -20,7 +20,13 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 ▾ src/                        │  1 import { login } from './auth'
     ▾ auth/                ●  │  2
         login.ts           ●  │  3 export const answer = 42
+
+Claude       5시간 █░░░░░░░░░   9% 3시간 후   주간 ██████░░░░  64% 2일 23시간 후
+Codex        주간 ███░░░░░░░  27% 5일 13시간 후
+Antigravity  Gemini 5시간 ░░░░░░░░░░   3% 2시간 53분 후   Gemini 주간 █░░░░░░░░░   6%
 ```
+
+L'interface du mod est en coréen, comme dans la maquette ci-dessus.
 
 ![Démo d’ide-mod : volet IDE, code et document HWPX, tableau des sous-agents, historique des demandes](https://raw.githubusercontent.com/jkf87/ide-mod/main/docs/demo.gif)
 
@@ -36,26 +42,49 @@ my-project  1-24/57          │ ▎app.ts ●   README.md
 
 2. Quand on vous demande si vous voulez ajouter la place de marché, répondez `y`, puis choisissez la portée user.
 
-3. Ouvrez le volet avec `/ide`. S'il n'apparaît pas, lancez `/reload-plugins`.
+3. Dans une nouvelle session, le volet IDE s'ouvre tout seul. Dans la session en cours, ouvrez-le avec `/ide`. S'il n'apparaît pas, lancez `/reload-plugins`.
 
 </Steps>
 
+Quand une nouvelle version sort, lancez `/reload-plugins` dans le terminal, ou `claude plugin update ide-mod@ide-mod` dans l'application de bureau, puis ouvrez une nouvelle session. L'application de bureau lit la copie faite à l'installation : la mise à jour n'a d'effet qu'une fois récupérée.
+
 ## Ce qu'il fait
 
-- **Tableau des agents** : affiche sous forme d'arbre l'agent principal et les sous-agents, avec qui a lancé qui. Il indique le modèle, l'effort, la tâche confiée, l'action en cours et le temps écoulé ; la description de la tâche lisible par un humain est en vert et l'action en cours en jaune.
+- **Tableau des agents** : affiche sous forme d'arbre l'agent principal et les sous-agents, avec qui a lancé qui. Il indique le modèle, l'effort, la tâche confiée, l'action en cours et le temps écoulé ; les tâches confiées par un humain sont en vert et l'action en cours en jaune. Toutes les 20 secondes, haiku ajoute un résumé d'une ligne à chaque agent.
+- **État du système** (tout en haut du tableau) : affiche sur une ligne l'utilisation de la mémoire et sa pression, le swap et le taux d'occupation du disque. La couleur passe au jaune ou au rouge quand la pression est en alerte ou critique, ou quand le swap ou le disque est presque plein. La touche `z` affiche les 6 applications qui consomment le plus de mémoire.
+- **Bande des limites d'usage** (au-dessus de la zone de saisie) : affiche, une ligne par source, les limites de Claude sur 5 heures, par semaine et par semaine selon le modèle, ainsi que l'utilisation du contexte, les limites de Codex, et celles de Gemini et de Claude/GPT pour Antigravity. Au-delà de 70 %, elle passe au jaune, au-delà de 90 % au rouge. `/limits compact` la réduit à une ligne, `/limits off` la masque.
 - **Explorateur** : arborescence des dossiers et jusqu'à 8 onglets. Coloration syntaxique, rendu Markdown et marqueur `●` sur les fichiers modifiés par Claude.
 - **Lecteur HWP, HWPX et PDF** : dessine les pages avec [rhwp](https://github.com/edwardkim/rhwp) et [pdf.js](https://github.com/mozilla/pdf.js). Dans un terminal sans graphiques, il affiche une grille de caractères qui conserve les bordures de tableaux et l'alignement ; dans les terminaux de la famille kitty et Ghostty, il affiche une véritable image de la page.
-- **Historique des demandes** (`q`) : conserve, avec leur état, les demandes envoyées pendant la session. Il reste disponible quand vous rouvrez la session.
+- **Historique des demandes** (`q`) : rassemble in extenso les demandes envoyées par un humain pendant la session. Les notifications de tâches en arrière-plan et les messages d'autres sessions sont exclus. Il reste disponible quand vous rouvrez la session, et `c` copie le tout.
+- **Transfert** (`i`) : l'identifiant de session s'affiche sur le tableau. `i` ouvre la liste des autres sessions Claude actuellement ouvertes et un texte de transfert (identifiant de session, chemin de l'historique de conversation, commande `claude --resume`, demandes envoyées par l'utilisateur). Sélectionnez une session pour lui envoyer directement le texte, ou copiez-le avec `c` pour le coller dans un autre agent, comme Codex. `/handoff <nom de session> [note]` permet aussi de l'envoyer.
 - **Sous-titres de cours** (`/lecture`) : affiche au-dessus de la zone de saisie, en phrases simples, ce que fait Claude.
 - **Contrôle de style** (`/style-gate`) : compte les marques de texte généré par IA dans un manuscrit coréen et rend un verdict : réussite, avertissement ou arrêt.
 
+## Commandes
+
+| Commande | Ce qu'elle fait |
+|---|---|
+| `/ide [chemin]` | Ouvre le volet IDE |
+| `/ide auto on\|off` | Choisit si le volet s'ouvre tout seul à chaque nouvelle session (activé par défaut) |
+| `/open <chemin>` | Ouvre un dossier ou un fichier dans le volet |
+| `/limits [full\|compact\|off\|refresh]` | Change l'aspect de la bande des limites d'usage ou la recharge |
+| `/handoff [nom de session] [note]` | Affiche le texte de transfert ou l'envoie à une autre session |
+| `/lecture [on\|off]` | Sous-titres de cours |
+| `/style-gate [fichier\|on\|off]` | Contrôle de style |
+
 ## Portée d'accès
 
-Ce mod lit des fichiers (explorateur et lecteur) et exécute Node.js ainsi qu'un programme de conversion d'images pour dessiner les documents. Toutes les 20 secondes, le résumé en une ligne du tableau envoie l'activité récente des agents à haiku pour la résumer. Il est activé par défaut et `s` le désactive. Hormis cet appel au modèle (l'API d'Anthropic, sur votre compte), il n'envoie aucune donnée par le réseau. Son code source tient dans un seul fichier, `hooks/register.tsx`, que vous pouvez donc lire entièrement avant d'installer.
+Voici ce que ce mod peut atteindre, selon la [liste de contrôle de sécurité](/fr/guide/safety-checklist/).
+
+- **Lecture de fichiers** : l'explorateur et les lecteurs de documents lisent les fichiers du dossier de travail. Le transfert cherche le chemin du fichier d'historique de conversation de la session.
+- **Exécution de programmes** : pour dessiner les documents, il exécute Node.js et un programme de conversion d'images ; pour la ligne système, `sysctl`, `vm_stat`, `df` et `ps` ; pour les limites d'usage, `codex app-server` et `agy`. Codex et Antigravity interrogent leur propre service sur l'usage avec leur propre connexion.
+- **Réseau** : chaque minute, il récupère les limites d'usage de Claude auprès de l'API d'usage d'Anthropic. Il utilise le descripteur d'identifiants de la session, si bien que le mod ne voit jamais le jeton. Toutes les 20 secondes, le résumé du tableau envoie l'activité récente de chaque agent à haiku (`s` le désactive). Les deux passent par l'API d'Anthropic, sur votre compte. Aucune autre donnée n'est envoyée ailleurs.
+- **Autres sessions** : le transfert lit la liste des sessions ouvertes et n'envoie le message qu'à la session sélectionnée. Si les modes d'autorisation des deux sessions diffèrent, le destinataire doit approuver pour que le message arrive.
+- Les limites d'usage et l'état du système ne sont récupérés que lorsque la bande ou le volet est affiché à l'écran.
 
 <Aside>
-Les function hooks sont une API en accès anticipé (early access). Ce mod a été développé et testé sur la version 2.1.290. Les textes affichés à l'écran sont en coréen.
+Les function hooks sont une API en accès anticipé (early access). Ce mod a été développé et testé sur Claude Code 2.1.290 à 2.1.294. Les textes affichés à l'écran sont en coréen.
 </Aside>
 
-- Dépôt et versions : [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases)
+- Dépôt et versions : [github.com/jkf87/ide-mod](https://github.com/jkf87/ide-mod/releases) (actuellement v0.7.1)
 - Licence : MIT (inclut rhwp MIT et pdf.js Apache-2.0)
