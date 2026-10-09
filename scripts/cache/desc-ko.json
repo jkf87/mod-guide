@@ -2704,5 +2704,7 @@
  "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.": "Claude Code 프롬프트 위에 실시간 주식 시세 띠를 보여 줘요. Claude가 작업하는 동안 대만과 미국 시세를 확인해요.",
  "Follow your Codex CLI session live in a Claude Code pane; relay the current exchange to Claude, or Claude's answer to Codex, one keypress and one confirmation at a time.": "Claude Code 창에서 Codex CLI 세션을 실시간으로 따라가요. 현재 대화를 Claude에게, 또는 Claude의 답을 Codex에게 키 한 번과 확인 한 번으로 전달해요.",
  "One sentence: what the mod does and how you use it.": "이 Mod가 하는 일과 사용법을 한 문장으로 설명해요.",
- "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "프롬프트를 세션의 초안으로 따로 보관해요. 프롬프트 끝에 ;;를 붙이면 전송하지 않고 저장되고, /drafts로 입력창에 다시 불러와요."
+ "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "프롬프트를 세션의 초안으로 따로 보관해요. 프롬프트 끝에 ;;를 붙이면 전송하지 않고 저장되고, /drafts로 입력창에 다시 불러와요.",
+ "Guided review of a GitHub PR, GitLab MR or local branch: the diff grouped into ordered steps you page through in a pane": "GitHub PR, GitLab MR, 로컬 브랜치를 안내에 따라 리뷰해요. diff를 순서대로 나눈 단계로 묶어 패널에서 넘겨 가며 볼 수 있어요",
+ "Your GitHub work in a drawer: PRs waiting for your review, each summarized in plain language, your open PRs with their reviews, and your issues": "내 GitHub 작업을 서랍 하나에: 리뷰를 기다리는 PR(쉬운 말로 요약), 리뷰가 달린 내 열린 PR, 내 이슈를 보여 줘요"
 }

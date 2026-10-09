@@ -2704,5 +2704,7 @@
  "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.": "Claude Codeのプロンプト上にリアルタイム株価バンドを表示します。Claudeの作業中に台湾と米国の株価をチェックできます。",
  "Follow your Codex CLI session live in a Claude Code pane; relay the current exchange to Claude, or Claude's answer to Codex, one keypress and one confirmation at a time.": "Claude CodeのペインでCodex CLIセッションをリアルタイムに追えます。現在のやり取りをClaudeへ、またはClaudeの回答をCodexへ、キー1回と確認1回で中継します。",
  "One sentence: what the mod does and how you use it.": "このModが何をするか、どう使うかを1文で説明します。",
- "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "プロンプトをセッションの下書きとして取っておけます。プロンプトの末尾に;;を付けると送信せずに保存され、/draftsで入力欄に戻せます。"
+ "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "プロンプトをセッションの下書きとして取っておけます。プロンプトの末尾に;;を付けると送信せずに保存され、/draftsで入力欄に戻せます。",
+ "Guided review of a GitHub PR, GitLab MR or local branch: the diff grouped into ordered steps you page through in a pane": "GitHub PR、GitLab MR、ローカルブランチをガイド付きでレビューします。diffを順序立てたステップにまとめ、ペイン上でページ送りしながら確認できます",
+ "Your GitHub work in a drawer: PRs waiting for your review, each summarized in plain language, your open PRs with their reviews, and your issues": "GitHubでの作業をドロワーにまとめて表示します。レビュー待ちのPR(わかりやすい言葉で要約)、レビュー付きの自分のオープンPR、自分のIssueを確認できます"
 }

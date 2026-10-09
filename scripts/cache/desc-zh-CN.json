@@ -2704,5 +2704,7 @@
  "Live stock ticker band above the Claude Code prompt: watch Taiwan and US quotes while Claude works.": "在 Claude Code 提示符上方显示实时股票行情条：Claude 工作时即可查看台股和美股报价。",
  "Follow your Codex CLI session live in a Claude Code pane; relay the current exchange to Claude, or Claude's answer to Codex, one keypress and one confirmation at a time.": "在 Claude Code 面板中实时跟随你的 Codex CLI 会话；只需按一次键并确认一次，即可把当前对话转发给 Claude，或把 Claude 的回答转发给 Codex。",
  "One sentence: what the mod does and how you use it.": "用一句话说明这个 Mod 的功能和用法。",
- "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "把提示词作为会话草稿保存起来。在提示词末尾输入 ;; 即可保存而不发送，之后用 /drafts 将其放回输入框。"
+ "Keep prompts aside as drafts of the session. End a prompt with ;; to save it instead of sending it, then /drafts to put one back in the prompt box.": "把提示词作为会话草稿保存起来。在提示词末尾输入 ;; 即可保存而不发送，之后用 /drafts 将其放回输入框。",
+ "Guided review of a GitHub PR, GitLab MR or local branch: the diff grouped into ordered steps you page through in a pane": "引导式审查 GitHub PR、GitLab MR 或本地分支：将 diff 按顺序分组为多个步骤，可在面板中逐页浏览",
+ "Your GitHub work in a drawer: PRs waiting for your review, each summarized in plain language, your open PRs with their reviews, and your issues": "抽屉式查看你的 GitHub 工作：等待你审查的 PR（以通俗语言逐一总结）、你已打开的 PR 及其评审，以及你的 issue"
 }
