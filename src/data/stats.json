@@ -1,17 +1,17 @@
 {
-  "generated": "2026-10-20T16:27:43.685Z",
-  "claudeVersion": "2.1.304",
-  "total": 5642,
-  "warnings": 777,
-  "repos": 2863,
+  "generated": "2026-10-22T06:15:55.147Z",
+  "claudeVersion": "2.1.308",
+  "total": 5799,
+  "warnings": 803,
+  "repos": 2949,
   "byCategory": {
-    "agents": 352,
-    "interface": 1011,
-    "safety": 662,
-    "other": 1252,
-    "memory": 452,
-    "usage": 1233,
-    "git": 480,
-    "fun": 200
+    "agents": 359,
+    "interface": 1045,
+    "safety": 677,
+    "other": 1281,
+    "memory": 467,
+    "usage": 1270,
+    "git": 496,
+    "fun": 204
   }
 }
