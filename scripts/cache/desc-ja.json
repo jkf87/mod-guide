@@ -6378,5 +6378,10 @@
  "When a reply does not start with your marker emoji (CLAUDE_REPLY_MARKER), asks Claude to check that reply against CLAUDE.md and fix what slipped.": "返信があなたのマーカー絵文字（CLAUDE_REPLY_MARKER）で始まっていないとき、その返信を CLAUDE.md と照らして確認し、漏れを修正するよう Claude に依頼します。",
  "A pane that shows what Claude has done for you: tasks finished, an estimate of the hours that saved you, and what that time is worth. Tabs for Today, Week, Month and Year. /work-report opens it.": "Claude があなたのために行ったことを示すペイン：完了したタスク、節約できた時間の見積もり、その時間の価値。今日・週・月・年のタブがあります。/work-report で開きます。",
  "Context-window band above the prompt with RTK token savings and a clickable pixel Yemeni companion whose mood follows how much context is left": "RTK のトークン節約量を表示するプロンプト上のコンテキストウィンドウバンドと、残りのコンテキスト量で気分が変わる、クリックできるピクセルのイエメン人の相棒",
- "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "サイドで動く 2 つ目のエージェントが Claude の直前の作業を読み、見落としそうなことをプロンプト上のメモとして知らせます。/should-know で切り替えます。"
+ "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "サイドで動く 2 つ目のエージェントが Claude の直前の作業を読み、見落としそうなことをプロンプト上のメモとして知らせます。/should-know で切り替えます。",
+ "Live football in Claude Code for the competition you follow: the score or the countdown above the prompt (the same line on demand with /claudinho), a toast that says what happened (a goal and its scorer, full time and the result), a goal…": "応援している大会のサッカーを Claude Code でライブ観戦できます。プロンプトの上にスコアやカウントダウンを表示し（同じ行は /claudinho でいつでも表示可能）、ゴールと得点者、試合終了と結果をトーストで知らせます。ゴール…",
+ "Colors Claude's replies by meaning and makes the session easier to follow, every aid behind its own flag": "Claudeの返信を意味ごとに色分けして、セッションを追いやすくする Mod です。各補助機能はそれぞれ専用のフラグで切り替えられます",
+ "Clickable suggested replies under Claude's last message": "Claudeの最後のメッセージの下に、クリックできる返信候補を表示します",
+ "A TikTok-style feed of pixel art mini-videos to scroll while Claude is answering: like, scroll, and watch Claude finish.": "Claudeの応答を待つ間にスクロールして楽しめる、TikTok風のピクセルアート ミニ動画フィードです。いいねして、スクロールして、Claudeの完了を見届けましょう。",
+ "Enhance your prompts using project instructions and skills": "プロジェクトの指示とスキルを使ってプロンプトを改善します"
 }

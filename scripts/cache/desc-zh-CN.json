@@ -6378,5 +6378,10 @@
  "When a reply does not start with your marker emoji (CLAUDE_REPLY_MARKER), asks Claude to check that reply against CLAUDE.md and fix what slipped.": "当回复不以你的标记表情（CLAUDE_REPLY_MARKER）开头时，要求 Claude 对照 CLAUDE.md 检查该回复并修正遗漏之处。",
  "A pane that shows what Claude has done for you: tasks finished, an estimate of the hours that saved you, and what that time is worth. Tabs for Today, Week, Month and Year. /work-report opens it.": "一个显示 Claude 为你做了什么的面板：完成的任务、为你节省的小时数估算，以及这些时间的价值。设有今日、本周、本月和今年标签页。/work-report 打开它。",
  "Context-window band above the prompt with RTK token savings and a clickable pixel Yemeni companion whose mood follows how much context is left": "提示框上方的上下文窗口横条，附 RTK token 节省量，以及一个可点击的像素也门小伙伴，其心情随剩余上下文而变化",
- "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "旁边的第二个代理会读取 Claude 刚做的事，并以提示框上方便笺的形式标出你可能错过的内容。用 /should-know 开关。"
+ "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "旁边的第二个代理会读取 Claude 刚做的事，并以提示框上方便笺的形式标出你可能错过的内容。用 /should-know 开关。",
+ "Live football in Claude Code for the competition you follow: the score or the countdown above the prompt (the same line on demand with /claudinho), a toast that says what happened (a goal and its scorer, full time and the result), a goal…": "在 Claude Code 中实时观看你关注的赛事足球比赛：提示符上方显示比分或倒计时（也可用 /claudinho 随时显示同一行），并通过提示消息告知赛况（进球及进球者、全场结束及比分）。进球…",
+ "Colors Claude's replies by meaning and makes the session easier to follow, every aid behind its own flag": "按含义为 Claude 的回复着色，让会话更易于跟读，每项辅助功能都由各自独立的开关控制",
+ "Clickable suggested replies under Claude's last message": "在 Claude 最后一条消息下方显示可点击的建议回复",
+ "A TikTok-style feed of pixel art mini-videos to scroll while Claude is answering: like, scroll, and watch Claude finish.": "在 Claude 回答期间可以刷的 TikTok 风格像素艺术迷你视频流：点赞、刷视频，看着 Claude 完成任务。",
+ "Enhance your prompts using project instructions and skills": "利用项目说明和技能来优化你的提示词"
 }

@@ -6378,5 +6378,10 @@
  "When a reply does not start with your marker emoji (CLAUDE_REPLY_MARKER), asks Claude to check that reply against CLAUDE.md and fix what slipped.": "답변이 당신의 마커 이모지(CLAUDE_REPLY_MARKER)로 시작하지 않으면, Claude에게 그 답변을 CLAUDE.md와 대조해 놓친 부분을 고치라고 요청해요.",
  "A pane that shows what Claude has done for you: tasks finished, an estimate of the hours that saved you, and what that time is worth. Tabs for Today, Week, Month and Year. /work-report opens it.": "Claude가 당신을 위해 한 일을 보여 주는 패널이에요. 끝낸 작업, 그 덕에 아낀 시간 추정치, 그 시간의 가치를 보여 줘요. 오늘, 주, 월, 연 탭이 있어요. /work-report로 열어요.",
  "Context-window band above the prompt with RTK token savings and a clickable pixel Yemeni companion whose mood follows how much context is left": "프롬프트 위 컨텍스트 윈도 밴드에 RTK 토큰 절약량과, 남은 컨텍스트에 따라 기분이 바뀌는 클릭 가능한 픽셀 예멘 친구가 있어요",
- "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "옆에서 두 번째 에이전트가 Claude가 방금 한 일을 읽고, 놓칠 만한 것을 프롬프트 위 노트로 알려 줘요. /should-know로 켜고 꺼요."
+ "A second agent on the side reads what Claude just did and flags anything you might miss, as a note above the prompt. Toggle with /should-know.": "옆에서 두 번째 에이전트가 Claude가 방금 한 일을 읽고, 놓칠 만한 것을 프롬프트 위 노트로 알려 줘요. /should-know로 켜고 꺼요.",
+ "Live football in Claude Code for the competition you follow: the score or the countdown above the prompt (the same line on demand with /claudinho), a toast that says what happened (a goal and its scorer, full time and the result), a goal…": "좋아하는 대회의 축구 경기를 Claude Code에서 실시간으로 봐요. 프롬프트 위에 스코어나 카운트다운이 표시되고(같은 줄을 /claudinho로 바로 볼 수도 있어요), 골과 득점자, 경기 종료와 결과를 알려 주는 토스트가 떠요. 골…",
+ "Colors Claude's replies by meaning and makes the session easier to follow, every aid behind its own flag": "Claude의 답변을 의미에 따라 색으로 구분해 세션을 더 쉽게 따라갈 수 있어요. 모든 보조 기능은 각각 별도의 플래그로 켜고 꺼요",
+ "Clickable suggested replies under Claude's last message": "Claude의 마지막 메시지 아래에 클릭할 수 있는 추천 답장을 보여 줘요",
+ "A TikTok-style feed of pixel art mini-videos to scroll while Claude is answering: like, scroll, and watch Claude finish.": "Claude가 답하는 동안 스크롤해서 볼 수 있는 틱톡 스타일의 픽셀 아트 미니 영상 피드예요. 좋아요를 누르고, 스크롤하고, Claude가 끝내는 걸 지켜보세요.",
+ "Enhance your prompts using project instructions and skills": "프로젝트 지침과 스킬을 활용해 프롬프트를 더 좋게 다듬어 줘요"
 }
