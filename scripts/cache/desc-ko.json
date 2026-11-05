@@ -7751,5 +7751,7 @@
  "Status line showing remaining 5h and 7d rate-limit usage, with the 5h reset countdown": "남은 5시간 및 7일 사용 한도와 5시간 초기화 카운트다운을 보여 주는 상태 줄",
  "🎰 Every prompt is a spin. A PS1-style roulette that pops up while Claude Code thinks. You can lose 100%, but you could also win infinity (in fake coins only).": "🎰 프롬프트마다 한 판이에요. Claude Code가 생각하는 동안 뜨는 PS1 스타일 룰렛이에요. 100%를 잃을 수도 있지만 무한대를 딸 수도 있어요(가짜 코인으로만).",
  "VULYK pulse: a live swarm row with the task timer and the tokens of every agent": "VULYK 펄스: 작업 타이머와 모든 에이전트의 토큰을 보여 주는 실시간 스웜 행",
- "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "프롬프트 위의 플랜: 페이지의 점 블록, 노드 하나는 패킷 하나, 그 클래스는 상태, 툴팁은 완료 조건"
+ "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "프롬프트 위의 플랜: 페이지의 점 블록, 노드 하나는 패킷 하나, 그 클래스는 상태, 툴팁은 완료 조건",
+ "Shows one summary line per file instead of the diff under Edit, Write, NotebookEdit and file-changing Bash calls": "Edit, Write, NotebookEdit, 파일을 바꾸는 Bash 호출 아래에 diff 대신 파일당 한 줄 요약을 보여 줘요",
+ "Claude does what you ask, so ask well. Press ctrl+q on a rough draft and prompt-ladder writes a well-built prompt from your session's own context, at the cost you pick: quick, balanced or deep.": "Claude는 요청한 대로 움직이니 잘 요청해야 해요. 대충 쓴 초안에서 ctrl+q를 누르면 prompt-ladder가 세션의 맥락을 바탕으로 잘 짜인 프롬프트를 써 줘요. 비용은 빠르게, 균형, 깊게 중에서 골라요."
 }

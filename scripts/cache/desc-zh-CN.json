@@ -7751,5 +7751,7 @@
  "Status line showing remaining 5h and 7d rate-limit usage, with the 5h reset countdown": "状态栏显示 5 小时和 7 天速率限制的剩余用量，以及 5 小时重置倒计时",
  "🎰 Every prompt is a spin. A PS1-style roulette that pops up while Claude Code thinks. You can lose 100%, but you could also win infinity (in fake coins only).": "🎰 每条 prompt 都是一次转盘。Claude Code 思考时弹出的 PS1 风格轮盘。你可能输掉 100%，也可能赢得无限（仅限虚拟币）。",
  "VULYK pulse: a live swarm row with the task timer and the tokens of every agent": "VULYK pulse：实时蜂群行，显示任务计时器和每个智能体的 token",
- "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "输入框上方的计划：一个页面的点块，一个节点是一个数据包，其类别是状态，其提示是完成条件"
+ "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "输入框上方的计划：一个页面的点块，一个节点是一个数据包，其类别是状态，其提示是完成条件",
+ "Shows one summary line per file instead of the diff under Edit, Write, NotebookEdit and file-changing Bash calls": "在 Edit、Write、NotebookEdit 以及会修改文件的 Bash 调用下方，每个文件只显示一行摘要，而不是 diff",
+ "Claude does what you ask, so ask well. Press ctrl+q on a rough draft and prompt-ladder writes a well-built prompt from your session's own context, at the cost you pick: quick, balanced or deep.": "Claude 会照你说的去做，所以要问得好。在草稿上按 ctrl+q，prompt-ladder 就会根据会话上下文写出一条结构完善的提示词，成本由你选择：quick、balanced 或 deep。"
 }

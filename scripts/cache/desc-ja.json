@@ -7751,5 +7751,7 @@
  "Status line showing remaining 5h and 7d rate-limit usage, with the 5h reset countdown": "5時間と7日間のレート制限の残り使用量と、5時間のリセットまでのカウントダウンを表示するステータスライン",
  "🎰 Every prompt is a spin. A PS1-style roulette that pops up while Claude Code thinks. You can lose 100%, but you could also win infinity (in fake coins only).": "🎰 プロンプトごとにスピン。Claude Codeが考えている間にポップアップするPS1風のルーレット。100%失うこともありますが、無限に勝つこともできます(偽のコインだけの話です)。",
  "VULYK pulse: a live swarm row with the task timer and the tokens of every agent": "VULYKパルス: タスクタイマーと各エージェントのトークンを表示するライブのスウォーム行",
- "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "プロンプト上のプラン: ページのドットブロック、1ノードが1パケット、そのクラスが状態、ツールチップが完了条件"
+ "The plan above the prompt: a page's dot block, one node a packet, its class the state, its tooltip the done-when": "プロンプト上のプラン: ページのドットブロック、1ノードが1パケット、そのクラスが状態、ツールチップが完了条件",
+ "Shows one summary line per file instead of the diff under Edit, Write, NotebookEdit and file-changing Bash calls": "Edit、Write、NotebookEdit、ファイルを変更するBash呼び出しの下に、diffの代わりにファイルごとの要約を1行で表示します",
+ "Claude does what you ask, so ask well. Press ctrl+q on a rough draft and prompt-ladder writes a well-built prompt from your session's own context, at the cost you pick: quick, balanced or deep.": "Claudeは頼んだとおりに動くので、上手に頼むことが大切です。下書きの段階でctrl+qを押すと、prompt-ladderがセッションの文脈からよくできたプロンプトを書きます。コストは「quick」「balanced」「deep」から選べます。"
 }
